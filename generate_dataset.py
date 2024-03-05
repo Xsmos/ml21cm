@@ -35,6 +35,10 @@ except ImportError:
     rank = 0
     size = 1
 
+str_pad_len = 80
+str_pad_type = '-'
+cache_direc = "_cache" + str(rank)
+
 class Coevals():
     def __init__(self, params_ranges, **kwargs):
         """
@@ -68,19 +72,19 @@ class Coevals():
                 self._params_ranges[key] = [value]
 
     def print_kwargs_params(self):
-        if self.kwargs['verbose'] >= 0:
-            print(f" Mission: Generate {self.kwargs['num_images']} images ".center(self.kwargs['str_pad_len'], '#'))#, self.kwargs['str_pad_type']))
-            print(f"params:".center(int(self.kwargs['str_pad_len']/2),self.kwargs['str_pad_type'])+f"ranges:".center(int(self.kwargs['str_pad_len']/2),self.kwargs['str_pad_type']))
-            for key in self.params_ranges:
-                print(f"{key}".center(int(self.kwargs['str_pad_len']/2))+f"[{self.params_ranges[key][0]}, {self.params_ranges[key][-1]}]".center(int(self.kwargs['str_pad_len']/2)))
-            # print(f"params_ranges = {self.params_ranges}".center(self.kwargs['str_pad_len'], self.kwargs['str_pad_type']))
-        
         if self.kwargs['verbose'] >= 1:
-            # print(f"**kwargs will be passed to qmc.LatinHypercube".center(self.kwargs['str_pad_len'], self.kwargs['str_pad_type']))
-            print(f"kwargs:".center(int(self.kwargs['str_pad_len']/2), self.kwargs['str_pad_type'])+f"values:".center(int(self.kwargs['str_pad_len']/2),self.kwargs['str_pad_type']))
+            print(f" Mission: Generate {self.kwargs['num_images']} images by {size}*{len(os.sched_getaffinity(os.getpid()))} CPUs ".center(str_pad_len, '#'))#, str_pad_type))
+            print(f"params:".center(int(str_pad_len/2),str_pad_type)+f"ranges:".center(int(str_pad_len/2),str_pad_type))
+            for key in self.params_ranges:
+                print(f"{key}".center(int(str_pad_len/2))+f"[{self.params_ranges[key][0]}, {self.params_ranges[key][-1]}]".center(int(str_pad_len/2)))
+            # print(f"params_ranges = {self.params_ranges}".center(str_pad_len, str_pad_type))
+        
+        if self.kwargs['verbose'] >= 2:
+            # print(f"**kwargs will be passed to qmc.LatinHypercube".center(str_pad_len, str_pad_type))
+            print(f"kwargs:".center(int(str_pad_len/2), str_pad_type)+f"values:".center(int(str_pad_len/2),str_pad_type))
             
             for key in self.kwargs:
-                print(f"{key}".center(int(self.kwargs['str_pad_len']/2))+f"{self.kwargs[key]}".center(int(self.kwargs['str_pad_len']/2)))
+                print(f"{key}".center(int(str_pad_len/2))+f"{self.kwargs[key]}".center(int(str_pad_len/2)))
 
 
     def define_kwargs(self, kwargs):
@@ -88,11 +92,9 @@ class Coevals():
             # local params for Coevals.__init__()
             num_images = 9,
             fields = ['brightness_temp', 'hires_density'],
-            verbose = 1,
+            verbose = 2,
             seed = None,
-            cache_direc = "_cache",
-            str_pad_len = 80,
-            str_pad_type = '-',
+            # cache_direc = "_cache",
 
             # strength param of scipy.stats.qmc.LatinHypercube():
             strength = 1,
@@ -120,33 +122,38 @@ class Coevals():
 
         if type(self.kwargs['redshift']) != list:
             self.kwargs['redshift'] = [self.kwargs['redshift']]
+        if type(self.kwargs['fields']) != list:
+            self.kwargs['fields'] = [self.kwargs['fields']]
+ 
+        if self.kwargs['num_images'] < size:
+            if self.kwargs['verbose'] > 0: print("num_images must be >= the number of nodes.")
+            self.kwargs['num_images'] = size
 
-        # print("self.kwargs =", self.kwargs)        
-
-        if not os.path.exists(self.kwargs['cache_direc']) and rank == 0:
-            os.mkdir(self.kwargs['cache_direc'])
-        p21c.config['direc'] = self.kwargs['cache_direc']
+        if not os.path.exists(cache_direc):
+            os.mkdir(cache_direc)
+        p21c.config['direc'] = cache_direc
 
     def sample_normalized_params(self):
         """
         sample and scatter to other nodes
         """
         # dimension=len(self.params_ranges), num_images=self.kwargs['num_images']
+        np.random.seed(self.kwargs['seed'])
         if rank == 0:
-            np.random.seed(self.kwargs['seed'])
+            # np.random.seed(self.kwargs['seed'])
             sampler = qmc.LatinHypercube(d=len(self.params_ranges), strength=self.kwargs['strength'], seed=np.random.default_rng(self.kwargs['seed']))
             sample = sampler.random(n=self.kwargs['num_images'])
             #send_data = sample[:int(sample.shape[0]//size * size),:]
             #send_data = send_data.reshape(size, int(send_data.shape[0]/size), send_data.shape[1])
             send_data = np.array_split(sample, size, axis=0)
 
-            if self.kwargs['verbose'] >= 1:
-                print(f"Process {rank} scatters data {sample.shape} to {size} nodes".center(self.kwargs['str_pad_len'],self.kwargs['str_pad_type']))
+            if self.kwargs['verbose'] >= 2:
+                print(f"Process {rank} scatters data {sample.shape} to {size} nodes".center(str_pad_len,str_pad_type))
         else:
             send_data = None
         recv_data = comm.scatter(send_data, root=0)
-        #if self.kwargs['verbose'] >= 1:
-        #    print(f"Process {rank} recvs data {recv_data.shape}".center(self.kwargs['str_pad_len']))#, self.kwargs['str_pad_type']))
+        #if self.kwargs['verbose'] >= 2:
+        #    print(f"Process {rank} recvs data {recv_data.shape}".center(str_pad_len))#, str_pad_type))
 
         return recv_data
 
@@ -188,19 +195,20 @@ class Coevals():
         dict_cpu = self.coevals2dict(coevals_cpu)
 
         # Clear cache
-        cache_pattern = os.path.join(self.kwargs['cache_direc'], f"*r{random_seed}.h5")
+        cache_pattern = os.path.join(cache_direc, f"*r{random_seed}.h5")
         for filename in glob.glob(cache_pattern):
             # print(filename)
             os.remove(filename)
-        if len(os.listdir(self.kwargs['cache_direc'])) == 0:
-            os.rmdir(self.kwargs['cache_direc'])
+        #if len(os.listdir(cache_direc)) == 0:
+        #    os.rmdir(cache_direc)
 
         run_coeval_end = time.perf_counter()
         
         time_elapsed = time.strftime("%M:%S", time.gmtime(run_coeval_end - run_coeval_start))
         # time_elapsed = run_coeval_end - run_coeval_start
         
-        if self.kwargs['verbose'] > 1:
+        #print("verbose =", self.kwargs['verbose']) 
+        if self.kwargs['verbose'] > 2:
             print(f'{time_elapsed}, cpu {pid_cpu}-{rank}-{multiprocessing.parent_process().pid}, params {list(params_cpu.values())}, seed {random_seed}')
         #print("os.getpid", os.getpid(), "multiprocessing.parent_process().pid", multiprocessing.parent_process().pid, "multiprocessing.current_process().pid", multiprocessing.current_process().pid)
 
@@ -225,8 +233,8 @@ class Coevals():
         pid_node = os.getpid()
         CPU_num = len(os.sched_getaffinity(pid_node))
         
-        if self.kwargs['verbose'] >= 1:
-            print(f"node {rank}-{pid_node}: {CPU_num} CPUs, params.shape {np.array(list(self.params_node.values())).T.shape}".center(self.kwargs['str_pad_len'],self.kwargs['str_pad_type']))
+        if self.kwargs['verbose'] >= 2:
+            print(f"node {rank}-{pid_node}: {CPU_num} CPUs, params.shape {np.array(list(self.params_node.values())).T.shape}".center(str_pad_len,str_pad_type))
 
         # run p21c.run_coeval in parallel on multi-CPUs
         Pool_start = time.perf_counter()
@@ -234,6 +242,7 @@ class Coevals():
         with Pool(CPU_num) as p:
             iterable = np.array(list(self.params_node.values()))
             #print(iterable)
+            # np.random.seed(self.kwargs['seed'])
             random_seeds = np.random.randint(1,2**32, size = iterable.shape[-1])
             iterable = np.vstack((iterable, random_seeds)).T
             #print(iterable)
@@ -250,21 +259,24 @@ class Coevals():
         for field in self.kwargs['fields']:
             images_all[field] = comm.gather(images_node[field], root=0)
         #print("images_all:", images_all)
-        params_all = comm.gather(np.array(list(self.params_node.values())).T, root=0)
-        #print("params_all:", params_all)
+        params_seeds = comm.gather(iterable, root=0)
+        #print("params_seeds:", params_seeds)
 
         if rank == 0:
             for i, field in enumerate(self.kwargs['fields']):
-                #print("shape(images_all[field])", np.shape(images_all[field]))
+                #print("images_all[field]", images_all[field])
                 images_all[field] = np.concatenate(images_all[field], axis=0)
-            params_all = np.concatenate(params_all, axis=0)
-            self.save(images_all, params_all, save_direc_name)
+            params_seeds = np.concatenate(params_seeds, axis=0)
+            self.save(images_all, params_seeds, save_direc_name)
+
+        if len(os.listdir(cache_direc)) == 0:
+            os.rmdir(cache_direc)
 
         # save images, params as .h5 file
         # self.save(images_node, params=np.array(list(self.params_node.values())).T, save_direc_name=save_direc_name)
 
-        if self.kwargs['verbose'] >= 0:
-            print(f"{time_elapsed}, node {rank}-{pid_node}: {images_node_nbytes/1024**2:.0f} MB images {[np.shape(images) for images in images_node.values()]} -> {os.path.basename(save_direc_name)}".center(self.kwargs['str_pad_len'],self.kwargs['str_pad_type']))
+        if self.kwargs['verbose'] >= 1:
+            print(f"{time_elapsed}, node {rank}-{pid_node}: {images_node_nbytes/1024**2:.0f} MB images {[np.shape(images) for images in images_node.values()]} -> {os.path.basename(save_direc_name)}".center(str_pad_len,str_pad_type))
         #print("os.getpid", os.getpid(), "multiprocessing.current_process().pid", multiprocessing.current_process().pid)
         #return images_node, self.params_node, rank
 
@@ -295,7 +307,7 @@ class Coevals():
         return images_node, images_node_nbytes
 
     # Save as hdf5
-    def save(self, images_node, params, save_direc_name):
+    def save(self, images_node, params_seeds, save_direc_name):
         # if os.path.exists(save_direc_name):
         #     os.remove(save_direc_name)
         # HII_DIM = images.shape[-1]
@@ -306,22 +318,25 @@ class Coevals():
         #    fd = f.id.get_vfd_handle()
         #    fcntl.flock(fd, fcntl.LOCK_EX)
             if 'kwargs' not in f.keys():
-                grp = f.create_group('kwargs')
-                grp['keys'] = list(self.kwargs)
-                grp['values'] = [str(value) for value in self.kwargs.values()]
+                #grp = f.create_group('kwargs')
+                keys = list(self.kwargs)
+                values = [str(value) for value in self.kwargs.values()]
+                data = np.transpose(list((keys, values)))
+                data = data.tolist()
+                f.create_dataset('kwargs', data=data)
 
-            if 'params' not in f.keys():
-                grp = f.create_group('params')
-                grp['keys'] = list(self.params_ranges)
+            if 'params_seeds' not in f.keys():
+                grp = f.create_group('params_seeds') 
+                grp['keys'] = list(self.params_ranges) + ['seed']
                 grp.create_dataset(
                     'values',
-                    data = params,
-                    maxshape = tuple((None,) + params.shape[1:]),
+                    data = params_seeds,
+                    maxshape = tuple((None,) + params_seeds.shape[1:]),
                     )
             else:
-                new_size = f['params']['values'].shape[0] + params.shape[0]
-                f['params']['values'].resize(new_size, axis=0)
-                f['params']['values'][-params.shape[0]:] = params
+                new_size = f['params_seeds']['values'].shape[0] + params_seeds.shape[0]
+                f['params_seeds']['values'].resize(new_size, axis=0)
+                f['params_seeds']['values'][-params_seeds.shape[0]:] = params_seeds
 
             for field in self.kwargs['fields']:
                 images = images_node[field]
@@ -346,28 +361,28 @@ if __name__ == '__main__':
 
     params_ranges = dict(
         ION_Tvir_MIN = [4,6],
-        #HII_EFF_FACTOR = [10, 250],
+        HII_EFF_FACTOR = [10, 250],
         )
     kwargs = dict(
-        seed = 1, fields = ['brightness_temp'],
-        HII_DIM=30, BOX_LEN=45,
-        verbose=2, redshift=[8,10]
+        seed = 1, fields = 'brightness_temp',
+        HII_DIM=64, BOX_LEN=100,
+        verbose=3, redshift=[8,10]
         )
-    generator = Coevals(params_ranges, num_images=19, **kwargs)
+    generator = Coevals(params_ranges, num_images=32, **kwargs)
     generator.run(save_direc_name=os.path.join(save_direc, "train.h5"))
 
     # testing set, (5*800, 64, 64, 64)
-    params_list = [(4.4,131.341),(5.6,19.037)]#, (4.699,30), (5.477,200), (4.8,131.341)]
+    params_list = [(4.4,131.341),(5.6,19.037), (4.699,30), (5.477,200), (4.8,131.341)]
 
     kwargs = dict(
-        HII_DIM=20, BOX_LEN=45,
-        verbose=0, redshift=12,
-        num_images=5
+        HII_DIM=128, BOX_LEN=100,
+        verbose=3, redshift=9,
+        num_images=2
         )
     for T_vir, zeta in params_list:
         params_ranges = dict(
-        ION_Tvir_MIN = T_vir,#params['ION_Tvir_MIN'],
-        HII_EFF_FACTOR = [zeta],#params['HII_EFF_FACTOR']
+        ION_Tvir_MIN = T_vir, # single number is ok,
+        HII_EFF_FACTOR = [zeta], # list of single number is ok,
         )
         generator = Coevals(params_ranges, **kwargs)
         generator.run(save_direc_name=os.path.join(save_direc,"test.h5"))

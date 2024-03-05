@@ -1,0 +1,211 @@
+---------------------------------------
+Begin Slurm Prolog: Mar-05-2024 00:31:11
+Job ID:    5133046
+User ID:   bxia34
+Account:   gts-jw254-coda20
+Job name:  generate_dataset
+Partition: cpu-large
+QOS:       embers
+---------------------------------------
+
+CommandNotFoundError: Your shell has not been properly configured to use 'conda deactivate'.
+To initialize your shell, run
+
+    $ conda init <SHELL_NAME>
+
+Currently supported shells are:
+  - bash
+  - fish
+  - tcsh
+  - xonsh
+  - zsh
+  - powershell
+
+See 'conda init --help' for more information and options.
+
+IMPORTANT: You may need to close and restart your shell after running 'conda init'.
+
+
+--------------------------------------------------------------------------
+WARNING: There was an error initializing an OpenFabrics device.
+
+  Local host:   atl1-1-02-004-4-1
+  Local device: mlx5_0
+--------------------------------------------------------------------------
+--------------------------------------------------------------------------
+WARNING: There was an error initializing an OpenFabrics device.
+
+  Local host:   atl1-1-02-004-1-1
+  Local device: mlx5_0
+--------------------------------------------------------------------------
+------------------node 1-110696: 3 CPUs, params.shape (16, 2)-------------------
+################### Mission: Generate 32 images by 2*3 CPUs ####################
+----------------params:---------------------------------ranges:-----------------
+              ION_Tvir_MIN                               [4, 6]                 
+             HII_EFF_FACTOR                            [10, 250]                
+----------------kwargs:---------------------------------values:-----------------
+               num_images                                  32                   
+                 fields                           ['brightness_temp']           
+                verbose                                    3                    
+                  seed                                     1                    
+                strength                                   1                    
+                redshift                                [8, 10]                 
+                HII_DIM                                    64                   
+                BOX_LEN                                   100                   
+        USE_INTERPOLATION_TABLES                          True                  
+                SIGMA_8                                   0.81                  
+                hlittle                                  0.677                  
+                  OMm                                     0.31                  
+                  OMb                                    0.049                  
+              POWER_INDEX                                0.967                  
+-------------------Process 0 scatters data (32, 2) to 2 nodes-------------------
+------------------node 0-199143: 3 CPUs, params.shape (16, 2)-------------------
+00:11, cpu 199157-0-199143, params [4.393810340785198, 46.19248358970178], seed 1791095846
+00:11, cpu 199157-0-199143, params [5.084680091737669, 240.098482100502], seed 4282876140
+00:11, cpu 199157-0-199143, params [5.8874938472717115, 148.60125266935248], seed 630311760
+00:11, cpu 199157-0-199143, params [5.522371731368564, 217.98680043818396], seed 1013994433
+00:11, cpu 110721-1-110696, params [4.464654487773559, 177.13355687055724], seed 491264
+00:12, cpu 110721-1-110696, params [4.357423455529835, 69.49639732734278], seed 550290314
+00:11, cpu 110721-1-110696, params [5.141214929127738, 58.13701246298557], seed 396591249
+00:10, cpu 110721-1-110696, params [5.569339475398868, 15.9727704280633], seed 1703301250
+----00:01:08, node 0-199143: 32 MB images [(16, 2, 64, 64, 64)] -> train.h5-----
+#################### Mission: Generate 2 images by 2*3 CPUs ####################
+----------------params:---------------------------------ranges:-----------------
+              ION_Tvir_MIN                             [4.4, 4.4]               
+             HII_EFF_FACTOR                        [131.341, 131.341]           
+----------------kwargs:---------------------------------values:-----------------
+               num_images                                  2                    
+                 fields                   ['brightness_temp', 'hires_density']  
+                verbose                                    3                    
+                  seed                                    None                  
+                strength                                   1                    
+                redshift                                  [9]                   
+                HII_DIM                                   128                   
+                BOX_LEN                                   100                   
+        USE_INTERPOLATION_TABLES                          True                  
+                SIGMA_8                                   0.81                  
+                hlittle                                  0.677                  
+                  OMm                                     0.31                  
+                  OMb                                    0.049                  
+              POWER_INDEX                                0.967                  
+-------------------Process 0 scatters data (2, 2) to 2 nodes--------------------
+-------------------node 0-199143: 3 CPUs, params.shape (1, 2)-------------------
+----00:01:09, node 1-110696: 32 MB images [(16, 2, 64, 64, 64)] -> train.h5-----
+-------------------node 1-110696: 3 CPUs, params.shape (1, 2)-------------------
+00:01:00, node 0-199143: 224 MB images [(1, 1, 128, 128, 128), (1, 1, 384, 384, 384)] -> test.h5
+#################### Mission: Generate 2 images by 2*3 CPUs ####################
+----------------params:---------------------------------ranges:-----------------
+              ION_Tvir_MIN                             [5.6, 5.6]               
+             HII_EFF_FACTOR                         [19.037, 19.037]            
+----------------kwargs:---------------------------------values:-----------------
+               num_images                                  2                    
+                 fields                   ['brightness_temp', 'hires_density']  
+                verbose                                    3                    
+                  seed                                    None                  
+                strength                                   1                    
+                redshift                                  [9]                   
+                HII_DIM                                   128                   
+                BOX_LEN                                   100                   
+        USE_INTERPOLATION_TABLES                          True                  
+                SIGMA_8                                   0.81                  
+                hlittle                                  0.677                  
+                  OMm                                     0.31                  
+                  OMb                                    0.049                  
+              POWER_INDEX                                0.967                  
+-------------------Process 0 scatters data (2, 2) to 2 nodes--------------------
+-------------------node 0-199143: 3 CPUs, params.shape (1, 2)-------------------
+00:01:00, node 1-110696: 224 MB images [(1, 1, 128, 128, 128), (1, 1, 384, 384, 384)] -> test.h5
+-------------------node 1-110696: 3 CPUs, params.shape (1, 2)-------------------
+00:59, cpu 111154-1-110696, params [5.6, 19.037], seed 2765028257
+00:59, cpu 199373-0-199143, params [5.6, 19.037], seed 2451537200
+00:01:00, node 0-199143: 224 MB images [(1, 1, 128, 128, 128), (1, 1, 384, 384, 384)] -> test.h5
+#################### Mission: Generate 2 images by 2*3 CPUs ####################
+----------------params:---------------------------------ranges:-----------------
+              ION_Tvir_MIN                           [4.699, 4.699]             
+             HII_EFF_FACTOR                             [30, 30]                
+----------------kwargs:---------------------------------values:-----------------
+               num_images                                  2                    
+                 fields                   ['brightness_temp', 'hires_density']  
+                verbose                                    3                    
+                  seed                                    None                  
+                strength                                   1                    
+                redshift                                  [9]                   
+                HII_DIM                                   128                   
+                BOX_LEN                                   100                   
+        USE_INTERPOLATION_TABLES                          True                  
+                SIGMA_8                                   0.81                  
+                hlittle                                  0.677                  
+                  OMm                                     0.31                  
+                  OMb                                    0.049                  
+              POWER_INDEX                                0.967                  
+-------------------Process 0 scatters data (2, 2) to 2 nodes--------------------
+-------------------node 0-199143: 3 CPUs, params.shape (1, 2)-------------------
+00:00:59, node 1-110696: 224 MB images [(1, 1, 128, 128, 128), (1, 1, 384, 384, 384)] -> test.h5
+-------------------node 1-110696: 3 CPUs, params.shape (1, 2)-------------------
+00:59, cpu 199463-0-199143, params [4.699, 30.0], seed 93576371
+00:00:59, node 0-199143: 224 MB images [(1, 1, 128, 128, 128), (1, 1, 384, 384, 384)] -> test.h5
+#################### Mission: Generate 2 images by 2*3 CPUs ####################
+----------------params:---------------------------------ranges:-----------------
+              ION_Tvir_MIN                           [5.477, 5.477]             
+             HII_EFF_FACTOR                            [200, 200]               
+----------------kwargs:---------------------------------values:-----------------
+               num_images                                  2                    
+                 fields                   ['brightness_temp', 'hires_density']  
+                verbose                                    3                    
+                  seed                                    None                  
+                strength                                   1                    
+                redshift                                  [9]                   
+                HII_DIM                                   128                   
+                BOX_LEN                                   100                   
+        USE_INTERPOLATION_TABLES                          True                  
+                SIGMA_8                                   0.81                  
+                hlittle                                  0.677                  
+                  OMm                                     0.31                  
+                  OMb                                    0.049                  
+              POWER_INDEX                                0.967                  
+-------------------Process 0 scatters data (2, 2) to 2 nodes--------------------
+-------------------node 0-199143: 3 CPUs, params.shape (1, 2)-------------------
+00:01:00, node 1-110696: 224 MB images [(1, 1, 128, 128, 128), (1, 1, 384, 384, 384)] -> test.h5
+-------------------node 1-110696: 3 CPUs, params.shape (1, 2)-------------------
+00:58, cpu 199608-0-199143, params [5.477, 200.0], seed 976140835
+00:59, cpu 111618-1-110696, params [5.477, 200.0], seed 1191937622
+00:00:59, node 0-199143: 224 MB images [(1, 1, 128, 128, 128), (1, 1, 384, 384, 384)] -> test.h5
+#################### Mission: Generate 2 images by 2*3 CPUs ####################
+----------------params:---------------------------------ranges:-----------------
+              ION_Tvir_MIN                             [4.8, 4.8]               
+             HII_EFF_FACTOR                        [131.341, 131.341]           
+----------------kwargs:---------------------------------values:-----------------
+               num_images                                  2                    
+                 fields                   ['brightness_temp', 'hires_density']  
+                verbose                                    3                    
+                  seed                                    None                  
+                strength                                   1                    
+                redshift                                  [9]                   
+                HII_DIM                                   128                   
+                BOX_LEN                                   100                   
+        USE_INTERPOLATION_TABLES                          True                  
+                SIGMA_8                                   0.81                  
+                hlittle                                  0.677                  
+                  OMm                                     0.31                  
+                  OMb                                    0.049                  
+              POWER_INDEX                                0.967                  
+-------------------Process 0 scatters data (2, 2) to 2 nodes--------------------
+-------------------node 0-199143: 3 CPUs, params.shape (1, 2)-------------------
+00:00:59, node 1-110696: 224 MB images [(1, 1, 128, 128, 128), (1, 1, 384, 384, 384)] -> test.h5
+-------------------node 1-110696: 3 CPUs, params.shape (1, 2)-------------------
+00:59, cpu 199722-0-199143, params [4.8, 131.341], seed 3871741129
+00:01:00, node 1-110696: 224 MB images [(1, 1, 128, 128, 128), (1, 1, 384, 384, 384)] -> test.h5
+00:00:59, node 0-199143: 224 MB images [(1, 1, 128, 128, 128), (1, 1, 384, 384, 384)] -> test.h5
+---------------------------------------
+Begin Slurm Epilog: Mar-05-2024 00:37:44
+Job ID:        5133046
+Array Job ID:  _4294967294
+User ID:       bxia34
+Account:       gts-jw254-coda20
+Job name:      generate_dataset
+Resources:     cpu=6,mem=144G,node=2
+Rsrc Used:     cput=00:39:24,vmem=8472K,walltime=00:06:34,mem=5912K,energy_used=0
+Partition:     cpu-large
+QOS:           embers
+Nodes:         atl1-1-02-004-1-1,atl1-1-02-004-4-1
+---------------------------------------

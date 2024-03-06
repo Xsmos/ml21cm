@@ -3,29 +3,9 @@
 import warnings
 warnings.simplefilter('ignore')
 
-import matplotlib.pyplot as plt
-import numpy as np
-from scipy.stats import qmc
-import glob
-import h5py
-import fcntl
-import time
-
-# We change the default level of the logger so that
-# we can see what's happening with caching.
 import sys, os
-import logging
-logger = logging.getLogger('21cmFAST')
-logger.setLevel(logging.INFO)
-
-import py21cmfast as p21c
-
-# For interacting with the cache
-from py21cmfast import cache_tools
 
 # Parallize
-import multiprocessing
-from multiprocessing import Pool
 try:
     from mpi4py import MPI
     comm = MPI.COMM_WORLD
@@ -34,6 +14,36 @@ try:
 except ImportError:
     rank = 0
     size = 1
+
+import py21cmfast as p21c
+
+if rank == 0:
+    default_cache_direc = p21c.config['direc']
+    if os.path.exists(default_cache_direc) and not os.path.exists(default_cache_direc/'wisdoms'):
+        os.mkdir(default_cache_direc/'wisdoms')
+
+import shutil
+
+import multiprocessing
+from multiprocessing import Pool
+
+import matplotlib.pyplot as plt
+from scipy.stats import qmc
+import numpy as np
+import glob
+import h5py
+import fcntl
+import time
+
+# We change the default level of the logger so that
+# we can see what's happening with caching.
+# import logging
+# logger = logging.getLogger('21cmFAST')
+# logger.setLevel(logging.INFO)
+
+# For interacting with the cache
+# from py21cmfast import cache_tools
+
 
 str_pad_len = 80
 str_pad_type = '-'
@@ -249,7 +259,7 @@ class Coevals():
             # images_node = np.array(p.map(self.run_coeval, iterable))
             dict_node = p.map(self.run_coeval, iterable)
         
-        images_node, images_node_nbytes = self.dict2images(dict_node)
+        images_node, images_node_MB = self.dict2images(dict_node)
 
         Pool_end = time.perf_counter()
         time_elapsed = time.strftime("%H:%M:%S", time.gmtime(Pool_end - Pool_start))
@@ -268,6 +278,9 @@ class Coevals():
                 images_all[field] = np.concatenate(images_all[field], axis=0)
             params_seeds = np.concatenate(params_seeds, axis=0)
             self.save(images_all, params_seeds, save_direc_name)
+            
+            if os.path.exists(default_cache_direc):
+                shutil.rmtree(default_cache_direc)
 
         if len(os.listdir(cache_direc)) == 0:
             os.rmdir(cache_direc)
@@ -276,35 +289,35 @@ class Coevals():
         # self.save(images_node, params=np.array(list(self.params_node.values())).T, save_direc_name=save_direc_name)
 
         if self.kwargs['verbose'] >= 1:
-            print(f"{time_elapsed}, node {rank}-{pid_node}: {images_node_nbytes/1024**2:.0f} MB images {[np.shape(images) for images in images_node.values()]} -> {os.path.basename(save_direc_name)}".center(str_pad_len,str_pad_type))
+            print(f"{time_elapsed}, node {rank}-{pid_node}: {images_node_MB} MB images {[np.shape(images) for images in images_node.values()]} -> {os.path.basename(save_direc_name)}".center(str_pad_len,str_pad_type))
         #print("os.getpid", os.getpid(), "multiprocessing.current_process().pid", multiprocessing.current_process().pid)
         #return images_node, self.params_node, rank
 
-    def dict2images_backup(self, dict_node):
-        #print("dict_node len =", len(dict_node))
-        images_node = []
-        images_node_nbytes = 0
-        for field in self.kwargs['fields']:
-            images = []
-            for dict_cpu in dict_node:
-                images.append(dict_cpu[field])
-            images = np.array(images)
-            print("images.shape:", images.shape)
-            images_node_nbytes += images.nbytes
-            images_node.append(images) 
-        return images_node, images_node_nbytes
+    # def dict2images_backup(self, dict_node):
+    #     #print("dict_node len =", len(dict_node))
+    #     images_node = []
+    #     images_node_MB = []
+    #     for field in self.kwargs['fields']:
+    #         images = []
+    #         for dict_cpu in dict_node:
+    #             images.append(dict_cpu[field])
+    #         images = np.array(images)
+    #         print("images.shape:", images.shape)
+    #         images_node_nbytes.append(images.nbytes)
+    #         images_node.append(images) 
+    #     return images_node, images_node_nbytes
 
     def dict2images(self, dict_node):
         images_node = {}
-        images_node_nbytes = 0
+        images_node_MB = []
         for field in self.kwargs['fields']:
             images_node[field] = []
             for dict_cpu in dict_node:
                 images_node[field].append(dict_cpu[field])
             images_node[field] = np.array(images_node[field])
-            images_node_nbytes += images_node[field].nbytes
+            images_node_MB.append(round(images_node[field].nbytes / 1024**2))
 
-        return images_node, images_node_nbytes
+        return images_node, images_node_MB
 
     # Save as hdf5
     def save(self, images_node, params_seeds, save_direc_name):

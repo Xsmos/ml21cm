@@ -234,6 +234,15 @@ class Coevals():
         # print(images_cpu.values())
         return images_cpu
 
+    def clear_cache_direc(self):
+        if rank == 0:
+            if os.path.exists(default_cache_direc):
+                if len(os.listdir(default_cache_direc/'wisdoms')) == 0:
+                    shutil.rmtree(default_cache_direc)
+
+        if len(os.listdir(cache_direc)) == 0:
+            os.rmdir(cache_direc)
+
 
     def run(self, save_direc_name='images_params.h5'):
         #if rank == 0:
@@ -279,12 +288,7 @@ class Coevals():
             params_seeds = np.concatenate(params_seeds, axis=0)
             self.save(images_all, params_seeds, save_direc_name)
             
-            if os.path.exists(default_cache_direc):
-                shutil.rmtree(default_cache_direc)
-
-        if len(os.listdir(cache_direc)) == 0:
-            os.rmdir(cache_direc)
-
+        self.clear_cache_direc()
         # save images, params as .h5 file
         # self.save(images_node, params=np.array(list(self.params_node.values())).T, save_direc_name=save_direc_name)
 

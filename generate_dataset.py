@@ -5,23 +5,16 @@ warnings.simplefilter('ignore')
 
 import sys, os
 
-# Parallize
-try:
-    from mpi4py import MPI
-    comm = MPI.COMM_WORLD
-    rank = comm.Get_rank()
-    size = comm.Get_size()
-except ImportError:
-    rank = 0
-    size = 1
+# import py21cmfast as p21c
 
-import py21cmfast as p21c
+# default_cache_direc = p21c.config['direc']
+# # if rank == 0:
+# #     if os.path.exists(default_cache_direc) and not os.path.exists(default_cache_direc/'wisdoms'):
+# if not os.path.exists(default_cache_direc/'wisdoms') and rank == 0:
+#     os.mkdir(default_cache_direc/'wisdoms')
+#     print("wisdoms created !!!!!!!!!!!!!!!!!!")
 
-if rank == 0:
-    default_cache_direc = p21c.config['direc']
-    if os.path.exists(default_cache_direc) and not os.path.exists(default_cache_direc/'wisdoms'):
-        os.mkdir(default_cache_direc/'wisdoms')
-
+# print("wisdoms created")
 import shutil
 
 import multiprocessing
@@ -34,16 +27,40 @@ import glob
 import h5py
 import fcntl
 import time
+from time import sleep
 
-# We change the default level of the logger so that
-# we can see what's happening with caching.
-# import logging
-# logger = logging.getLogger('21cmFAST')
-# logger.setLevel(logging.INFO)
+# Parallize
+try:
+    from mpi4py import MPI
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
+    size = comm.Get_size()
+except ImportError:
+    rank = 0
+    size = 1
 
-# For interacting with the cache
-# from py21cmfast import cache_tools
+# py21cmfast will create ~/21cmFAST-cache/wisdoms automatically.
+# To avoid conflicts between processes, it's necessary to do:
+default_cache_direc = None
+if rank == 0:
+    import py21cmfast as p21c
+    default_cache_direc = p21c.config['direc']
+    if not os.path.exists(default_cache_direc/'wisdoms'):
+        os.mkdir(default_cache_direc/'wisdoms')
 
+# print("'comm' in globals():", 'comm' in globals(), rank)
+if 'comm' in globals():
+    default_cache_direc = comm.bcast(default_cache_direc, root=0)
+    import py21cmfast as p21c
+# print(rank, "default_cache_direc =", default_cache_direc)
+
+# if rank 
+    # while True:
+    #     if os.path.exists(default_cache_direc/'wisdoms'):
+    #         import py21cmfast as p21c
+    #         break
+    #     else:
+    #         sleep(0.1)
 
 str_pad_len = 80
 str_pad_type = '-'
@@ -84,14 +101,14 @@ class Coevals():
     def print_kwargs_params(self):
         if self.kwargs['verbose'] >= 1:
             print(f" Mission: Generate {self.kwargs['num_images']} images by {size}*{len(os.sched_getaffinity(os.getpid()))} CPUs ".center(str_pad_len, '#'))#, str_pad_type))
-            print(f"params:".center(int(str_pad_len/2),str_pad_type)+f"ranges:".center(int(str_pad_len/2),str_pad_type))
+            print(f" params: ".center(int(str_pad_len/2),str_pad_type)+f" ranges: ".center(int(str_pad_len/2),str_pad_type))
             for key in self.params_ranges:
                 print(f"{key}".center(int(str_pad_len/2))+f"[{self.params_ranges[key][0]}, {self.params_ranges[key][-1]}]".center(int(str_pad_len/2)))
             # print(f"params_ranges = {self.params_ranges}".center(str_pad_len, str_pad_type))
         
         if self.kwargs['verbose'] >= 2:
             # print(f"**kwargs will be passed to qmc.LatinHypercube".center(str_pad_len, str_pad_type))
-            print(f"kwargs:".center(int(str_pad_len/2), str_pad_type)+f"values:".center(int(str_pad_len/2),str_pad_type))
+            print(f" kwargs: ".center(int(str_pad_len/2), str_pad_type)+f" values: ".center(int(str_pad_len/2),str_pad_type))
             
             for key in self.kwargs:
                 print(f"{key}".center(int(str_pad_len/2))+f"{self.kwargs[key]}".center(int(str_pad_len/2)))
@@ -136,7 +153,7 @@ class Coevals():
             self.kwargs['fields'] = [self.kwargs['fields']]
  
         if self.kwargs['num_images'] < size:
-            if self.kwargs['verbose'] > 0: print("num_images must be >= the number of nodes.")
+            if self.kwargs['verbose'] > 0: print(f"num_images {self.kwargs['num_images']} must be >= the number of nodes {size}.")
             self.kwargs['num_images'] = size
 
         if not os.path.exists(cache_direc):
@@ -158,10 +175,15 @@ class Coevals():
             send_data = np.array_split(sample, size, axis=0)
 
             if self.kwargs['verbose'] >= 2:
-                print(f"Process {rank} scatters data {sample.shape} to {size} nodes".center(str_pad_len,str_pad_type))
+                print(f" Process {rank} scatters data {sample.shape} to {size} nodes ".center(str_pad_len,str_pad_type))
         else:
             send_data = None
-        recv_data = comm.scatter(send_data, root=0)
+        
+        # print("'comm' in globals():", 'comm' in globals(), rank)
+        if 'comm' in globals():
+            recv_data = comm.scatter(send_data, root=0)
+        else:
+            recv_data = send_data
         #if self.kwargs['verbose'] >= 2:
         #    print(f"Process {rank} recvs data {recv_data.shape}".center(str_pad_len))#, str_pad_type))
 
@@ -219,7 +241,7 @@ class Coevals():
         
         #print("verbose =", self.kwargs['verbose']) 
         if self.kwargs['verbose'] > 2:
-            print(f'{time_elapsed}, cpu {pid_cpu}-{rank}-{multiprocessing.parent_process().pid}, params {list(params_cpu.values())}, seed {random_seed}')
+            print(f'{time_elapsed}, cpu {pid_cpu}-{rank}, params {list(params_cpu.values())}, seed {random_seed}')
         #print("os.getpid", os.getpid(), "multiprocessing.parent_process().pid", multiprocessing.parent_process().pid, "multiprocessing.current_process().pid", multiprocessing.current_process().pid)
 
         return dict_cpu
@@ -235,13 +257,26 @@ class Coevals():
         return images_cpu
 
     def clear_cache_direc(self):
-        if rank == 0:
-            if os.path.exists(default_cache_direc):
-                if len(os.listdir(default_cache_direc/'wisdoms')) == 0:
-                    shutil.rmtree(default_cache_direc)
-
+        # print(cache_direc, "starts")
         if len(os.listdir(cache_direc)) == 0:
             os.rmdir(cache_direc)
+        # print(cache_direc, "ends")
+        
+        # node 0 waits all processes finishing to remove default_cache_direc
+        # print("'comm' in globals():", 'comm' in globals(), rank)
+
+        if 'comm' in globals():
+            recv_data = comm.gather(rank, root=0)
+        
+        if rank == 0:
+            if len(os.listdir(default_cache_direc)) == 1:
+                shutil.rmtree(default_cache_direc)
+            # print("clear_cache_direc starts")
+            # if os.path.exists(default_cache_direc):
+            #     if len(os.listdir(default_cache_direc/'wisdoms')) == 0:
+            #         shutil.rmtree(default_cache_direc)
+            #         print("removed default_cache_direc!!!!!!!!!!!!!!!!!")
+            # print("clear_cache_direc ends")
 
 
     def run(self, save_direc_name='images_params.h5'):
@@ -253,7 +288,7 @@ class Coevals():
         CPU_num = len(os.sched_getaffinity(pid_node))
         
         if self.kwargs['verbose'] >= 2:
-            print(f"node {rank}-{pid_node}: {CPU_num} CPUs, params.shape {np.array(list(self.params_node.values())).T.shape}".center(str_pad_len,str_pad_type))
+            print(f" node {rank}: {CPU_num} CPUs, params.shape {np.array(list(self.params_node.values())).T.shape} ".center(str_pad_len,str_pad_type))
 
         # run p21c.run_coeval in parallel on multi-CPUs
         Pool_start = time.perf_counter()
@@ -273,27 +308,28 @@ class Coevals():
         Pool_end = time.perf_counter()
         time_elapsed = time.strftime("%H:%M:%S", time.gmtime(Pool_end - Pool_start))
 
-	# gather images_node from different node
-        images_all = {}
-        for field in self.kwargs['fields']:
-            images_all[field] = comm.gather(images_node[field], root=0)
-        #print("images_all:", images_all)
-        params_seeds = comm.gather(iterable, root=0)
-        #print("params_seeds:", params_seeds)
+	# # gather images_node from different node
+    #     images_all = {}
+    #     for field in self.kwargs['fields']:
+    #         images_all[field] = comm.gather(images_node[field], root=0)
+    #     #print("images_all:", images_all)
+    #     params_seeds = comm.gather(iterable, root=0)
+    #     #print("params_seeds:", params_seeds)
 
-        if rank == 0:
-            for i, field in enumerate(self.kwargs['fields']):
-                #print("images_all[field]", images_all[field])
-                images_all[field] = np.concatenate(images_all[field], axis=0)
-            params_seeds = np.concatenate(params_seeds, axis=0)
-            self.save(images_all, params_seeds, save_direc_name)
+    #     if rank == 0:
+    #         for i, field in enumerate(self.kwargs['fields']):
+    #             #print("images_all[field]", images_all[field])
+    #             images_all[field] = np.concatenate(images_all[field], axis=0)
+    #         params_seeds = np.concatenate(params_seeds, axis=0)
+    #         self.save(images_all, params_seeds, save_direc_name)
             
-        self.clear_cache_direc()
         # save images, params as .h5 file
-        # self.save(images_node, params=np.array(list(self.params_node.values())).T, save_direc_name=save_direc_name)
+        async_save_time = self.async_save(images_node, iterable, save_direc_name)
 
         if self.kwargs['verbose'] >= 1:
-            print(f"{time_elapsed}, node {rank}-{pid_node}: {images_node_MB} MB images {[np.shape(images) for images in images_node.values()]} -> {os.path.basename(save_direc_name)}".center(str_pad_len,str_pad_type))
+            print(f"{time_elapsed}, node {rank}: {images_node_MB} MB images {[np.shape(images) for images in images_node.values()]} -> {os.path.basename(save_direc_name)} {async_save_time}".center(str_pad_len))
+        
+        self.clear_cache_direc()
         #print("os.getpid", os.getpid(), "multiprocessing.current_process().pid", multiprocessing.current_process().pid)
         #return images_node, self.params_node, rank
 
@@ -322,6 +358,22 @@ class Coevals():
             images_node_MB.append(round(images_node[field].nbytes / 1024**2))
 
         return images_node, images_node_MB
+
+    def async_save(self, images_node, params_seeds, save_direc_name):
+        save_start = time.perf_counter()
+        while True:
+            try:
+                try_start = time.perf_counter()
+                self.save(images_node, params_seeds, save_direc_name)
+                try_end = time.perf_counter()
+                # time_elapsed = time.strftime("%H:%M:%S", time.gmtime(try_end - try_start))
+                try_time = try_end - try_start
+                save_time = try_end - save_start
+                return f"{try_time:.2f}/{save_time:.2f}"
+                # break
+            except BlockingIOError:
+                # print(f"Hold on, {rank}/{size} wait a minute ...")
+                sleep(0.1)
 
     # Save as hdf5
     def save(self, images_node, params_seeds, save_direc_name):
@@ -389,12 +441,12 @@ if __name__ == '__main__':
     generator.run(save_direc_name=os.path.join(save_direc, "train.h5"))
 
     # testing set, (5*800, 64, 64, 64)
-    params_list = [(4.4,131.341),(5.6,19.037), (4.699,30), (5.477,200), (4.8,131.341)]
+    params_list = [(4.4,131.341),(5.6,19.037)]#, (4.699,30), (5.477,200), (4.8,131.341)]
 
     kwargs = dict(
         HII_DIM=128, BOX_LEN=100,
-        verbose=3, redshift=9,
-        num_images=2
+        verbose=2, redshift=9,
+        num_images=16
         )
     for T_vir, zeta in params_list:
         params_ranges = dict(

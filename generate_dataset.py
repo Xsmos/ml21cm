@@ -66,7 +66,7 @@ str_pad_len = 80
 str_pad_type = '-'
 cache_direc = "_cache" + str(rank)
 
-class Coevals():
+class Generator():
     def __init__(self, params_ranges, **kwargs):
         """
         Generate dataset by 21cmFAST in parallel.
@@ -116,9 +116,10 @@ class Coevals():
 
     def define_kwargs(self, kwargs):
         self.kwargs = dict(
-            # local params for Coevals.__init__()
+            # local params for Generator.__init__()
+            p21c_run = 'lightcone',
             num_images = 9,
-            fields = ['brightness_temp', 'hires_density'],
+            fields = ['brightness_temp',],
             verbose = 2,
             seed = None,
             # cache_direc = "_cache",
@@ -128,6 +129,7 @@ class Coevals():
             
             # redshift param of py21cmfast.run_coeval():
             redshift = [8,9,10],
+            max_redshift = 20,
             
             # user_params of py21cmfast.run_coeval():
             HII_DIM = 60, 
@@ -147,8 +149,15 @@ class Coevals():
         #     self.kwargs[key] = kwargs[key]
         self.kwargs = self.kwargs | kwargs
 
-        if type(self.kwargs['redshift']) != list:
-            self.kwargs['redshift'] = [self.kwargs['redshift']]
+        if self.kwargs['p21c_run'] == 'coeval':
+            if type(self.kwargs['redshift']) != list:
+                self.kwargs['redshift'] = [self.kwargs['redshift']]
+        elif self.kwargs['p21c_run'] == 'lightcone':
+            if type(self.kwargs['redshift']) == list:
+                self.kwargs['redshift'] = self.kwargs['redshift'][0]
+        else:
+            raise TypeError(f"'p21c_run' must be either 'coeval' or 'lightcone', instead of '{self.kwargs['p21c_run']}'.")
+
         if type(self.kwargs['fields']) != list:
             self.kwargs['fields'] = [self.kwargs['fields']]
  
@@ -202,9 +211,37 @@ class Coevals():
             self.params_node[kind] = k*x + b
 
 
-    def run_coeval(self, params_node_value):
+    def return_coeval_or_lightcone(self, kwargs_params_cpu, random_seed):
+        if self.kwargs['p21c_run'] == 'coeval':
+            coevals_cpu = p21c.run_coeval(
+                redshift = kwargs_params_cpu['redshift'],
+                user_params = kwargs_params_cpu,
+                cosmo_params = p21c.CosmoParams(kwargs_params_cpu),
+                astro_params = p21c.AstroParams(kwargs_params_cpu),
+                random_seed = random_seed,
+            )
+            dict_cpu = self.coevals2dict(coevals_cpu)
+
+        elif self.kwargs['p21c_run'] == 'lightcone':
+            lightcone_cpu = p21c.run_lightcone(
+                redshift = kwargs_params_cpu['redshift'],
+                max_redshift = kwargs_params_cpu['max_redshift'],
+                lightcone_quantities = kwargs_params_cpu['fields'],
+                user_params = kwargs_params_cpu,
+                cosmo_params = p21c.CosmoParams(kwargs_params_cpu),
+                astro_params = p21c.AstroParams(kwargs_params_cpu),
+                random_seed = random_seed,
+            )
+            self.kwargs['node_redshifts'] = lightcone_cpu.node_redshifts
+            print(rank, "self.kwargs['node_redshifts'][0] =", self.kwargs['node_redshifts'][0])
+            dict_cpu = self.lightcone2dict(lightcone_cpu)
+        
+        return dict_cpu
+
+
+    def pool_run(self, params_node_value):
         # All parameters
-        run_coeval_start = time.perf_counter()
+        pool_run_start = time.perf_counter()
 
         pid_cpu = multiprocessing.current_process().pid
 
@@ -216,15 +253,15 @@ class Coevals():
         kwargs_params_cpu = self.kwargs | params_cpu
 
         # Simulation
-        coevals_cpu = p21c.run_coeval(
-            redshift = kwargs_params_cpu['redshift'],
-            user_params = kwargs_params_cpu,
-            cosmo_params = p21c.CosmoParams(kwargs_params_cpu),
-            astro_params = p21c.AstroParams(kwargs_params_cpu),
-            random_seed = random_seed
-        )
-
-        dict_cpu = self.coevals2dict(coevals_cpu)
+        # coevals_cpu = p21c.run_coeval(
+        #     redshift = kwargs_params_cpu['redshift'],
+        #     user_params = kwargs_params_cpu,
+        #     cosmo_params = p21c.CosmoParams(kwargs_params_cpu),
+        #     astro_params = p21c.AstroParams(kwargs_params_cpu),
+        #     random_seed = random_seed
+        # )
+        # dict_cpu = self.coevals2dict(coevals_cpu)
+        dict_cpu = self.return_coeval_or_lightcone(kwargs_params_cpu,random_seed)
 
         # Clear cache
         cache_pattern = os.path.join(cache_direc, f"*r{random_seed}.h5")
@@ -234,10 +271,10 @@ class Coevals():
         #if len(os.listdir(cache_direc)) == 0:
         #    os.rmdir(cache_direc)
 
-        run_coeval_end = time.perf_counter()
+        pool_run_end = time.perf_counter()
         
-        time_elapsed = time.strftime("%M:%S", time.gmtime(run_coeval_end - run_coeval_start))
-        # time_elapsed = run_coeval_end - run_coeval_start
+        time_elapsed = time.strftime("%M:%S", time.gmtime(pool_run_end - pool_run_start))
+        # time_elapsed = pool_run_end - pool_run_start
         
         #print("verbose =", self.kwargs['verbose']) 
         if self.kwargs['verbose'] > 2:
@@ -245,6 +282,17 @@ class Coevals():
         #print("os.getpid", os.getpid(), "multiprocessing.parent_process().pid", multiprocessing.parent_process().pid, "multiprocessing.current_process().pid", multiprocessing.current_process().pid)
 
         return dict_cpu
+
+    def lightcone2dict(self, lightcone_cpu):
+        images_cpu = {}
+        for i, field in enumerate(self.kwargs['fields']):
+            images_cpu[field] = lightcone_cpu.lightcones[field]
+            # for j, coeval in enumerate(coevals_cpu):
+                # images_cpu[field].append(coeval.__dict__[field])
+        # print(images_cpu.keys())
+        # print(images_cpu.values())
+        return images_cpu
+        
 
     def coevals2dict(self, coevals_cpu):
         images_cpu = {}
@@ -300,8 +348,8 @@ class Coevals():
             random_seeds = np.random.randint(1,2**32, size = iterable.shape[-1])
             iterable = np.vstack((iterable, random_seeds)).T
             #print(iterable)
-            # images_node = np.array(p.map(self.run_coeval, iterable))
-            dict_node = p.map(self.run_coeval, iterable)
+            # images_node = np.array(p.map(self.pool_run, iterable))
+            dict_node = p.map(self.pool_run, iterable)
         
         images_node, images_node_MB = self.dict2images(dict_node)
 
@@ -327,7 +375,7 @@ class Coevals():
         async_save_time = self.async_save(images_node, iterable, save_direc_name)
 
         if self.kwargs['verbose'] >= 1:
-            print(f"{time_elapsed}, node {rank}: {images_node_MB} MB images {[np.shape(images) for images in images_node.values()]} -> {os.path.basename(save_direc_name)} {async_save_time}".center(str_pad_len))
+            print(f"{time_elapsed}, node {rank}: {images_node_MB} MB images {[np.shape(images) for images in images_node.values()]} ->{async_save_time}-> {os.path.basename(save_direc_name)}".center(str_pad_len))
         
         self.clear_cache_direc()
         #print("os.getpid", os.getpid(), "multiprocessing.current_process().pid", multiprocessing.current_process().pid)
@@ -360,16 +408,16 @@ class Coevals():
         return images_node, images_node_MB
 
     def async_save(self, images_node, params_seeds, save_direc_name):
-        save_start = time.perf_counter()
+        try_start = time.perf_counter()
         while True:
             try:
-                try_start = time.perf_counter()
+                save_start = time.perf_counter()
                 self.save(images_node, params_seeds, save_direc_name)
-                try_end = time.perf_counter()
+                save_end = time.perf_counter()
                 # time_elapsed = time.strftime("%H:%M:%S", time.gmtime(try_end - try_start))
-                try_time = try_end - try_start
-                save_time = try_end - save_start
-                return f"{try_time:.2f}/{save_time:.2f}"
+                save_time = save_end - save_start
+                try_time = save_start - try_start
+                return f"{try_time:.1f}s/{save_time:.2f}s"
                 # break
             except BlockingIOError:
                 # print(f"Hold on, {rank}/{size} wait a minute ...")
@@ -388,6 +436,7 @@ class Coevals():
         #    fcntl.flock(fd, fcntl.LOCK_EX)
             if 'kwargs' not in f.keys():
                 #grp = f.create_group('kwargs')
+                print("self.kwargs =", self.kwargs)
                 keys = list(self.kwargs)
                 values = [str(value) for value in self.kwargs.values()]
                 data = np.transpose(list((keys, values)))
@@ -433,25 +482,29 @@ if __name__ == '__main__':
         HII_EFF_FACTOR = [10, 250],
         )
     kwargs = dict(
+        p21c_run = 'coeval',
         seed = 1, fields = 'brightness_temp',
         HII_DIM=64, BOX_LEN=100,
         verbose=3, redshift=[8,10]
         )
-    generator = Coevals(params_ranges, num_images=32, **kwargs)
+    generator = Generator(params_ranges, num_images=32, **kwargs)
     generator.run(save_direc_name=os.path.join(save_direc, "train.h5"))
 
     # testing set, (5*800, 64, 64, 64)
     params_list = [(4.4,131.341),(5.6,19.037)]#, (4.699,30), (5.477,200), (4.8,131.341)]
 
     kwargs = dict(
-        HII_DIM=128, BOX_LEN=100,
-        verbose=2, redshift=9,
-        num_images=16
+        # p21c_run = 'coeval',
+        fields = ['brightness_temp', 'density'],
+        HII_DIM=64, BOX_LEN=60,
+        verbose=3, redshift=9,
+        max_redshift = 15,
+        num_images=16,
         )
     for T_vir, zeta in params_list:
         params_ranges = dict(
         ION_Tvir_MIN = T_vir, # single number is ok,
         HII_EFF_FACTOR = [zeta], # list of single number is ok,
         )
-        generator = Coevals(params_ranges, **kwargs)
+        generator = Generator(params_ranges, **kwargs)
         generator.run(save_direc_name=os.path.join(save_direc,"test.h5"))

@@ -112,8 +112,8 @@ class Generator():
             strength = 1,
             
             # redshift param of py21cmfast.run_coeval():
-            redshift = [8,9,10],
-            max_redshift = 20,
+            redshift = [8,10],
+            # max_redshift = 20,
             
             # user_params of py21cmfast.run_coeval():
             HII_DIM = 60, 
@@ -131,14 +131,16 @@ class Generator():
         # update
         self.kwargs = self.kwargs | kwargs
 
-        if self.kwargs['p21c_run'] == 'coeval':
-            if type(self.kwargs['redshift']) != list:
-                self.kwargs['redshift'] = [self.kwargs['redshift']]
-        elif self.kwargs['p21c_run'] == 'lightcone':
-            if type(self.kwargs['redshift']) == list:
-                self.kwargs['redshift'] = self.kwargs['redshift'][0]
-        else:
-            raise TypeError(f"'p21c_run' must be either 'coeval' or 'lightcone', instead of '{self.kwargs['p21c_run']}'.")
+        if type(self.kwargs['redshift']) != list:
+            self.kwargs['redshift'] = [self.kwargs['redshift']]
+        # if self.kwargs['p21c_run'] == 'coeval':
+        #     if type(self.kwargs['redshift']) != list:
+        #         self.kwargs['redshift'] = [self.kwargs['redshift']]
+        # elif self.kwargs['p21c_run'] == 'lightcone':
+        #     if type(self.kwargs['redshift']) == list:
+        #         self.kwargs['redshift'] = self.kwargs['redshift'][0]
+        # else:
+        #     raise TypeError(f"'p21c_run' must be either 'coeval' or 'lightcone', instead of '{self.kwargs['p21c_run']}'.")
 
         if type(self.kwargs['fields']) != list:
             self.kwargs['fields'] = [self.kwargs['fields']]
@@ -199,8 +201,8 @@ class Generator():
 
         elif self.kwargs['p21c_run'] == 'lightcone':
             lightcone_cpu = p21c.run_lightcone(
-                redshift = kwargs_params_cpu['redshift'],
-                max_redshift = kwargs_params_cpu['max_redshift'],
+                redshift = kwargs_params_cpu['redshift'][0],
+                max_redshift = kwargs_params_cpu['redshift'][-1],
                 lightcone_quantities = kwargs_params_cpu['fields'],
                 user_params = kwargs_params_cpu,
                 cosmo_params = p21c.CosmoParams(kwargs_params_cpu),
@@ -208,6 +210,7 @@ class Generator():
                 random_seed = random_seed,
             )
             # self.kwargs['node_redshifts'] = lightcone_cpu.node_redshifts
+            # print(lightcone_cpu.lightcone_redshifts[-5:])
             dict_cpu = self.lightcone2dict(lightcone_cpu)
         
         return dict_cpu
@@ -247,6 +250,9 @@ class Generator():
         images_cpu = {}
         for i, field in enumerate(self.kwargs['fields']):
             images_cpu[field] = lightcone_cpu.lightcones[field]
+
+        images_cpu["redshifts_distances"] = np.vstack((lightcone_cpu.lightcone_redshifts, lightcone_cpu.lightcone_distances))
+
         return images_cpu
         
 
@@ -317,6 +323,9 @@ class Generator():
                 images_node[field].append(dict_cpu[field])
             images_node[field] = np.array(images_node[field])
             images_node_MB.append(round(images_node[field].nbytes / 1024**2))
+        
+        if 'redshifts_distances' in dict_cpu:
+            images_node['redshifts_distances'] = dict_cpu['redshifts_distances']
 
         return images_node, images_node_MB
 
@@ -357,6 +366,9 @@ class Generator():
                 f['params_seeds']['values'].resize(new_size, axis=0)
                 f['params_seeds']['values'][-params_seeds.shape[0]:] = params_seeds
 
+            if 'redshifts_distances' not in f.keys() and 'redshifts_distances' in images_node:
+                f.create_dataset('redshifts_distances', data=images_node['redshifts_distances'])
+
             for field in self.kwargs['fields']:
                 images = images_node[field]
                 if field not in f.keys():
@@ -379,12 +391,11 @@ if __name__ == '__main__':
         HII_EFF_FACTOR = [10, 250],
         )
     kwargs = dict(
-        p21c_run = 'coeval',
-        seed = 1, fields = 'brightness_temp',
+        fields = ['brightness_temp', 'density'],
         HII_DIM=64, BOX_LEN=100,
-        verbose=3, redshift=[8,10]
+        verbose=3, redshift=[7.51, 11.93]
         )
-    generator = Generator(params_ranges, num_images=64, **kwargs)
+    generator = Generator(params_ranges, num_images=32, **kwargs)
     generator.run(save_direc_name=os.path.join(save_direc, "train.h5"))
 
     # testing set, (5*800, 64, 64, 64)
@@ -394,8 +405,7 @@ if __name__ == '__main__':
         # p21c_run = 'coeval',
         fields = ['brightness_temp', 'density'],
         HII_DIM=64, BOX_LEN=60,
-        verbose=2, redshift=9,
-        max_redshift = 15,
+        verbose=2, redshift=[9,10],
         num_images=32,
         )
     for T_vir, zeta in params_list:

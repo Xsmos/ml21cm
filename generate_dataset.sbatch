@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH -Jgenerate_dataset                    # Job name
 #SBATCH --account=gts-jw254-coda20                 # charge account
-#SBATCH -N16 -c2                 # Number of nodes and cores per node required
-#SBATCH --mem-per-cpu=24G                        # Memory per core
-#SBATCH -t1:30:00                                    # Duration of the job (Ex: 15 mins)
+#SBATCH -N2 -c16                 # Number of nodes and cores per node required
+#SBATCH --mem-per-cpu=32G                        # Memory per core
+#SBATCH -t4:00:00                                    # Duration of the job (Ex: 15 mins)
 #SBATCH -qembers                               # QOS Name
 #SBATCH -oReport-%j                         # Combined output and error messages file
 #SBATCH --mail-type=END,FAIL              # Mail preferences

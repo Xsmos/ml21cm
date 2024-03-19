@@ -31,7 +31,7 @@ except ImportError:
 
 str_pad_len = 80
 str_pad_type = '-'
-cache_direc = "_cache" + str(rank)
+# self.kwargs['cache_direc'] = "_cache" + str(rank)
 
 class Generator():
     def __init__(self, params_ranges, **kwargs):
@@ -106,6 +106,7 @@ class Generator():
             fields = ['brightness_temp',],
             verbose = 2,
             seed = None,
+            save_direc_name = "21cmDataset.h5",
             # cache_direc = "_cache",
 
             # strength param of scipy.stats.qmc.LatinHypercube():
@@ -133,14 +134,6 @@ class Generator():
 
         if type(self.kwargs['redshift']) != list:
             self.kwargs['redshift'] = [self.kwargs['redshift']]
-        # if self.kwargs['p21c_run'] == 'coeval':
-        #     if type(self.kwargs['redshift']) != list:
-        #         self.kwargs['redshift'] = [self.kwargs['redshift']]
-        # elif self.kwargs['p21c_run'] == 'lightcone':
-        #     if type(self.kwargs['redshift']) == list:
-        #         self.kwargs['redshift'] = self.kwargs['redshift'][0]
-        # else:
-        #     raise TypeError(f"'p21c_run' must be either 'coeval' or 'lightcone', instead of '{self.kwargs['p21c_run']}'.")
 
         if type(self.kwargs['fields']) != list:
             self.kwargs['fields'] = [self.kwargs['fields']]
@@ -149,9 +142,15 @@ class Generator():
             if self.kwargs['verbose'] > 0: print(f"num_images {self.kwargs['num_images']} must be >= the number of nodes {size}.")
             self.kwargs['num_images'] = size
 
-        if not os.path.exists(cache_direc):
-            os.mkdir(cache_direc)
-        p21c.config['direc'] = cache_direc
+        if 'cache_direc' not in self.kwargs:
+            self.kwargs['cache_direc'] = os.path.join(
+                os.path.dirname(self.kwargs['save_direc_name']),
+                '_cache', str(rank),
+                )
+
+        if not os.path.exists(self.kwargs['cache_direc']):
+            os.makedirs(self.kwargs['cache_direc'])
+        p21c.config['direc'] = self.kwargs['cache_direc']
 
     def sample_normalized_params(self):
         """
@@ -233,7 +232,7 @@ class Generator():
         dict_cpu = self.return_coeval_or_lightcone(kwargs_params_cpu,random_seed)
 
         # Clear cache
-        cache_pattern = os.path.join(cache_direc, f"*r{random_seed}.h5")
+        cache_pattern = os.path.join(self.kwargs['cache_direc'], f"*r{random_seed}.h5")
         for filename in glob.glob(cache_pattern):
             os.remove(filename)
 
@@ -265,9 +264,9 @@ class Generator():
         return images_cpu
 
     def clear_cache_direc(self):
-        # print(cache_direc, "starts")
-        if len(os.listdir(cache_direc)) == 0:
-            os.rmdir(cache_direc)
+        # print(self.kwargs['cache_direc'], "starts")
+        if len(os.listdir(self.kwargs['cache_direc'])) == 0:
+            os.rmdir(self.kwargs['cache_direc'])
 
         if 'comm' in globals():
             # print(rank, "comm to be gathered.")
@@ -281,7 +280,7 @@ class Generator():
                 # print(rank, f"default_cache_direc {self.default_cache_direc} has been removed!!!!!!")
 
 
-    def run(self, save_direc_name='images_params.h5'):
+    def run(self):
         #if rank == 0:
         normalized_params = self.sample_normalized_params()
         self.denormalize(normalized_params)
@@ -307,10 +306,10 @@ class Generator():
         time_elapsed = time.strftime("%H:%M:%S", time.gmtime(Pool_end - Pool_start))
             
         # save images, params as .h5 file
-        async_save_time = self.async_save(images_node, iterable, save_direc_name)
+        async_save_time = self.async_save(images_node, iterable)
 
         if self.kwargs['verbose'] >= 1:
-            print(f"{time_elapsed}, node {rank}: {images_node_MB} MB images {[np.shape(images) for images in images_node.values()]} ->{async_save_time}-> {os.path.basename(save_direc_name)}")
+            print(f"{time_elapsed}, node {rank}: {images_node_MB} MB images {[np.shape(images_node[field]) for field in self.kwargs['fields']]} ->{async_save_time}-> {os.path.basename(self.kwargs['save_direc_name'])}")
         
         self.clear_cache_direc()
 
@@ -329,12 +328,12 @@ class Generator():
 
         return images_node, images_node_MB
 
-    def async_save(self, images_node, params_seeds, save_direc_name):
+    def async_save(self, images_node, params_seeds):
         try_start = time.perf_counter()
         while True:
             try:
                 save_start = time.perf_counter()
-                self.save(images_node, params_seeds, save_direc_name)
+                self.save(images_node, params_seeds)
                 save_end = time.perf_counter()
                 save_time = save_end - save_start
                 try_time = save_start - try_start
@@ -344,8 +343,8 @@ class Generator():
                 sleep(0.1)
 
     # Save as hdf5
-    def save(self, images_node, params_seeds, save_direc_name):
-        with h5py.File(save_direc_name, 'a') as f:
+    def save(self, images_node, params_seeds):
+        with h5py.File(self.kwargs['save_direc_name'], 'a') as f:
             if 'kwargs' not in f.keys():
                 keys = list(self.kwargs)
                 values = [str(value) for value in self.kwargs.values()]
@@ -391,27 +390,42 @@ if __name__ == '__main__':
         HII_EFF_FACTOR = [10, 250],
         )
     kwargs = dict(
-        fields = ['brightness_temp', 'density'],
-        HII_DIM=64, BOX_LEN=100,
-        verbose=3, redshift=[7.51, 11.93]
-        )
-    generator = Generator(params_ranges, num_images=32, **kwargs)
-    generator.run(save_direc_name=os.path.join(save_direc, "train.h5"))
-
-    # testing set, (5*800, 64, 64, 64)
-    params_list = [(4.4,131.341),(5.6,19.037)]#, (4.699,30), (5.477,200), (4.8,131.341)]
-
-    kwargs = dict(
-        # p21c_run = 'coeval',
-        fields = ['brightness_temp', 'density'],
-        HII_DIM=64, BOX_LEN=60,
-        verbose=2, redshift=[9,10],
         num_images=32,
+        fields = ['brightness_temp', 'density'],
+        HII_DIM=64, BOX_LEN=128,
+        verbose=3, redshift=[7.51, 11.93],
+        NON_CUBIC_FACTOR = 8,
+        save_direc_name=os.path.join(save_direc, "SmallScale21cmData.h5"),
+        
         )
-    for T_vir, zeta in params_list:
-        params_ranges = dict(
-        ION_Tvir_MIN = T_vir, # single number is ok,
-        HII_EFF_FACTOR = [zeta], # list of single number is ok,
+    generator = Generator(params_ranges, **kwargs)
+    generator.run()
+                  
+    kwargs = dict(
+        num_images=32, 
+        fields = ['brightness_temp', 'density'],
+        HII_DIM=256, BOX_LEN=512,
+        verbose=3, redshift=[7.51, 11.93],
+        NON_CUBIC_FACTOR = 1,
+        save_direc_name=os.path.join(save_direc, "LargeScale21cmData.h5"),
         )
-        generator = Generator(params_ranges, **kwargs)
-        generator.run(save_direc_name=os.path.join(save_direc,"test.h5"))
+    generator = Generator(params_ranges, **kwargs)
+    generator.run()                                                                              
+#     # testing set, (5*800, 64, 64, 64)
+#     params_list = [(4.4,131.341),(5.6,19.037)]#, (4.699,30), (5.477,200), (4.8,131.341)]
+
+#     kwargs = dict(
+#         # p21c_run = 'coeval',
+#         fields = ['brightness_temp', 'density'],
+#         HII_DIM=64, BOX_LEN=60,
+#         verbose=2, redshift=[9,10],
+#         num_images=32,
+#         )
+#     for T_vir, zeta in params_list:
+#         params_ranges = dict(
+#         ION_Tvir_MIN = T_vir, # single number is ok,
+#         HII_EFF_FACTOR = [zeta], # list of single number is ok,
+#         save_direc_name=os.path.join(save_direc,"test.h5"),
+#         )
+#         generator = Generator(params_ranges, **kwargs)
+#         generator.run()

@@ -56,7 +56,7 @@ class Generator():
         global p21c
         
         if rank == 0:
-            # import py21cmfast as p21c
+            import py21cmfast as p21c
             self.default_cache_direc = os.path.join(Path.home(),"21cmFAST-cache")
             
             # if not os.path.exists(os.path.join(self.default_cache_direc,'wisdoms')):
@@ -238,7 +238,7 @@ class Generator():
 
         pool_run_end = time.perf_counter()
         
-        time_elapsed = time.strftime("%M:%S", time.gmtime(pool_run_end - pool_run_start))
+        time_elapsed = time.strftime("%H:%M:%S", time.gmtime(pool_run_end - pool_run_start))
         if self.kwargs['verbose'] > 2:
             print(f'{time_elapsed}, cpu {pid_cpu}-{rank}, params {list(params_cpu.values())}, seed {random_seed}')
 
@@ -406,7 +406,7 @@ if __name__ == '__main__':
         fields = ['brightness_temp', 'density'],
         HII_DIM=256, BOX_LEN=512,
         verbose=3, redshift=[7.51, 11.93],
-        NON_CUBIC_FACTOR = 1,
+        NON_CUBIC_FACTOR = 2,
         save_direc_name=os.path.join(save_direc, "LargeScale21cmData.h5"),
         )
     generator = Generator(params_ranges, **kwargs)

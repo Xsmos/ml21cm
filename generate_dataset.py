@@ -389,20 +389,19 @@ if __name__ == '__main__':
         ION_Tvir_MIN = [4,6],
         HII_EFF_FACTOR = [10, 250],
         )
-    kwargs = dict(
-        num_images=32,
-        fields = ['brightness_temp', 'density'],
-        HII_DIM=64, BOX_LEN=128,
-        verbose=3, redshift=[7.51, 11.93],
-        NON_CUBIC_FACTOR = 8,
-        save_direc_name=os.path.join(save_direc, "SmallScale21cmData.h5"),
-        
-        )
-    generator = Generator(params_ranges, **kwargs)
-    generator.run()
+    # kwargs = dict(
+    #     num_images=32,
+    #     fields = ['brightness_temp', 'density'],
+    #     HII_DIM=64, BOX_LEN=32,#128,
+    #     verbose=3, redshift=[7.51, 11.93],
+    #     NON_CUBIC_FACTOR = 8,
+    #     save_direc_name=os.path.join(save_direc, "SmallScale21cmData.h5"),
+    #     )
+    # generator = Generator(params_ranges, **kwargs)
+    # generator.run()
                   
     kwargs = dict(
-        num_images=32, 
+        num_images=120, 
         fields = ['brightness_temp', 'density'],
         HII_DIM=256, BOX_LEN=512,
         verbose=3, redshift=[7.51, 11.93],

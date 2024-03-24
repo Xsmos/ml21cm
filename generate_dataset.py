@@ -31,7 +31,6 @@ except ImportError:
 
 str_pad_len = 80
 str_pad_type = '-'
-# self.kwargs['cache_direc'] = "_cache" + str(rank)
 
 class Generator():
     def __init__(self, params_ranges, **kwargs):
@@ -274,6 +273,8 @@ class Generator():
             # print(rank, "comm has been gathered.")
 
         if rank == 0:
+            if len(os.listdir(os.path.dirname(self.kwargs['cache_direc']))) == 0:
+                os.rmdir(os.path.dirname(self.kwargs['cache_direc']))
             if len(os.listdir(self.default_cache_direc)) == 1:
                 # print(rank, f"default_cache_direc {self.default_cache_direc} to be removed!!!!!!!")
                 shutil.rmtree(self.default_cache_direc)
@@ -389,27 +390,30 @@ if __name__ == '__main__':
         ION_Tvir_MIN = [4,6],
         HII_EFF_FACTOR = [10, 250],
         )
-    # kwargs = dict(
-    #     num_images=32,
-    #     fields = ['brightness_temp', 'density'],
-    #     HII_DIM=64, BOX_LEN=32,#128,
-    #     verbose=3, redshift=[7.51, 11.93],
-    #     NON_CUBIC_FACTOR = 8,
-    #     save_direc_name=os.path.join(save_direc, "SmallScale21cmData.h5"),
-    #     )
-    # generator = Generator(params_ranges, **kwargs)
-    # generator.run()
+
+    kwargs = dict(
+        num_images=400,#30000,
+        fields = ['brightness_temp', 'density'],
+        HII_DIM=128,#64, 
+        BOX_LEN=64,#128,
+        verbose=3, redshift=[7.51, 11.93],
+        NON_CUBIC_FACTOR = 1,#16,#1,#8,#16,
+        save_direc_name=os.path.join(save_direc, "SmallScale21cmData.h5"),
+        )
+    generator = Generator(params_ranges, **kwargs)
+    generator.run()
                   
     kwargs = dict(
-        num_images=120, 
+        num_images=240, 
         fields = ['brightness_temp', 'density'],
         HII_DIM=256, BOX_LEN=512,
         verbose=3, redshift=[7.51, 11.93],
-        NON_CUBIC_FACTOR = 2,
+        NON_CUBIC_FACTOR = 2,#2,
         save_direc_name=os.path.join(save_direc, "LargeScale21cmData.h5"),
         )
-    generator = Generator(params_ranges, **kwargs)
-    generator.run()                                                                              
+#     generator = Generator(params_ranges, **kwargs)
+#     generator.run()                                                                              
+
 #     # testing set, (5*800, 64, 64, 64)
 #     params_list = [(4.4,131.341),(5.6,19.037)]#, (4.699,30), (5.477,200), (4.8,131.341)]
 

@@ -126,6 +126,8 @@ class Generator():
             OMm = 0.310,
             OMb = 0.0490,
             POWER_INDEX = 0.967,
+
+            # write = False,
         )
 
         # update
@@ -194,6 +196,7 @@ class Generator():
                 cosmo_params = p21c.CosmoParams(kwargs_params_cpu),
                 astro_params = p21c.AstroParams(kwargs_params_cpu),
                 random_seed = random_seed,
+                write = kwargs_params_cpu['seed'] != None,#kwargs_params_cpu['write'],
             )
             dict_cpu = self.coevals2dict(coevals_cpu)
 
@@ -206,6 +209,7 @@ class Generator():
                 cosmo_params = p21c.CosmoParams(kwargs_params_cpu),
                 astro_params = p21c.AstroParams(kwargs_params_cpu),
                 random_seed = random_seed,
+                write = kwargs_params_cpu['seed'] != None,#kwargs_params_cpu['write'],
             )
             # self.kwargs['node_redshifts'] = lightcone_cpu.node_redshifts
             # print(lightcone_cpu.lightcone_redshifts[-5:])
@@ -292,26 +296,26 @@ class Generator():
         if self.kwargs['verbose'] >= 2:
             print(f" node {rank}: {CPU_num} CPUs, params.shape {np.array(list(self.params_node.values())).T.shape} ".center(str_pad_len,str_pad_type))
 
+        iterables = np.array(list(self.params_node.values()))
+        random_seeds = np.random.randint(1,2**32, size = iterables.shape[-1])
+        iterables = np.vstack((iterables, random_seeds)).T
+
         # run p21c.run_coeval in parallel on multi-CPUs
-        Pool_start = time.perf_counter()
+        loop_num = np.ceil(iterables.shape[0]/CPU_num)
+        for iterable in np.array_split(iterables, loop_num, axis=0):
+            with Pool(CPU_num) as p:
+                Pool_start = time.perf_counter()
+                dict_node = p.map(self.pool_run, iterable)
+                images_node, images_node_MB = self.dict2images(dict_node)
+                Pool_end = time.perf_counter()
+                time_elapsed = time.strftime("%H:%M:%S", time.gmtime(Pool_end - Pool_start))
 
-        with Pool(CPU_num) as p:
-            iterable = np.array(list(self.params_node.values()))
-            random_seeds = np.random.randint(1,2**32, size = iterable.shape[-1])
-            iterable = np.vstack((iterable, random_seeds)).T
-            dict_node = p.map(self.pool_run, iterable)
+                # save images, params as .h5 file
+                async_save_time = self.async_save(images_node, iterable)
 
-        images_node, images_node_MB = self.dict2images(dict_node)
-
-        Pool_end = time.perf_counter()
-        time_elapsed = time.strftime("%H:%M:%S", time.gmtime(Pool_end - Pool_start))
-            
-        # save images, params as .h5 file
-        async_save_time = self.async_save(images_node, iterable)
-
-        if self.kwargs['verbose'] >= 1:
-            print(f"{time_elapsed}, node {rank}: {images_node_MB} MB images {[np.shape(images_node[field]) for field in self.kwargs['fields']]} ->{async_save_time}-> {os.path.basename(self.kwargs['save_direc_name'])}")
-        
+                if self.kwargs['verbose'] >= 2:
+                    print(f"{time_elapsed}, node {rank}: {images_node_MB} MB images {[np.shape(images_node[field]) for field in self.kwargs['fields']]} ->{async_save_time}-> {os.path.basename(self.kwargs['save_direc_name'])}")
+                
         self.clear_cache_direc()
 
     def dict2images(self, dict_node):
@@ -392,12 +396,12 @@ if __name__ == '__main__':
         )
 
     kwargs = dict(
-        num_images=400,#30000,
+        num_images=30000,
         fields = ['brightness_temp', 'density'],
         HII_DIM=128,#64, 
         BOX_LEN=64,#128,
         verbose=3, redshift=[7.51, 11.93],
-        NON_CUBIC_FACTOR = 1,#16,#1,#8,#16,
+        NON_CUBIC_FACTOR = 16,#1,#8,#16,
         save_direc_name=os.path.join(save_direc, "SmallScale21cmData.h5"),
         )
     generator = Generator(params_ranges, **kwargs)

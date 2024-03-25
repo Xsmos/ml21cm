@@ -403,14 +403,14 @@ if __name__ == '__main__':
         )
 
     kwargs = dict(
-        num_images=100,#30000,
+        num_images=30000,#2400,#30000,
         fields = ['brightness_temp', 'density'],
         HII_DIM=128,#64, 
         BOX_LEN=64,#128,
         verbose=3, redshift=[7.51, 11.93],
         NON_CUBIC_FACTOR = 16,#1,#8,#16,
         save_direc_name=os.path.join(save_direc, "SmallScale21cmData.h5"),
-        write = True,
+        # write = True,
         )
     generator = Generator(params_ranges, **kwargs)
     generator.run()
@@ -422,7 +422,7 @@ if __name__ == '__main__':
         verbose=3, redshift=[7.51, 11.93],
         NON_CUBIC_FACTOR = 2,#2,
         save_direc_name=os.path.join(save_direc, "LargeScale21cmData.h5"),
-        write = True,
+        # write = True,
         )
 #     generator = Generator(params_ranges, **kwargs)
 #     generator.run()                                                                              

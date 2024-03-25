@@ -3,7 +3,7 @@ import warnings
 warnings.simplefilter('ignore')
 
 import sys, os
-
+import gc
 import shutil
 
 import multiprocessing
@@ -153,6 +153,9 @@ class Generator():
             os.makedirs(self.kwargs['cache_direc'])
         p21c.config['direc'] = self.kwargs['cache_direc']
 
+        if 'write' not in self.kwargs:
+            self.kwargs['write'] = self.kwargs['seed'] != None
+
     def sample_normalized_params(self):
         """
         sample and scatter to other nodes
@@ -196,9 +199,10 @@ class Generator():
                 cosmo_params = p21c.CosmoParams(kwargs_params_cpu),
                 astro_params = p21c.AstroParams(kwargs_params_cpu),
                 random_seed = random_seed,
-                write = kwargs_params_cpu['seed'] != None,#kwargs_params_cpu['write'],
+                write = kwargs_params_cpu['write'],
             )
             dict_cpu = self.coevals2dict(coevals_cpu)
+            del coevals_cpu
 
         elif self.kwargs['p21c_run'] == 'lightcone':
             lightcone_cpu = p21c.run_lightcone(
@@ -209,12 +213,15 @@ class Generator():
                 cosmo_params = p21c.CosmoParams(kwargs_params_cpu),
                 astro_params = p21c.AstroParams(kwargs_params_cpu),
                 random_seed = random_seed,
-                write = kwargs_params_cpu['seed'] != None,#kwargs_params_cpu['write'],
+                write = kwargs_params_cpu['write'],
             )
             # self.kwargs['node_redshifts'] = lightcone_cpu.node_redshifts
             # print(lightcone_cpu.lightcone_redshifts[-5:])
             dict_cpu = self.lightcone2dict(lightcone_cpu)
+            del lightcone_cpu
         
+        gc.collect()
+
         return dict_cpu
 
 
@@ -396,13 +403,14 @@ if __name__ == '__main__':
         )
 
     kwargs = dict(
-        num_images=30000,
+        num_images=100,#30000,
         fields = ['brightness_temp', 'density'],
         HII_DIM=128,#64, 
         BOX_LEN=64,#128,
         verbose=3, redshift=[7.51, 11.93],
         NON_CUBIC_FACTOR = 16,#1,#8,#16,
         save_direc_name=os.path.join(save_direc, "SmallScale21cmData.h5"),
+        write = True,
         )
     generator = Generator(params_ranges, **kwargs)
     generator.run()
@@ -414,6 +422,7 @@ if __name__ == '__main__':
         verbose=3, redshift=[7.51, 11.93],
         NON_CUBIC_FACTOR = 2,#2,
         save_direc_name=os.path.join(save_direc, "LargeScale21cmData.h5"),
+        write = True,
         )
 #     generator = Generator(params_ranges, **kwargs)
 #     generator.run()                                                                              

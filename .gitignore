@@ -1,3 +1,7 @@
 Report-*
 .ipynb_checkpoints/
 *.h5
+__pycache__/
+hive*
+phoenix*
+*pace.gatech.edu

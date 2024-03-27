@@ -300,7 +300,7 @@ class Generator():
         pid_node = os.getpid()
         CPU_num = len(os.sched_getaffinity(pid_node))
         
-        if self.kwargs['verbose'] >= 2:
+        if self.kwargs['verbose'] >= 3:
             print(f" node {rank}: {CPU_num} CPUs, params.shape {np.array(list(self.params_node.values())).T.shape} ".center(str_pad_len,str_pad_type))
 
         iterables = np.array(list(self.params_node.values()))
@@ -405,43 +405,44 @@ if __name__ == '__main__':
     kwargs = dict(
         num_images=30000,#2400,#30000,
         fields = ['brightness_temp', 'density'],
-        HII_DIM=128,#64, 
-        BOX_LEN=64,#128,
+        BOX_LEN=64,#128,#64,#128,
+        HII_DIM=64,#64,#128,#64, 
         verbose=3, redshift=[7.51, 11.93],
-        NON_CUBIC_FACTOR = 16,#1,#8,#16,
-        save_direc_name=os.path.join(save_direc, "SmallScale21cmData.h5"),
-        # write = True,
+        NON_CUBIC_FACTOR = 16,#8,#16,#1,#8,#16,
+        save_direc_name=os.path.join(save_direc, "LEN64-DIM64.h5"),
+        write = True,
         )
     generator = Generator(params_ranges, **kwargs)
     generator.run()
-                  
+
     kwargs = dict(
-        num_images=240, 
+        num_images=120, 
         fields = ['brightness_temp', 'density'],
-        HII_DIM=256, BOX_LEN=512,
+        BOX_LEN=512,
+        HII_DIM=256, 
         verbose=3, redshift=[7.51, 11.93],
         NON_CUBIC_FACTOR = 2,#2,
         save_direc_name=os.path.join(save_direc, "LargeScale21cmData.h5"),
-        # write = True,
+        write = True,
         )
-#     generator = Generator(params_ranges, **kwargs)
-#     generator.run()                                                                              
+    # generator = Generator(params_ranges, **kwargs)
+    # generator.run()
 
-#     # testing set, (5*800, 64, 64, 64)
-#     params_list = [(4.4,131.341),(5.6,19.037)]#, (4.699,30), (5.477,200), (4.8,131.341)]
+    # # testing set, (5*800, 64, 64, 64)
+    # params_list = [(4.4,131.341),(5.6,19.037)]#, (4.699,30), (5.477,200), (4.8,131.341)]
 
-#     kwargs = dict(
-#         # p21c_run = 'coeval',
-#         fields = ['brightness_temp', 'density'],
-#         HII_DIM=64, BOX_LEN=60,
-#         verbose=2, redshift=[9,10],
-#         num_images=32,
-#         )
-#     for T_vir, zeta in params_list:
-#         params_ranges = dict(
-#         ION_Tvir_MIN = T_vir, # single number is ok,
-#         HII_EFF_FACTOR = [zeta], # list of single number is ok,
-#         save_direc_name=os.path.join(save_direc,"test.h5"),
-#         )
-#         generator = Generator(params_ranges, **kwargs)
-#         generator.run()
+    # kwargs = dict(
+    #     # p21c_run = 'coeval',
+    #     fields = ['brightness_temp', 'density'],
+    #     HII_DIM=64, BOX_LEN=60,
+    #     verbose=2, redshift=[9,10],
+    #     num_images=32,
+    #     )
+    # for T_vir, zeta in params_list:
+    #     params_ranges = dict(
+    #     ION_Tvir_MIN = T_vir, # single number is ok,
+    #     HII_EFF_FACTOR = [zeta], # list of single number is ok,
+    #     save_direc_name=os.path.join(save_direc,"test.h5"),
+    #     )
+    #     generator = Generator(params_ranges, **kwargs)
+    #     generator.run()

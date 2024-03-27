@@ -403,7 +403,7 @@ if __name__ == '__main__':
         )
 
     kwargs = dict(
-        num_images=30000,#2400,#30000,
+        num_images=343,#30000,#2400,#30000,
         fields = ['brightness_temp', 'density'],
         BOX_LEN=64,#128,#64,#128,
         HII_DIM=64,#64,#128,#64, 

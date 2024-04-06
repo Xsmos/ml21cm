@@ -423,7 +423,7 @@ if __name__ == '__main__':
         num_images=1200, 
         BOX_LEN=512,
         HII_DIM=256, 
-        NON_CUBIC_FACTOR = 2,#2,
+        NON_CUBIC_FACTOR = 2,
         save_direc_name=os.path.join(save_direc, "LEN512-DIM256.h5"),
         ))
     #generator = Generator(params_ranges, **kwargs)

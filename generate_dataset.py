@@ -85,7 +85,7 @@ class Generator():
 
     def print_kwargs_params(self):
         if self.kwargs['verbose'] >= 1:
-            print(f" Mission: Generate {self.kwargs['num_images']} images by {size}*{len(os.sched_getaffinity(os.getpid()))} CPUs ".center(str_pad_len, '#'))#, str_pad_type))
+            print(f" Mission: Generate {self.kwargs['num_images']} images by {size}*{self.kwargs['cpus_per_node']} CPUs ".center(str_pad_len, '#'))#, str_pad_type))
             print(f" params: ".center(int(str_pad_len/2),str_pad_type)+f" ranges: ".center(int(str_pad_len/2),str_pad_type))
             for key in self.params_ranges:
                 print(f"{key}".center(int(str_pad_len/2))+f"[{self.params_ranges[key][0]}, {self.params_ranges[key][-1]}]".center(int(str_pad_len/2)))
@@ -128,6 +128,7 @@ class Generator():
             POWER_INDEX = 0.967,
 
             # write = False,
+            cpus_per_node = len(os.sched_getaffinity(0))
         )
 
         # update
@@ -142,7 +143,7 @@ class Generator():
         if self.kwargs['num_images'] < size:
             if self.kwargs['verbose'] > 0: print(f"num_images {self.kwargs['num_images']} must be >= the number of nodes {size}.")
             self.kwargs['num_images'] = size
-
+        
         if 'cache_direc' not in self.kwargs:
             self.kwargs['cache_direc'] = os.path.join(
                 os.path.dirname(self.kwargs['save_direc_name']),
@@ -298,19 +299,20 @@ class Generator():
         self.denormalize(normalized_params)
 
         pid_node = os.getpid()
-        CPU_num = len(os.sched_getaffinity(pid_node))
+        # cpus_per_node = len(os.sched_getaffinity(pid_node))
+        cpus_per_node = self.kwargs['cpus_per_node']
         
         if self.kwargs['verbose'] >= 3:
-            print(f" node {rank}: {CPU_num} CPUs, params.shape {np.array(list(self.params_node.values())).T.shape} ".center(str_pad_len,str_pad_type))
+            print(f" node {rank}: {cpus_per_node} CPUs, params.shape {np.array(list(self.params_node.values())).T.shape} ".center(str_pad_len,str_pad_type))
 
         iterables = np.array(list(self.params_node.values()))
         random_seeds = np.random.randint(1,2**32, size = iterables.shape[-1])
         iterables = np.vstack((iterables, random_seeds)).T
 
         # run p21c.run_coeval in parallel on multi-CPUs
-        loop_num = np.ceil(iterables.shape[0]/CPU_num)
+        loop_num = np.ceil(iterables.shape[0]/cpus_per_node)
         for iterable in np.array_split(iterables, loop_num, axis=0):
-            with Pool(CPU_num) as p:
+            with Pool(cpus_per_node) as p:
                 Pool_start = time.perf_counter()
                 dict_node = p.map(self.pool_run, iterable)
                 images_node, images_node_MB = self.dict2images(dict_node)
@@ -395,7 +397,8 @@ class Generator():
 
 if __name__ == '__main__':
     # training set, (25600, 64, 64, 64)
-    save_direc = "/storage/home/hcoda1/3/bxia34/scratch/"
+    # save_direc = "/storage/home/hcoda1/3/bxia34/scratch/"
+    save_direc = "/scratch1/09986/binxia"
 
     params_ranges = dict(
         ION_Tvir_MIN = [4,6],
@@ -403,30 +406,28 @@ if __name__ == '__main__':
         )
 
     kwargs = dict(
-        num_images=343,#30000,#2400,#30000,
-        fields = ['brightness_temp', 'density'],
+        num_images=30000,#30000,#2400,#30000,
+        fields = ['brightness_temp', 'density', 'xH_box'],
         BOX_LEN=64,#128,#64,#128,
-        HII_DIM=64,#64,#128,#64, 
+        HII_DIM=128,#64,#128,#64, 
         verbose=3, redshift=[7.51, 11.93],
-        NON_CUBIC_FACTOR = 16,#8,#16,#1,#8,#16,
-        save_direc_name=os.path.join(save_direc, "LEN64-DIM64.h5"),
+        NON_CUBIC_FACTOR = 16,#16,#8,#16,#1,#8,#16,
+        save_direc_name=os.path.join(save_direc, "LEN64-DIM128.h5"),
         write = True,
+        cpus_per_node = 20,
         )
     generator = Generator(params_ranges, **kwargs)
     generator.run()
 
-    kwargs = dict(
-        num_images=120, 
-        fields = ['brightness_temp', 'density'],
+    kwargs.update(dict(
+        num_images=1200, 
         BOX_LEN=512,
         HII_DIM=256, 
-        verbose=3, redshift=[7.51, 11.93],
         NON_CUBIC_FACTOR = 2,#2,
-        save_direc_name=os.path.join(save_direc, "LargeScale21cmData.h5"),
-        write = True,
-        )
-    # generator = Generator(params_ranges, **kwargs)
-    # generator.run()
+        save_direc_name=os.path.join(save_direc, "LEN512-DIM256.h5"),
+        ))
+    #generator = Generator(params_ranges, **kwargs)
+    #generator.run()
 
     # # testing set, (5*800, 64, 64, 64)
     # params_list = [(4.4,131.341),(5.6,19.037)]#, (4.699,30), (5.477,200), (4.8,131.341)]

@@ -128,7 +128,8 @@ class Generator():
             POWER_INDEX = 0.967,
 
             # write = False,
-            cpus_per_node = len(os.sched_getaffinity(0))
+            cpus_per_node = len(os.sched_getaffinity(0)),
+            cache_rmdir = True,
         )
 
         # update
@@ -250,10 +251,14 @@ class Generator():
         pool_run_end = time.perf_counter()
         
         time_elapsed = time.strftime("%H:%M:%S", time.gmtime(pool_run_end - pool_run_start))
+
+        async_save_time = self.async_save(images_node, iterable)
+        
+
         if self.kwargs['verbose'] > 2:
             print(f'{time_elapsed}, cpu {pid_cpu}-{rank}, params {list(params_cpu.values())}, seed {random_seed}')
 
-        return dict_cpu
+        # return dict_cpu
 
 
     def lightcone2dict(self, lightcone_cpu):
@@ -274,7 +279,7 @@ class Generator():
                 images_cpu[field].append(coeval.__dict__[field])
         return images_cpu
 
-    def clear_cache_direc(self):
+    def cache_rmdir(self):
         # print(self.kwargs['cache_direc'], "starts")
         if len(os.listdir(self.kwargs['cache_direc'])) == 0:
             os.rmdir(self.kwargs['cache_direc'])
@@ -314,18 +319,20 @@ class Generator():
         for iterable in np.array_split(iterables, loop_num, axis=0):
             with Pool(cpus_per_node) as p:
                 Pool_start = time.perf_counter()
-                dict_node = p.map(self.pool_run, iterable)
-                images_node, images_node_MB = self.dict2images(dict_node)
+                # dict_node = p.map(self.pool_run, iterable)
+                p.map(self.pool_run, iterable)
+                # images_node, images_node_MB = self.dict2images(dict_node)
                 Pool_end = time.perf_counter()
                 time_elapsed = time.strftime("%H:%M:%S", time.gmtime(Pool_end - Pool_start))
 
                 # save images, params as .h5 file
-                async_save_time = self.async_save(images_node, iterable)
+                # async_save_time = self.async_save(images_node, iterable)
 
-                if self.kwargs['verbose'] >= 2:
+                if self.kwargs['verbose'] >= 2 and False:
                     print(f"{time_elapsed}, node {rank}: {images_node_MB} MB images {[np.shape(images_node[field]) for field in self.kwargs['fields']]} ->{async_save_time}-> {os.path.basename(self.kwargs['save_direc_name'])}")
                 
-        self.clear_cache_direc()
+        if self.kwargs['cache_rmdir'] == True:
+            self.cache_rmdir()
 
     def dict2images(self, dict_node):
         images_node = {}
@@ -414,7 +421,8 @@ if __name__ == '__main__':
         NON_CUBIC_FACTOR = 16,#16,#8,#16,#1,#8,#16,
         save_direc_name=os.path.join(save_direc, "LEN64-DIM128.h5"),
         write = True,
-        cpus_per_node = 20,
+        cpus_per_node = 112,#20,
+        cache_rmdir = False,
         )
     generator = Generator(params_ranges, **kwargs)
     generator.run()

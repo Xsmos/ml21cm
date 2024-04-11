@@ -252,11 +252,10 @@ class Generator():
         
         time_elapsed = time.strftime("%H:%M:%S", time.gmtime(pool_run_end - pool_run_start))
 
-        async_save_time = self.async_save(images_node, iterable)
-        
+        async_save_time = self.async_save(dict_cpu, np.expand_dims(params_node_value, axis=0))
 
         if self.kwargs['verbose'] > 2:
-            print(f'{time_elapsed}, cpu {pid_cpu}-{rank}, params {list(params_cpu.values())}, seed {random_seed}')
+            print(f'cpu {pid_cpu}-{rank}, {time_elapsed}, {async_save_time}, params {list(params_cpu.values())}, seed {random_seed}')
 
         # return dict_cpu
 
@@ -264,7 +263,7 @@ class Generator():
     def lightcone2dict(self, lightcone_cpu):
         images_cpu = {}
         for i, field in enumerate(self.kwargs['fields']):
-            images_cpu[field] = lightcone_cpu.lightcones[field]
+            images_cpu[field] = np.expand_dims(lightcone_cpu.lightcones[field], axis=0)
 
         images_cpu["redshifts_distances"] = np.vstack((lightcone_cpu.lightcone_redshifts, lightcone_cpu.lightcone_distances))
 
@@ -404,8 +403,8 @@ class Generator():
 
 if __name__ == '__main__':
     # training set, (25600, 64, 64, 64)
-    # save_direc = "/storage/home/hcoda1/3/bxia34/scratch/"
-    save_direc = "/scratch1/09986/binxia"
+    save_direc = "/storage/home/hcoda1/3/bxia34/scratch/"
+    # save_direc = "/scratch1/09986/binxia"
 
     params_ranges = dict(
         ION_Tvir_MIN = [4,6],
@@ -413,29 +412,29 @@ if __name__ == '__main__':
         )
 
     kwargs = dict(
-        num_images=30000,#30000,#2400,#30000,
+        num_images=300,#30000,#2400,#30000,
         fields = ['brightness_temp', 'density', 'xH_box'],
         BOX_LEN=64,#128,#64,#128,
-        HII_DIM=128,#64,#128,#64, 
+        HII_DIM=64,#64,#128,#64, 
         verbose=3, redshift=[7.51, 11.93],
-        NON_CUBIC_FACTOR = 16,#16,#8,#16,#1,#8,#16,
+        NON_CUBIC_FACTOR = 1,#16,#8,#16,#1,#8,#16,
         save_direc_name=os.path.join(save_direc, "LEN64-DIM128.h5"),
         write = True,
-        cpus_per_node = 112,#20,
+        # cpus_per_node = 112,#20,
         cache_rmdir = False,
         )
-    generator = Generator(params_ranges, **kwargs)
-    generator.run()
+    #generator = Generator(params_ranges, **kwargs)
+    #generator.run()
 
     kwargs.update(dict(
-        num_images=1200, 
+        num_images=800, 
         BOX_LEN=512,
         HII_DIM=256, 
         NON_CUBIC_FACTOR = 2,
         save_direc_name=os.path.join(save_direc, "LEN512-DIM256.h5"),
         ))
-    #generator = Generator(params_ranges, **kwargs)
-    #generator.run()
+    generator = Generator(params_ranges, **kwargs)
+    generator.run()
 
     # # testing set, (5*800, 64, 64, 64)
     # params_list = [(4.4,131.341),(5.6,19.037)]#, (4.699,30), (5.477,200), (4.8,131.341)]

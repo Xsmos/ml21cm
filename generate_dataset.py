@@ -151,7 +151,7 @@ class Generator():
                 '_cache', str(rank),
                 )
 
-        if not os.path.exists(self.kwargs['cache_direc']):
+        if not os.path.exists(self.kwargs['cache_direc']) and self.kwargs['write']:
             os.makedirs(self.kwargs['cache_direc'])
         p21c.config['direc'] = self.kwargs['cache_direc']
 
@@ -280,7 +280,7 @@ class Generator():
 
     def cache_rmdir(self):
         # print(self.kwargs['cache_direc'], "starts")
-        if len(os.listdir(self.kwargs['cache_direc'])) == 0:
+        if os.path.exists(self.kwargs['cache_direc']) and len(os.listdir(self.kwargs['cache_direc'])) == 0:
             os.rmdir(self.kwargs['cache_direc'])
 
         if 'comm' in globals():
@@ -289,9 +289,9 @@ class Generator():
             # print(rank, "comm has been gathered.")
 
         if rank == 0:
-            if len(os.listdir(os.path.dirname(self.kwargs['cache_direc']))) == 0:
+            if os.path.exists(os.path.dirname(self.kwargs['cache_direc'])) and len(os.listdir(os.path.dirname(self.kwargs['cache_direc']))) == 0:
                 os.rmdir(os.path.dirname(self.kwargs['cache_direc']))
-            if len(os.listdir(self.default_cache_direc)) == 1:
+            if os.path.exists(self.default_cache_direc) and len(os.listdir(self.default_cache_direc)) == 1:
                 # print(rank, f"default_cache_direc {self.default_cache_direc} to be removed!!!!!!!")
                 shutil.rmtree(self.default_cache_direc)
                 # print(rank, f"default_cache_direc {self.default_cache_direc} has been removed!!!!!!")
@@ -310,7 +310,7 @@ class Generator():
             print(f" node {rank}: {cpus_per_node} CPUs, params.shape {np.array(list(self.params_node.values())).T.shape} ".center(str_pad_len,str_pad_type))
 
         iterables = np.array(list(self.params_node.values()))
-        random_seeds = np.random.randint(1,2**32, size = iterables.shape[-1])
+        random_seeds = np.random.randint(1,2**63, size = iterables.shape[-1])
         iterables = np.vstack((iterables, random_seeds)).T
 
         # run p21c.run_coeval in parallel on multi-CPUs
@@ -372,18 +372,36 @@ class Generator():
                 data = data.tolist()
                 f.create_dataset('kwargs', data=data)
 
-            if 'params_seeds' not in f.keys():
-                grp = f.create_group('params_seeds') 
-                grp['keys'] = list(self.params_ranges) + ['seed']
+            if 'params' not in f.keys():
+                grp = f.create_group('params') 
+                grp['keys'] = list(self.params_ranges)
                 grp.create_dataset(
                     'values',
-                    data = params_seeds,
-                    maxshape = tuple((None,) + params_seeds.shape[1:]),
+                    data = params_seeds[:,:-1],
+                    maxshape = tuple((None,) + params_seeds[:,:-1].shape[1:]),
                     )
             else:
-                new_size = f['params_seeds']['values'].shape[0] + params_seeds.shape[0]
-                f['params_seeds']['values'].resize(new_size, axis=0)
-                f['params_seeds']['values'][-params_seeds.shape[0]:] = params_seeds
+                new_size = f['params']['values'].shape[0] + params_seeds.shape[0]
+                f['params']['values'].resize(new_size, axis=0)
+                f['params']['values'][-params_seeds.shape[0]:] = params_seeds[:,:-1]
+
+
+            #seeds = np.expand_dims(params_seeds[:,-1], axis=-1)
+            seeds = params_seeds[:,-1]            
+            if 'seeds' not in f.keys():
+                #grp = f.create_group('seeds') 
+                #grp['keys'] = list(self.params_ranges) + ['seed']
+                f.create_dataset(
+                    'seeds',
+                    data = seeds.astype(np.int64),
+                    #maxshape = tuple((None,) + seeds.shape[1:]),
+                    maxshape = (None,),
+                    )
+            else:
+                new_size = f['seeds'].shape[0] + seeds.shape[0]
+                f['seeds'].resize(new_size, axis=0)
+                f['seeds'][-seeds.shape[0]:] = seeds.astype(np.int64) 
+
 
             if 'redshifts_distances' not in f.keys() and 'redshifts_distances' in images_node:
                 f.create_dataset('redshifts_distances', data=images_node['redshifts_distances'])
@@ -402,9 +420,10 @@ class Generator():
                     f[field][-images.shape[0]:] = images
 
 if __name__ == '__main__':
-    # training set, (25600, 64, 64, 64)
-    # save_direc = "/storage/home/hcoda1/3/bxia34/scratch/"
-    save_direc = "/scratch1/09986/binxia"
+    # save_direc = "/storage/home/hcoda1/3/bxia34/scratch/" # phoenix
+    # save_direc = "/scratch1/09986/binxia" # frontera
+    # save_direc = "/storage/home/hhive1/bxia34/scratch" # hive
+    save_direc = "/storage/home/hhive1/bxia34/data/ml21cm" # hive
 
     params_ranges = dict(
         ION_Tvir_MIN = [4,6],
@@ -412,17 +431,19 @@ if __name__ == '__main__':
         )
 
     kwargs = dict(
-        num_images=30000,#2400,#30000,
+        num_images=48*48*12,#30000,#2400,#30000,
         fields = ['brightness_temp', 'density', 'xH_box'],
         BOX_LEN=64,#128,#64,#128,
         HII_DIM=128,#64,#128,#64, 
         verbose=3, redshift=[7.51, 11.93],
-        NON_CUBIC_FACTOR = 16,#16,#8,#16,#1,#8,#16,
-        save_direc_name=os.path.join(save_direc, "LEN64-DIM128.h5"),
-        write = True,
-        cpus_per_node = 12,#10,#112,#20,
+        NON_CUBIC_FACTOR = 16,#8,#16,#1,#8,#16,
+        write = False,
+        # cpus_per_node = 12,#10,#112,#20,
         cache_rmdir = False,
         )
+    save_name = f"LEN{kwargs['BOX_LEN']}-DIM{kwargs['HII_DIM']}-CUB{kwargs['NON_CUBIC_FACTOR']}.h5"
+    kwargs['save_direc_name'] = os.path.join(save_direc, save_name)
+
     generator = Generator(params_ranges, **kwargs)
     generator.run()
 

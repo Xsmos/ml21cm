@@ -353,14 +353,18 @@ class Generator():
         while True:
             try:
                 save_start = time.perf_counter()
+                try_time = save_start - try_start
                 self.save(images_node, params_seeds)
                 save_end = time.perf_counter()
                 save_time = save_end - save_start
-                try_time = save_start - try_start
                 return f"{try_time:.1f}s/{save_time:.2f}s"
                 # break
-            except BlockingIOError:
-                sleep(0.1)
+            except:
+                if try_time > 60:
+                    print(f"{rank}-{multiprocessing.current_process().pid}, try_time = {try_time:.2f} sec")
+                    sleep(10)
+                else:
+                    sleep(0.1)
 
     # Save as hdf5
     def save(self, images_node, params_seeds):
@@ -422,8 +426,8 @@ class Generator():
 if __name__ == '__main__':
     # save_direc = "/storage/home/hcoda1/3/bxia34/scratch/" # phoenix
     # save_direc = "/scratch1/09986/binxia" # frontera
-    # save_direc = "/storage/home/hhive1/bxia34/scratch" # hive
-    save_direc = "/storage/home/hhive1/bxia34/data/ml21cm" # hive
+    save_direc = "/storage/home/hhive1/bxia34/scratch" # hive
+    # save_direc = "/storage/home/hhive1/bxia34/data/ml21cm" # hive
 
     params_ranges = dict(
         ION_Tvir_MIN = [4,6],
@@ -431,7 +435,7 @@ if __name__ == '__main__':
         )
 
     kwargs = dict(
-        num_images=48*48*12,#30000,#2400,#30000,
+        num_images=10000,#30000,#2400,#30000,
         fields = ['brightness_temp', 'density', 'xH_box'],
         BOX_LEN=64,#128,#64,#128,
         HII_DIM=128,#64,#128,#64, 

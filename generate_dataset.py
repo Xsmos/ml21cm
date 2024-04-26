@@ -354,6 +354,7 @@ class Generator():
             try:
                 save_start = time.perf_counter()
                 try_time = save_start - try_start
+                print(f"{rank}-{multiprocessing.current_process().pid}, try_time = {try_time:.2f} sec")
                 self.save(images_node, params_seeds)
                 save_end = time.perf_counter()
                 save_time = save_end - save_start

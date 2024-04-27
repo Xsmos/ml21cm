@@ -252,6 +252,7 @@ class Generator():
         
         time_elapsed = time.strftime("%H:%M:%S", time.gmtime(pool_run_end - pool_run_start))
 
+        print(f"{rank}-{multiprocessing.current_process().pid} start!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
         async_save_time = self.async_save(dict_cpu, np.expand_dims(params_node_value, axis=0))
 
         if self.kwargs['verbose'] > 2:
@@ -369,6 +370,7 @@ class Generator():
 
     # Save as hdf5
     def save(self, images_node, params_seeds):
+        print(f"{rank}-{multiprocessing.current_process().pid} is saving!!!!!")
         with h5py.File(self.kwargs['save_direc_name'], 'a') as f:
             if 'kwargs' not in f.keys():
                 keys = list(self.kwargs)
@@ -383,7 +385,7 @@ class Generator():
                 grp.create_dataset(
                     'values',
                     data = params_seeds[:,:-1],
-                    maxshape = tuple((None,) + params_seeds[:,:-1].shape[1:]),
+                    maxshape = tuple((self.kwargs['num_images'],) + params_seeds[:,:-1].shape[1:]),
                     )
             else:
                 new_size = f['params']['values'].shape[0] + params_seeds.shape[0]
@@ -400,7 +402,7 @@ class Generator():
                     'seeds',
                     data = seeds.astype(np.int64),
                     #maxshape = tuple((None,) + seeds.shape[1:]),
-                    maxshape = (None,),
+                    maxshape = (self.kwargs['num_images'],),
                     )
             else:
                 new_size = f['seeds'].shape[0] + seeds.shape[0]
@@ -417,7 +419,7 @@ class Generator():
                     f.create_dataset(
                         field, 
                         data=images, 
-                        maxshape= tuple((None,) + images.shape[1:])
+                        maxshape= tuple((self.kwargs['num_images'],) + images.shape[1:])
                     )
                 else:
                     new_size = f[field].shape[0] + images.shape[0]
@@ -436,12 +438,12 @@ if __name__ == '__main__':
         )
 
     kwargs = dict(
-        num_images=10000,#30000,#2400,#30000,
+        num_images=24,#10000,#30000,#2400,#30000,
         fields = ['brightness_temp', 'density', 'xH_box'],
         BOX_LEN=64,#128,#64,#128,
-        HII_DIM=128,#64,#128,#64, 
+        HII_DIM=64,#128,#64, 
         verbose=3, redshift=[7.51, 11.93],
-        NON_CUBIC_FACTOR = 16,#8,#16,#1,#8,#16,
+        NON_CUBIC_FACTOR = 1,#8,#16,#1,#8,#16,
         write = False,
         # cpus_per_node = 12,#10,#112,#20,
         cache_rmdir = False,

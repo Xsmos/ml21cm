@@ -10,3 +10,4 @@ test*
 ST4Diffusion/
 runs/
 outputs/
+data/

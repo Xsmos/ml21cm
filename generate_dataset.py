@@ -2,6 +2,7 @@
 import warnings
 warnings.simplefilter('ignore')
 
+import argparse
 import sys, os
 import gc
 import shutil
@@ -116,8 +117,8 @@ class Generator():
             # max_redshift = 20,
             
             # user_params of py21cmfast.run_coeval():
-            HII_DIM = 60, 
             BOX_LEN = 150,
+            HII_DIM = 60, 
             USE_INTERPOLATION_TABLES = True,
             
             # cosmo_params of py21cmfast.run_coeval():
@@ -252,7 +253,6 @@ class Generator():
         
         time_elapsed = time.strftime("%H:%M:%S", time.gmtime(pool_run_end - pool_run_start))
 
-        print(f"{rank}-{multiprocessing.current_process().pid} start!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
         async_save_time = self.async_save(dict_cpu, np.expand_dims(params_node_value, axis=0))
 
         if self.kwargs['verbose'] > 2:
@@ -355,14 +355,13 @@ class Generator():
             try:
                 save_start = time.perf_counter()
                 try_time = save_start - try_start
-                print(f"{rank}-{multiprocessing.current_process().pid}, try_time = {try_time:.2f} sec")
                 self.save(images_node, params_seeds)
                 save_end = time.perf_counter()
                 save_time = save_end - save_start
                 return f"{try_time:.1f}s/{save_time:.2f}s"
                 # break
-            except:
-                if try_time > 60:
+            except IOError or BlockingIOError:
+                if try_time > 30:
                     print(f"{rank}-{multiprocessing.current_process().pid}, try_time = {try_time:.2f} sec")
                     sleep(10)
                 else:
@@ -370,7 +369,7 @@ class Generator():
 
     # Save as hdf5
     def save(self, images_node, params_seeds):
-        print(f"{rank}-{multiprocessing.current_process().pid} is saving!!!!!")
+        max_num_images = None # self.kwargs['num_images']
         with h5py.File(self.kwargs['save_direc_name'], 'a') as f:
             if 'kwargs' not in f.keys():
                 keys = list(self.kwargs)
@@ -385,7 +384,7 @@ class Generator():
                 grp.create_dataset(
                     'values',
                     data = params_seeds[:,:-1],
-                    maxshape = tuple((self.kwargs['num_images'],) + params_seeds[:,:-1].shape[1:]),
+                    maxshape = tuple((max_num_images,) + params_seeds[:,:-1].shape[1:]),
                     )
             else:
                 new_size = f['params']['values'].shape[0] + params_seeds.shape[0]
@@ -402,7 +401,7 @@ class Generator():
                     'seeds',
                     data = seeds.astype(np.int64),
                     #maxshape = tuple((None,) + seeds.shape[1:]),
-                    maxshape = (self.kwargs['num_images'],),
+                    maxshape = (max_num_images,),
                     )
             else:
                 new_size = f['seeds'].shape[0] + seeds.shape[0]
@@ -419,7 +418,7 @@ class Generator():
                     f.create_dataset(
                         field, 
                         data=images, 
-                        maxshape= tuple((self.kwargs['num_images'],) + images.shape[1:])
+                        maxshape= tuple((max_num_images,) + images.shape[1:])
                     )
                 else:
                     new_size = f[field].shape[0] + images.shape[0]
@@ -427,43 +426,40 @@ class Generator():
                     f[field][-images.shape[0]:] = images
 
 if __name__ == '__main__':
-    # save_direc = "/storage/home/hcoda1/3/bxia34/scratch/" # phoenix
-    # save_direc = "/scratch1/09986/binxia" # frontera
-    save_direc = "/storage/home/hhive1/bxia34/scratch" # hive
-    # save_direc = "/storage/home/hhive1/bxia34/data/ml21cm" # hive
+    parser = argparse.ArgumentParser(description="generating 21cm dataset")
+    parser.add_argument('--num_images', type=int, default=4)
+    parser.add_argument('--BOX_LEN', type=int, default=64)
+    parser.add_argument('--HII_DIM', type=int, default=128)
+    parser.add_argument('--NON_CUBIC_FACTOR', type=int, default=1)
+    parser.add_argument('--cpus_per_node', type=int, default=len(os.sched_getaffinity(0)))
+    parser.add_argument('--save_direc', type=str, default='.')
+    args = parser.parse_args()
 
     params_ranges = dict(
-        ION_Tvir_MIN = [4,6],
-        HII_EFF_FACTOR = [10, 250],
+        ION_Tvir_MIN = 4.4, #[4,6],
+        HII_EFF_FACTOR = 131.341, #[10, 250],
         )
 
     kwargs = dict(
-        num_images=24,#10000,#30000,#2400,#30000,
+        num_images=args.num_images,#2400,#30000,
         fields = ['brightness_temp', 'density', 'xH_box'],
-        BOX_LEN=64,#128,#64,#128,
-        HII_DIM=64,#128,#64, 
+        BOX_LEN=args.BOX_LEN,#128,
+        HII_DIM=args.HII_DIM, 
         verbose=3, redshift=[7.51, 11.93],
-        NON_CUBIC_FACTOR = 1,#8,#16,#1,#8,#16,
-        write = False,
-        # cpus_per_node = 12,#10,#112,#20,
+        NON_CUBIC_FACTOR = args.NON_CUBIC_FACTOR,
+        write = True,
+        cpus_per_node = args.cpus_per_node,#10,#112,#20,
         cache_rmdir = False,
         )
-    save_name = f"LEN{kwargs['BOX_LEN']}-DIM{kwargs['HII_DIM']}-CUB{kwargs['NON_CUBIC_FACTOR']}.h5"
-    kwargs['save_direc_name'] = os.path.join(save_direc, save_name)
+
+    save_name = f"LEN{kwargs['BOX_LEN']}-DIM{kwargs['HII_DIM']}-CUB{kwargs['NON_CUBIC_FACTOR']}-{params_ranges['ION_Tvir_MIN']}-{params_ranges['HII_EFF_FACTOR']}.h5"
+    kwargs['save_direc_name'] = os.path.join(args.save_direc, save_name)
 
     generator = Generator(params_ranges, **kwargs)
     generator.run()
 
-    kwargs.update(dict(
-        num_images=800, 
-        BOX_LEN=512,
-        HII_DIM=256, 
-        NON_CUBIC_FACTOR = 2,
-        save_direc_name=os.path.join(save_direc, "LEN512-DIM256.h5"),
-        ))
-    #generator = Generator(params_ranges, **kwargs)
-    #generator.run()
-
+    print(f"rank {rank} completed!")
+    
     # # testing set, (5*800, 64, 64, 64)
     # params_list = [(4.4,131.341),(5.6,19.037)]#, (4.699,30), (5.477,200), (4.8,131.341)]
 

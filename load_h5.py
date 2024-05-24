@@ -26,7 +26,7 @@ import datetime
 # from huggingface_hub import create_repo, upload_folder
 
 class Dataset4h5(Dataset):
-    def __init__(self, dir_name, num_image=10, field='brightness_temp', shuffle=True, idx=None, num_redshift=32, HII_DIM=32, rescale=True, drop_prob = 0, dim=2):
+    def __init__(self, dir_name, num_image=10, field='brightness_temp', shuffle=True, idx=None, num_redshift=512, HII_DIM=64, rescale=True, drop_prob = 0, dim=2, transform=True,):
         super().__init__()
         
         self.dir_name = dir_name
@@ -38,6 +38,7 @@ class Dataset4h5(Dataset):
         self.HII_DIM = HII_DIM
         self.drop_prob = drop_prob
         self.dim = dim
+        self.transform = transform
 
         self.load_h5()
         if rescale:
@@ -75,8 +76,11 @@ class Dataset4h5(Dataset):
 
             if self.dim == 2:
                 self.images = f[self.field][self.idx,0,:self.HII_DIM,-self.num_redshift:][:,None]
+                # self.images = self.images[:,:,::x_step,:]
             elif self.dim == 3:
                 self.images = f[self.field][self.idx,:self.HII_DIM,:self.HII_DIM,-self.num_redshift:][:,None]
+            if self.transform:
+                self.images = self.flip_rotate(self.images)
             print(f"images loaded:", self.images.shape)
 
             self.params = f['params']['values'][self.idx]
@@ -85,15 +89,32 @@ class Dataset4h5(Dataset):
             # plt.imshow(self.images[0,0,0])
             # plt.show()
 
+    def flip_rotate(self, img):
+        # num_transform = np.random.randint(img.shape[0])
+        x_flip_idx = random.sample(range(len(img)), np.random.randint(1,len(img)+1))
+        img[x_flip_idx] = img[x_flip_idx, :, ::-1, :]
+        # if img.ndim-2 == 2:
+        #     img[x_flip_idx] = img[x_flip_idx, :, ::-1, :]
+        if img.ndim-2 == 3:
+            y_flip_idx = random.sample(range(len(img)), np.random.randint(1,len(img)+1))
+            xy_flip_idx = random.sample(range(len(img)), np.random.randint(1,len(img)+1))
+            # img[x_flip_idx] = img[x_flip_idx, :, ::-1, :, :]
+            img[y_flip_idx] = img[y_flip_idx, :, :, ::-1, :]
+            img[xy_flip_idx] = img[xy_flip_idx, :, :, :, :].transpose(0,1,3,2,4)
+        return img
+
     def rescale(self, value, to: list):
-        # print(np.ndim(value))
+        # print("value.ndim =", np.ndim(value))
+        # print('value.shape =', value.shape)
         if np.ndim(value)==2:
             # print(f"rescale params of shape {value.shape}")
             ranges = \
                 {
                     0: [4, 6], # ION_Tvir_MIN
                     1: [10, 250], # HII_EFF_FACTOR
+                    # 1: [np.log10(10), np.log10(250)], # HII_EFF_FACTOR
                 }
+            # value[:,1] = np.log10(value[:,1])
         # elif np.ndim(value)==5:  
         else:  
             # value = np.array(value)
@@ -105,7 +126,7 @@ class Dataset4h5(Dataset):
         # print(f"value.min = {value.min()}, value.max = {value.max()}")
         for i in range(np.shape(value)[1]):
             value[:,i] = (value[:,i] - ranges[i][0]) / (ranges[i][1]-ranges[i][0])
-        # print(f"value.min = {value.min()}, value.max = {value.max()}")
+            # print(f"i = {i}, value.min = {value[:,i].min()}, value.max = {value[:,i].max()}")
         value = value * (to[1]-to[0]) + to[0]
         return value 
 

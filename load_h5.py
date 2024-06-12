@@ -26,7 +26,7 @@ import datetime
 # from huggingface_hub import create_repo, upload_folder
 
 class Dataset4h5(Dataset):
-    def __init__(self, dir_name, num_image=10, field='brightness_temp', shuffle=True, idx=None, num_redshift=512, HII_DIM=64, rescale=True, drop_prob = 0, dim=2, transform=True,):
+    def __init__(self, dir_name, num_image=10, field='brightness_temp', shuffle=True, idx=None, num_redshift=512, HII_DIM=64, rescale=True, drop_prob = 0, dim=2, transform=True, ranges_dict=None):
         super().__init__()
         
         self.dir_name = dir_name
@@ -39,11 +39,22 @@ class Dataset4h5(Dataset):
         self.drop_prob = drop_prob
         self.dim = dim
         self.transform = transform
+        
+        # if ranges_dict == None:
+        #     ranges_dict = dict(
+        #         images = {
+        #             0: [4, 6], # ION_Tvir_MIN
+        #             1: [10, 250], # HII_EFF_FACTOR
+        #             },
+        #         params = {
+        #             0: [0, 80], # brightness_temp
+        #             }
+        #         ),
 
         self.load_h5()
         if rescale:
-            self.images = self.rescale(self.images, to=[-1,1])
-            self.params = self.rescale(self.params, to=[0,1])
+            self.images = self.rescale(self.images, ranges=ranges_dict['images'], to=[-1,1])
+            self.params = self.rescale(self.params, ranges=ranges_dict['params'], to=[0,1])
 
         self.len = len(self.params)
         self.images = torch.from_numpy(self.images)
@@ -103,26 +114,27 @@ class Dataset4h5(Dataset):
             img[xy_flip_idx] = img[xy_flip_idx, :, :, :, :].transpose(0,1,3,2,4)
         return img
 
-    def rescale(self, value, to: list):
+    def rescale(self, value, ranges, to: list):
         # print("value.ndim =", np.ndim(value))
         # print('value.shape =', value.shape)
-        if np.ndim(value)==2:
-            # print(f"rescale params of shape {value.shape}")
-            ranges = \
-                {
-                    0: [4, 6], # ION_Tvir_MIN
-                    1: [10, 250], # HII_EFF_FACTOR
-                    # 1: [np.log10(10), np.log10(250)], # HII_EFF_FACTOR
-                }
-            # value[:,1] = np.log10(value[:,1])
-        # elif np.ndim(value)==5:  
-        else:  
-            # value = np.array(value)
-            # print(f"rescale images of shape {np.shape(value)}")
-            ranges = \
-                {
-                    0: [0, 80], # brightness_temp
-                }
+        # ranges = self.ranges_dict[np.ndim(value)]
+        # if np.ndim(value)==2:
+        #     # print(f"rescale params of shape {value.shape}")
+        #     ranges = \
+        #         {
+        #             0: [4, 6], # ION_Tvir_MIN
+        #             1: [10, 250], # HII_EFF_FACTOR
+        #             # 1: [np.log10(10), np.log10(250)], # HII_EFF_FACTOR
+        #         }
+        #     # value[:,1] = np.log10(value[:,1])
+        # # elif np.ndim(value)==5:  
+        # else:  
+        #     # value = np.array(value)
+        #     # print(f"rescale images of shape {np.shape(value)}")
+        #     ranges = \
+        #         {
+        #             0: [0, 80], # brightness_temp
+        #         }
         # print(f"value.min = {value.min()}, value.max = {value.max()}")
         for i in range(np.shape(value)[1]):
             value[:,i] = (value[:,i] - ranges[i][0]) / (ranges[i][1]-ranges[i][0])

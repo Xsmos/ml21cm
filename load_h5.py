@@ -87,6 +87,7 @@ class Dataset4h5(Dataset):
 
             if self.dim == 2:
                 self.images = f[self.field][self.idx,0,:self.HII_DIM,-self.num_redshift:][:,None]
+                # self.images = f[self.field][self.idx,:self.HII_DIM,:self.HII_DIM,-3][:,None]
                 # self.images = self.images[:,:,::x_step,:]
             elif self.dim == 3:
                 self.images = f[self.field][self.idx,:self.HII_DIM,:self.HII_DIM,-self.num_redshift:][:,None]

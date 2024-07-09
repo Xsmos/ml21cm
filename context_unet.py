@@ -516,6 +516,7 @@ class ContextUnet(nn.Module):
 
     def forward(self, x, timesteps, y=None):
         hs = []
+        print("device of timesteps, self.model_channels:", timesteps.device, self.model_channels)
         emb = self.time_embed(timestep_embedding(timesteps, self.model_channels))
         if y != None:
             text_outputs = self.token_embedding(y.float())

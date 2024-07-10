@@ -71,7 +71,7 @@ def ddp_setup(rank: int, world_size: int):
   """
   os.environ["MASTER_ADDR"] = "localhost"
   os.environ["MASTER_PORT"] = "12355"
-  print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!ddp_setup, rank =", rank)
+#   print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!ddp_setup, rank =", rank)
   torch.cuda.set_device(rank)
   init_process_group(backend="nccl", rank=rank, world_size=world_size)
 
@@ -259,7 +259,7 @@ class TrainConfig:
     n_param = 2
     guide_w = 0#-1#0#-1#0#-1#0.1#[0,0.1] #[0,0.5,2] strength of generative guidance
     drop_prob = 0#0.28 # only takes effect when guide_w != -1
-    ema=True # whether to use ema
+    ema=False # whether to use ema
     ema_rate=0.995
 
     # seed = 0
@@ -361,17 +361,21 @@ class DDPM21CM:
         dataset = Dataset4h5(self.config.dataset_name, num_image=self.config.num_image, HII_DIM=self.config.HII_DIM, num_redshift=self.config.num_redshift, drop_prob=self.config.drop_prob, dim=self.config.dim, ranges_dict=self.ranges_dict)
         # self.shape_loaded = dataset.images.shape
         # print("shape_loaded =", self.shape_loaded)
+        # print(f"load, current_device() = {torch.cuda.current_device()}")
         self.dataloader = DataLoader(
-            dataset, 
+            dataset=dataset, 
             batch_size=self.config.batch_size, 
-            shuffle=True, 
+            shuffle=False, 
             num_workers=1,#len(os.sched_getaffinity(0)), 
             pin_memory=True,
             persistent_workers=True,
+            sampler=DistributedSampler(dataset),
             )
-        # del dataset
-        # self.accelerate(self.config)
+
         del dataset
+        # self.accelerate(self.config)
+        # print("!!!!!!!!!!!!!!!!, self.dataloader.sampler =", self.dataloader.sampler)
+        # del dataset
 
     # def accelerate(self):
 
@@ -387,9 +391,11 @@ class DDPM21CM:
             gradient_accumulation_steps=self.config.gradient_accumulation_steps,
             log_with="tensorboard",
             project_dir=os.path.join(self.config.output_dir, "logs"),
+            # distributed_type="MULTI_GPU",
         )
-        print("!!!!!!!!!!!!!!!!!!!self.accelerator.is_main_process:", self.accelerator.is_main_process)
-        if self.accelerator.is_main_process:
+        # print("!!!!!!!!!!!!!!!!!!!self.accelerator.device:", self.accelerator.device)
+        # if self.accelerator.is_main_process:
+        if torch.cuda.current_device() == 0:
             if self.config.output_dir is not None:
                 os.makedirs(self.config.output_dir, exist_ok=True)
             if self.config.push_to_hub:
@@ -398,14 +404,25 @@ class DDPM21CM:
                 ).repo_id
             self.accelerator.init_trackers(f"{self.config.run_name}")
 
-        self.nn_model, self.optimizer, self.dataloader, self.lr_scheduler = \
+
+        # print("!!!!!!!!!!!!!!!!, before prepare, self.dataloader.sampler =", self.dataloader.sampler)
+        # self.nn_model, self.optimizer, self.dataloader, self.lr_scheduler = \
+        #     self.accelerator.prepare(
+        #     self.nn_model, self.optimizer, self.dataloader, self.lr_scheduler
+        #     )
+        self.nn_model, self.optimizer, self.lr_scheduler = \
             self.accelerator.prepare(
-            self.nn_model, self.optimizer, self.dataloader, self.lr_scheduler
+            self.nn_model, self.optimizer, self.lr_scheduler
             )
-            
+
+        # print("!!!!!!!!!!!!!!!!, after prepare, self.dataloader.sampler =", self.dataloader.sampler)
+        # print("!!!!!!!!!!!!!!!!, after prepare, self.dataloader.batch_sampler =", self.dataloader.batch_sampler)
+        # print("!!!!!!!!!!!!!!!!, after prepare, self.dataloader.DistributedSampler =", self.dataloader.DistributedSampler)
+
         global_step = 0
         for ep in range(self.config.n_epoch):
             self.ddpm.train()
+            self.dataloader.sampler.set_epoch(ep)
 
             pbar_train = tqdm(total=len(self.dataloader), disable=not self.accelerator.is_local_main_process)
             pbar_train.set_description(f"device {torch.cuda.current_device()}, Epoch {ep}")
@@ -452,7 +469,8 @@ class DDPM21CM:
 
     def save(self, ep):
         # save model
-        if self.accelerator.is_main_process:
+        # if self.accelerator.is_main_process:
+        if torch.cuda.current_device() == 0:
             if ep == self.config.n_epoch-1 or (ep+1)*self.config.save_freq==1:
                 self.nn_model.eval()
                 with torch.no_grad():
@@ -466,11 +484,11 @@ class DDPM21CM:
                     if self.config.save_name:
                         model_state = {
                             'epoch': ep,
-                            'unet_state_dict': self.nn_model.state_dict(),
-                            'ema_unet_state_dict': self.ema_model.state_dict(),
+                            'unet_state_dict': self.nn_model.module.state_dict(),
+                            # 'ema_unet_state_dict': self.ema_model.state_dict(),
                             }
                         torch.save(model_state, self.config.save_name+f"-N{self.config.num_image}")
-                        print('saved model at ' + self.config.save_name+f"-N{self.config.num_image}")
+                        print(f'device {torch.cuda.current_device()} saved model at ' + self.config.save_name+f"-N{self.config.num_image}")
                         # print('saved model at ' + config.save_dir + f"model_epoch_{ep}_test_{config.run_name}.pth")
 
     # def rescale(self, value, type='params', to_ranges=[0,1]):
@@ -538,7 +556,7 @@ class DDPM21CM:
 # print("device =", config.device)
 
 # %%
-def single_main(rank, world_size):
+def main(rank, world_size):
     config = TrainConfig()
     ddp_setup(rank, world_size)
     
@@ -551,6 +569,7 @@ def single_main(rank, world_size):
         print(f" num_image = {ddpm21cm.config.num_image} ".center(50, '-'))
         print(f"run_name = {ddpm21cm.config.run_name}")
         ddpm21cm.train()
+        destroy_process_group()
 
         
 if __name__ == "__main__":
@@ -558,7 +577,7 @@ if __name__ == "__main__":
     # args = (config, nn_model, ddpm, optimizer, dataloader, lr_scheduler)
     world_size = 2#torch.cuda.device_count()
 
-    mp.spawn(single_main, args=(world_size,), nprocs=world_size)
+    mp.spawn(main, args=(world_size,), nprocs=world_size)
     # notebook_launcher(ddpm21cm.train, num_processes=1, mixed_precision='fp16')
 
 # %%

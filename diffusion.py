@@ -329,7 +329,9 @@ class DDPM21CM:
             print(f"resumed nn_model from {config.resume}")
         # nn_model = ContextUnet(n_param=1, image_size=28)
         self.nn_model.train()
+        # print("self.ddpm.device =", self.ddpm.device)
         self.nn_model.to(self.ddpm.device)
+        self.nn_model = DDP(self.nn_model, device_ids=[self.ddpm.device])
         # print("nn_model.device =", ddpm.device)
         # number of parameters to be trained
         self.number_of_params = sum(x.numel() for x in self.nn_model.parameters())

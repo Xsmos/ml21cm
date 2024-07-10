@@ -71,6 +71,7 @@ def ddp_setup(rank: int, world_size: int):
   """
   os.environ["MASTER_ADDR"] = "localhost"
   os.environ["MASTER_PORT"] = "12355"
+  print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!ddp_setup, rank =", rank)
   torch.cuda.set_device(rank)
   init_process_group(backend="nccl", rank=rank, world_size=world_size)
 
@@ -237,9 +238,9 @@ class TrainConfig:
     stride = (2,2) if dim == 2 else (2,2,1)
     num_image = 2000#32000#20000#15000#7000#25600#3000#10000#1000#10000#5000#2560#800#2560
     batch_size = 2#2#50#20#2#100 # 10
-    n_epoch = 10#50#20#20#2#5#25 # 120
+    n_epoch = 2#10#50#20#20#2#5#25 # 120
     HII_DIM = 28#64
-    num_redshift = 4#128#64#512#256#256#64#512#128
+    num_redshift = 2#128#64#512#256#256#64#512#128
     channel = 1
     img_shape = (channel, HII_DIM, num_redshift) if dim == 2 else (channel, HII_DIM, HII_DIM, num_redshift)
 
@@ -302,6 +303,12 @@ class TrainConfig:
 # @dataclass
 class DDPM21CM:
     def __init__(self, config):
+        print(
+            "torch.cuda.is_available() =", torch.cuda.is_available(), 
+            "torch.cuda.device_count() =", torch.cuda.device_count(),
+            "torch.cuda.is_initialized() =", torch.cuda.is_initialized(),
+            "torch.cuda.current_device() =", torch.cuda.current_device()
+        )
         # config = TrainConfig()
         # date = datetime.datetime.now().strftime("%m%d-%H%M")
         config.run_name = datetime.datetime.now().strftime("%m%d-%H%M") # the unique name of each experiment
@@ -352,7 +359,14 @@ class DDPM21CM:
         dataset = Dataset4h5(self.config.dataset_name, num_image=self.config.num_image, HII_DIM=self.config.HII_DIM, num_redshift=self.config.num_redshift, drop_prob=self.config.drop_prob, dim=self.config.dim, ranges_dict=self.ranges_dict)
         # self.shape_loaded = dataset.images.shape
         # print("shape_loaded =", self.shape_loaded)
-        self.dataloader = DataLoader(dataset, batch_size=self.config.batch_size, shuffle=True, num_workers=len(os.sched_getaffinity(0)), pin_memory=True)
+        self.dataloader = DataLoader(
+            dataset, 
+            batch_size=self.config.batch_size, 
+            shuffle=True, 
+            num_workers=1,#len(os.sched_getaffinity(0)), 
+            pin_memory=True,
+            persistent_workers=True,
+            )
         # del dataset
         # self.accelerate(self.config)
         del dataset
@@ -372,7 +386,7 @@ class DDPM21CM:
             log_with="tensorboard",
             project_dir=os.path.join(self.config.output_dir, "logs"),
         )
-        print("self.accelerator.is_main_process:", self.accelerator.is_main_process)
+        print("!!!!!!!!!!!!!!!!!!!self.accelerator.is_main_process:", self.accelerator.is_main_process)
         if self.accelerator.is_main_process:
             if self.config.output_dir is not None:
                 os.makedirs(self.config.output_dir, exist_ok=True)
@@ -392,7 +406,7 @@ class DDPM21CM:
             self.ddpm.train()
 
             pbar_train = tqdm(total=len(self.dataloader), disable=not self.accelerator.is_local_main_process)
-            pbar_train.set_description(f"Epoch {ep}")
+            pbar_train.set_description(f"device {torch.cuda.current_device()}, Epoch {ep}")
             for i, (x, c) in enumerate(self.dataloader):
                 with self.accelerator.accumulate(self.nn_model):
                     x = x.to(self.config.device)
@@ -540,7 +554,7 @@ def single_main(rank, world_size):
 if __name__ == "__main__":
     # torch.multiprocessing.set_start_method("spawn")
     # args = (config, nn_model, ddpm, optimizer, dataloader, lr_scheduler)
-    world_size = 1#torch.cuda.device_count()
+    world_size = 2#torch.cuda.device_count()
 
     mp.spawn(single_main, args=(world_size,), nprocs=world_size)
     # notebook_launcher(ddpm21cm.train, num_processes=1, mixed_precision='fp16')
@@ -549,17 +563,14 @@ if __name__ == "__main__":
 # torch.cuda.set_device(0)
 
 # %%
-print(torch.cuda.is_available())
-print(torch.cuda.device_count())
-print(torch.cuda.__dir__())
+# print(torch.cuda.__dir__())
 
 # %%
-print(torch.cuda.is_initialized())
-print(torch.cuda.device)
-print(torch.cuda.get_device_name())
-print(torch.cuda.current_device())
-print(torch.cuda.get_device_capability())
-print(torch.cuda.get_device_properties(torch.cuda.device))
+# print("torch.cuda.is_initialized() =", torch.cuda.is_initialized())
+# print("torch.cuda.get_device_name() =", torch.cuda.get_device_name())
+# print("torch.cuda.current_device() =", torch.cuda.current_device())
+# print("torch.cuda.get_device_capability() =", torch.cuda.get_device_capability())
+# print("torch.cuda.get_device_properties(torch.cuda.device) =", torch.cuda.get_device_properties(torch.cuda.device))
 # print('here')
 # print(torch.cuda.memory_usage())
 # print(torch.cuda.utilization())
@@ -571,52 +582,52 @@ print(torch.cuda.get_device_properties(torch.cuda.device))
 # # Sampling
 
 # %%
-if __name__ == "__main__":
-    # num_image_list = [1600,3200,6400,12800,25600]
-    num_image_list = [1000]
-    # num_image_list = [3200,6400,12800,25600]
-    # args = (config, nn_model, ddpm, optimizer, dataloader, lr_scheduler)
-    repeat = 2
-    config = TrainConfig()
-    for i, num_image in enumerate(num_image_list):
-        config.num_image = num_image
-        ddpm21cm = DDPM21CM(config)
+# if __name__ == "__main__":
+#     # num_image_list = [1600,3200,6400,12800,25600]
+#     num_image_list = [1000]
+#     # num_image_list = [3200,6400,12800,25600]
+#     # args = (config, nn_model, ddpm, optimizer, dataloader, lr_scheduler)
+#     repeat = 2
+#     config = TrainConfig()
+#     for i, num_image in enumerate(num_image_list):
+#         config.num_image = num_image
+#         ddpm21cm = DDPM21CM(config)
 
-        ddpm21cm.sample(f"./outputs/model_state-N{num_image}", params=torch.tensor([4.4, 131.341]), repeat=repeat)
+#         ddpm21cm.sample(f"./outputs/model_state-N{num_image}", params=torch.tensor([4.4, 131.341]), repeat=repeat)
 
-        # ddpm21cm.sample(f"./outputs/model_state-N{num_image}", params=torch.tensor((5.6, 19.037)), repeat=repeat)
+#         # ddpm21cm.sample(f"./outputs/model_state-N{num_image}", params=torch.tensor((5.6, 19.037)), repeat=repeat)
 
-        # ddpm21cm.sample(f"./outputs/model_state-N{num_image}", params=torch.tensor((4.699, 30)), repeat=repeat)
+#         # ddpm21cm.sample(f"./outputs/model_state-N{num_image}", params=torch.tensor((4.699, 30)), repeat=repeat)
 
-        # ddpm21cm.sample(f"./outputs/model_state-N{num_image}", params=torch.tensor((5.477, 200)), repeat=repeat)
+#         # ddpm21cm.sample(f"./outputs/model_state-N{num_image}", params=torch.tensor((5.477, 200)), repeat=repeat)
 
-        # ddpm21cm.sample(f"./outputs/model_state-N{num_image}", params=torch.tensor((4.8, 131.341)), repeat=repeat)
+#         # ddpm21cm.sample(f"./outputs/model_state-N{num_image}", params=torch.tensor((4.8, 131.341)), repeat=repeat)
 
 # %%
 # ls -lth outputs | head
 
-# %%
-def plot_grid(samples, c=None, row=1, col=2):
-    print("samples.shape =", samples.shape)
-    for j in range(samples.shape[4]):
-        plt.figure(figsize = (12,6), dpi=400)
-        for i in range(len(samples)):
-            plt.subplot(row,col,i+1)
-            plt.imshow(samples[i,0,:,:,j], cmap='gray')#, vmin=-1, vmax=1)
-            plt.xticks([])
-            plt.yticks([])
-        # plt.suptitle(f"ION_Tvir_MIN = {c[0][0]}, HII_EFF_FACTOR = {c[0][1]}")
-            # plt.show()
-        # plt.suptitle('simulations')
-        plt.tight_layout()
-        plt.subplots_adjust(wspace=0, hspace=0)
-        plt.savefig(f"test3D-{j:03d}.png")
-        plt.close()
-        # plt.show()
+# # %%
+# def plot_grid(samples, c=None, row=1, col=2):
+#     print("samples.shape =", samples.shape)
+#     for j in range(samples.shape[4]):
+#         plt.figure(figsize = (12,6), dpi=400)
+#         for i in range(len(samples)):
+#             plt.subplot(row,col,i+1)
+#             plt.imshow(samples[i,0,:,:,j], cmap='gray')#, vmin=-1, vmax=1)
+#             plt.xticks([])
+#             plt.yticks([])
+#         # plt.suptitle(f"ION_Tvir_MIN = {c[0][0]}, HII_EFF_FACTOR = {c[0][1]}")
+#             # plt.show()
+#         # plt.suptitle('simulations')
+#         plt.tight_layout()
+#         plt.subplots_adjust(wspace=0, hspace=0)
+#         plt.savefig(f"test3D-{j:03d}.png")
+#         plt.close()
+#         # plt.show()
     
-data = np.load("outputs/Tvir4.400000095367432-zeta131.34100341796875-N1000.npy")
-# print(data.shape)
-plot_grid(data)
+# data = np.load("outputs/Tvir4.400000095367432-zeta131.34100341796875-N1000.npy")
+# # print(data.shape)
+# plot_grid(data)
 # plt.imshow(data)
 
 # %%
@@ -642,7 +653,5 @@ plot_grid(data)
 #     # plt.show()
 
 # %%
-import torch
-print(torch.__version__)
 
 

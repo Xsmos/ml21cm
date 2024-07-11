@@ -230,15 +230,15 @@ class TrainConfig:
     hub_private_repo = False
     dataset_name = "/storage/home/hcoda1/3/bxia34/scratch/LEN128-DIM64-CUB8.h5"
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    # world_size = torch.cuda.device_count()
+    world_size = torch.cuda.device_count()
     # repeat = 2
 
     # dim = 2
     dim = 3
     stride = (2,2) if dim == 2 else (2,2,1)
     num_image = 2000#32000#20000#15000#7000#25600#3000#10000#1000#10000#5000#2560#800#2560
-    batch_size = 2#2#50#20#2#100 # 10
-    n_epoch = 2#10#50#20#20#2#5#25 # 120
+    batch_size = 10#2#50#20#2#100 # 10
+    n_epoch = 10#50#20#20#2#5#25 # 120
     HII_DIM = 28#64
     num_redshift = 2#128#64#512#256#256#64#512#128
     channel = 1
@@ -351,7 +351,7 @@ class DDPM21CM:
         self.lr_scheduler = get_cosine_schedule_with_warmup(
             optimizer=self.optimizer,
             num_warmup_steps=config.lr_warmup_steps,
-            num_training_steps=(int(config.num_image/config.batch_size) * config.n_epoch),
+            num_training_steps=int(config.num_image / config.world_size / config.batch_size * config.n_epoch),
             # num_training_steps=(len(self.dataloader) * config.n_epoch),
         )
 
@@ -558,9 +558,11 @@ class DDPM21CM:
 # %%
 def main(rank, world_size):
     config = TrainConfig()
+    config.world_size = world_size
+
     ddp_setup(rank, world_size)
     
-    num_image_list = [100]#[200]#[1600,3200,6400,12800,25600]
+    num_image_list = [5000]#[200]#[1600,3200,6400,12800,25600]
     for i, num_image in enumerate(num_image_list):
         config.num_image = num_image
         # config.world_size = world_size

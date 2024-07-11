@@ -26,7 +26,7 @@ import datetime
 # from huggingface_hub import create_repo, upload_folder
 
 class Dataset4h5(Dataset):
-    def __init__(self, dir_name, num_image=10, field='brightness_temp', shuffle=True, idx=None, num_redshift=512, HII_DIM=64, rescale=True, drop_prob = 0, dim=2, transform=True, ranges_dict=None):
+    def __init__(self, dir_name, num_image=10, field='brightness_temp', shuffle=False, idx=None, num_redshift=512, HII_DIM=64, rescale=True, drop_prob = 0, dim=2, transform=True, ranges_dict=None):
         super().__init__()
         
         self.dir_name = dir_name
@@ -59,6 +59,13 @@ class Dataset4h5(Dataset):
         self.len = len(self.params)
         self.images = torch.from_numpy(self.images)
         print(f"images rescaled to [{self.images.min()}, {self.images.max()}]")
+
+        # print("before self.images.shape =", self.images.shape)
+        # self.images = torch.ones_like(self.images) * torch.arange(len(self.images))[:,None,None,None,None]
+        # self.images = self.images.numpy()
+        # print("after self.images.shape =", self.images.shape)
+        # print(self.images[:6,0,:2,0,0])
+        # self.images = self.images.numpy()
 
         cond_filter = torch.bernoulli(torch.ones(len(self.params),1)-self.drop_prob).repeat(1,self.params.shape[1]).numpy()
         self.params = torch.from_numpy(self.params*cond_filter)
@@ -97,6 +104,7 @@ class Dataset4h5(Dataset):
 
             self.params = f['params']['values'][self.idx]
             print("params loaded:", self.params.shape)
+
             
             # plt.imshow(self.images[0,0,0])
             # plt.show()

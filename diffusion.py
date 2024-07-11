@@ -225,7 +225,7 @@ class TrainConfig:
     ###########################
     ## hardcoding these here ##
     ###########################
-    push_to_hub = True
+    push_to_hub = False
     hub_model_id = "Xsmos/ml21cm"
     hub_private_repo = False
     dataset_name = "/storage/home/hcoda1/3/bxia34/scratch/LEN128-DIM64-CUB8.h5"
@@ -394,8 +394,8 @@ class DDPM21CM:
             # distributed_type="MULTI_GPU",
         )
         # print("!!!!!!!!!!!!!!!!!!!self.accelerator.device:", self.accelerator.device)
-        # if self.accelerator.is_main_process:
-        if torch.cuda.current_device() == 0:
+        if self.accelerator.is_main_process:
+        # if torch.cuda.current_device() == 0:
             if self.config.output_dir is not None:
                 os.makedirs(self.config.output_dir, exist_ok=True)
             if self.config.push_to_hub:
@@ -427,6 +427,7 @@ class DDPM21CM:
             pbar_train = tqdm(total=len(self.dataloader), disable=not self.accelerator.is_local_main_process)
             pbar_train.set_description(f"device {torch.cuda.current_device()}, Epoch {ep}")
             for i, (x, c) in enumerate(self.dataloader):
+                # print(f"device {torch.cuda.current_device()}, x[:,0,:2,0,0] =", x[:,0,:2,0,0])
                 with self.accelerator.accumulate(self.nn_model):
                     x = x.to(self.config.device)
                     xt, noise, ts = self.ddpm.add_noise(x)
@@ -469,8 +470,8 @@ class DDPM21CM:
 
     def save(self, ep):
         # save model
-        # if self.accelerator.is_main_process:
-        if torch.cuda.current_device() == 0:
+        if self.accelerator.is_main_process:
+        # if torch.cuda.current_device() == 0:
             if ep == self.config.n_epoch-1 or (ep+1)*self.config.save_freq==1:
                 self.nn_model.eval()
                 with torch.no_grad():
@@ -487,8 +488,8 @@ class DDPM21CM:
                             'unet_state_dict': self.nn_model.module.state_dict(),
                             # 'ema_unet_state_dict': self.ema_model.state_dict(),
                             }
-                        torch.save(model_state, self.config.save_name+f"-N{self.config.num_image}")
-                        print(f'device {torch.cuda.current_device()} saved model at ' + self.config.save_name+f"-N{self.config.num_image}")
+                        torch.save(model_state, self.config.save_name+f"-N{self.config.num_image}-device{torch.cuda.current_device()}")
+                        print(f'device {torch.cuda.current_device()} saved model at ' + self.config.save_name+f"-N{self.config.num_image}-device{torch.cuda.current_device()}")
                         # print('saved model at ' + config.save_dir + f"model_epoch_{ep}_test_{config.run_name}.pth")
 
     # def rescale(self, value, type='params', to_ranges=[0,1]):
@@ -562,7 +563,7 @@ def main(rank, world_size):
 
     ddp_setup(rank, world_size)
     
-    num_image_list = [5000]#[200]#[1600,3200,6400,12800,25600]
+    num_image_list = [200]#[200]#[1600,3200,6400,12800,25600]
     for i, num_image in enumerate(num_image_list):
         config.num_image = num_image
         # config.world_size = world_size
@@ -579,7 +580,7 @@ if __name__ == "__main__":
     # args = (config, nn_model, ddpm, optimizer, dataloader, lr_scheduler)
     world_size = 2#torch.cuda.device_count()
 
-    mp.spawn(main, args=(world_size,), nprocs=world_size)
+    mp.spawn(main, args=(world_size,), nprocs=world_size, join=True)
     # notebook_launcher(ddpm21cm.train, num_processes=1, mixed_precision='fp16')
 
 # %%

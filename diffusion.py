@@ -563,7 +563,7 @@ def main(rank, world_size):
 
     ddp_setup(rank, world_size)
     
-    num_image_list = [200]#[200]#[1600,3200,6400,12800,25600]
+    num_image_list = [1000]#[200]#[1600,3200,6400,12800,25600]
     for i, num_image in enumerate(num_image_list):
         config.num_image = num_image
         # config.world_size = world_size
@@ -578,7 +578,7 @@ def main(rank, world_size):
 if __name__ == "__main__":
     # torch.multiprocessing.set_start_method("spawn")
     # args = (config, nn_model, ddpm, optimizer, dataloader, lr_scheduler)
-    world_size = 2#torch.cuda.device_count()
+    world_size = torch.cuda.device_count()
 
     mp.spawn(main, args=(world_size,), nprocs=world_size, join=True)
     # notebook_launcher(ddpm21cm.train, num_processes=1, mixed_precision='fp16')

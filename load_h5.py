@@ -62,10 +62,10 @@ class Dataset4h5(Dataset):
 
         # print("before self.images.shape =", self.images.shape)
         # self.images = torch.ones_like(self.images) * torch.arange(len(self.images))[:,None,None,None,None]
-        # self.images = self.images.numpy()
+        # # self.images = self.images.numpy()
         # print("after self.images.shape =", self.images.shape)
         # print(self.images[:6,0,:2,0,0])
-        # self.images = self.images.numpy()
+        # # self.images = self.images.numpy()
 
         cond_filter = torch.bernoulli(torch.ones(len(self.params),1)-self.drop_prob).repeat(1,self.params.shape[1]).numpy()
         self.params = torch.from_numpy(self.params*cond_filter)

@@ -265,14 +265,14 @@ class TrainConfig:
     # seed = 0
     # save_dir = './outputs/'
 
-    save_freq = 0#.1 # the period of sampling
+    save_period = np.infty#.1 # the period of sampling
     # general parameters for the name and logger    
     # device = "cuda" if torch.cuda.is_available() else "cpu"
     lrate = 1e-4
     lr_warmup_steps = 0#5#00
     output_dir = "./outputs/"
     save_name = os.path.join(output_dir, 'model_state')
-    # save_freq = 1 #10 # the period of saving model
+    # save_period = 1 #10 # the period of saving model
     # cond = True # if training using the conditional information
     # lr_decay = False #True# if using the learning rate decay
     resume = save_name # if resume from the trained checkpoints
@@ -394,8 +394,8 @@ class DDPM21CM:
             # distributed_type="MULTI_GPU",
         )
         # print("!!!!!!!!!!!!!!!!!!!self.accelerator.device:", self.accelerator.device)
-        if self.accelerator.is_main_process:
-        # if torch.cuda.current_device() == 0:
+        # if self.accelerator.is_main_process:
+        if torch.cuda.current_device() == 0:
             if self.config.output_dir is not None:
                 os.makedirs(self.config.output_dir, exist_ok=True)
             if self.config.push_to_hub:
@@ -460,7 +460,7 @@ class DDPM21CM:
                 self.accelerator.log(logs, step=global_step)
                 global_step += 1
 
-            # if ep == config.n_epoch-1 or (ep+1)*config.save_freq==1:
+            # if ep == config.n_epoch-1 or (ep+1)*config.save_period==1:
             self.save(ep)
 
         del self.nn_model
@@ -470,9 +470,9 @@ class DDPM21CM:
 
     def save(self, ep):
         # save model
-        if self.accelerator.is_main_process:
-        # if torch.cuda.current_device() == 0:
-            if ep == self.config.n_epoch-1 or (ep+1)*self.config.save_freq==1:
+        # if self.accelerator.is_main_process:
+        if torch.cuda.current_device() == 0:
+            if ep == self.config.n_epoch-1 or (ep+1) % self.config.save_period == 0:
                 self.nn_model.eval()
                 with torch.no_grad():
                     if self.config.push_to_hub:
@@ -488,8 +488,9 @@ class DDPM21CM:
                             'unet_state_dict': self.nn_model.module.state_dict(),
                             # 'ema_unet_state_dict': self.ema_model.state_dict(),
                             }
-                        torch.save(model_state, self.config.save_name+f"-N{self.config.num_image}-device{torch.cuda.current_device()}")
-                        print(f'device {torch.cuda.current_device()} saved model at ' + self.config.save_name+f"-N{self.config.num_image}-device{torch.cuda.current_device()}")
+                        save_name = self.config.save_name+f"-N{self.config.num_image}-epoch{ep}-device{torch.cuda.current_device()}"
+                        torch.save(model_state, save_name)
+                        print(f'device {torch.cuda.current_device()} saved model at ' + save_name)
                         # print('saved model at ' + config.save_dir + f"model_epoch_{ep}_test_{config.run_name}.pth")
 
     # def rescale(self, value, type='params', to_ranges=[0,1]):

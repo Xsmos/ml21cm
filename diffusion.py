@@ -61,6 +61,7 @@ import torch.multiprocessing as mp
 from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed import init_process_group, destroy_process_group
+import torch.distributed as dist
 
 # %%
 def ddp_setup(rank: int, world_size: int):
@@ -149,7 +150,7 @@ class DDPMScheduler(nn.Module):
         # for i in range(self.num_timesteps, 0, -1):
         # print(f'sampling!!!')
         pbar_sample = tqdm(total=self.num_timesteps)
-        pbar_sample.set_description("Sampling")
+        pbar_sample.set_description(f"device {torch.cuda.current_device()} sampling")
         for i in reversed(range(0, self.num_timesteps)):
             # print(f'sampling timestep {i:4d}',end='\r')
             t_is = torch.tensor([i]).to(device)
@@ -180,14 +181,12 @@ class DDPMScheduler(nn.Module):
             x_i = 1/torch.sqrt(self.alpha_t[i])*(x_i-eps*self.beta_t[i]/torch.sqrt(1-self.bar_alpha_t[i])) + torch.sqrt(self.beta_t[i])*z
             
             pbar_sample.update(1)
-            # pbar_sample.set_postfix(step=i)
             
-            # print("x_i.shape =", x_i.shape)
             # store only part of the intermediate steps
-            if i%20==0:# or i==0:# or i<8:
-                x_i_entire.append(x_i.detach().cpu().numpy())
-        x_i = x_i.detach().cpu().numpy()
+            # if i%20==0:# or i==0:# or i<8:
+            #     x_i_entire.append(x_i.detach().cpu().numpy())
         x_i_entire = np.array(x_i_entire)
+        x_i = x_i.detach().cpu().numpy()
         return x_i, x_i_entire
 
 
@@ -225,7 +224,7 @@ class TrainConfig:
     ###########################
     ## hardcoding these here ##
     ###########################
-    push_to_hub = False
+    push_to_hub = True 
     hub_model_id = "Xsmos/ml21cm"
     hub_private_repo = False
     dataset_name = "/storage/home/hcoda1/3/bxia34/scratch/LEN128-DIM64-CUB8.h5"
@@ -238,7 +237,7 @@ class TrainConfig:
     stride = (2,2) if dim == 2 else (2,2,1)
     num_image = 2000#32000#20000#15000#7000#25600#3000#10000#1000#10000#5000#2560#800#2560
     batch_size = 10#2#50#20#2#100 # 10
-    n_epoch = 10#50#20#20#2#5#25 # 120
+    n_epoch = 5# 10#50#20#20#2#5#25 # 120
     HII_DIM = 28#64
     num_redshift = 2#128#64#512#256#256#64#512#128
     channel = 1
@@ -507,9 +506,10 @@ class DDPM21CM:
         value = value * (to[1]-to[0]) + to[0]
         return value 
 
-    def sample(self, file, params:torch.tensor=None, repeat=192, ema=False, entire=False):
+    def sample(self, params:torch.tensor=None, num_new_img=192, ema=False, entire=False, save=False):
         # n_sample = params.shape[0]
-        
+        file = self.config.resume
+
         if params is None:
             params = torch.tensor([0.20000000000000018, 0.5055875000000001])
             params_backup = params.numpy().copy()
@@ -517,8 +517,8 @@ class DDPM21CM:
             params_backup = params.numpy().copy()
             params = self.rescale(params, self.ranges_dict['params'], to=[0,1])
 
-        print(f"sampling {repeat} images with normalized params = {params}")
-        params = params.repeat(repeat,1)
+        print(f"device {torch.cuda.current_device()} sampling {num_new_img} images with normalized params = {params}")
+        params = params.repeat(num_new_img,1)
         assert params.dim() == 2, "params must be a 2D torch.tensor"
         # print("params =", params)
         # print("params =", params)
@@ -527,16 +527,16 @@ class DDPM21CM:
         # del self.ema_model, self.nn
         # params = torch.tile(params, (n_sample,1)).to(device)
 
-        nn_model = ContextUnet(n_param=self.config.n_param, image_size=self.config.HII_DIM, dim=self.config.dim, stride=self.config.stride).to(self.config.device)
+        # nn_model = ContextUnet(n_param=self.config.n_param, image_size=self.config.HII_DIM, dim=self.config.dim, stride=self.config.stride).to(self.config.device)
         if ema:
-            nn_model.load_state_dict(torch.load(file)['ema_unet_state_dict'])
+            self.nn_model.module.load_state_dict(torch.load(file)['ema_unet_state_dict'])
         else:
-            nn_model.load_state_dict(torch.load(file)['unet_state_dict'])
+            self.nn_model.module.load_state_dict(torch.load(file)['unet_state_dict'])
         print(f"nn_model resumed from {file}")
         # nn_model = ContextUnet(n_param=1, image_size=28)
         # nn_model.train()
-        nn_model.to(self.ddpm.device)
-        nn_model.eval()
+        # self.nn_model.to(self.ddpm.device)
+        self.nn_model.eval()
 
         # self.ema_model = ContextUnet(n_param=config.n_param, image_size=config.HII_DIM, dim=config.dim, stride=config.stride).to(config.device)
         # self.ema_model.load_state_dict(torch.load(os.path.join(config.output_dir, f"{config.resume}"))['ema_unet_state_dict'])
@@ -544,27 +544,27 @@ class DDPM21CM:
 
         with torch.no_grad():
             x_last, x_entire = self.ddpm.sample(
-                nn_model=nn_model, 
+                nn_model=self.nn_model, 
                 params=params.to(self.config.device), 
                 device=self.config.device, 
                 guide_w=self.config.guide_w
                 )
 
-        # np.save(os.path.join(self.config.output_dir, f"{self.config.run_name}{'ema' if ema else ''}.npy"), x_last)
-        np.save(os.path.join(self.config.output_dir, f"Tvir{params_backup[0]}-zeta{params_backup[1]}-N{self.config.num_image}{'ema' if ema else ''}.npy"), x_last)
-
-        if entire:
-            np.save(os.path.join(self.config.output_dir, f"Tvir{params_backup[0]}-zeta{params_backup[1]}-N{self.config.num_image}{'ema' if ema else ''}_entire.npy"), x_last)
-# print("device =", config.device)
-
+        if save:    
+            # np.save(os.path.join(self.config.output_dir, f"{self.config.run_name}{'ema' if ema else ''}.npy"), x_last)
+            np.save(os.path.join(self.config.output_dir, f"Tvir{params_backup[0]}-zeta{params_backup[1]}-N{self.config.num_image}{'ema' if ema else ''}.npy"), x_last)
+            if entire:
+                np.save(os.path.join(self.config.output_dir, f"Tvir{params_backup[0]}-zeta{params_backup[1]}-N{self.config.num_image}{'ema' if ema else ''}_entire.npy"), x_last)
+        else:
+            return x_last
 # %%
-def main(rank, world_size):
+def train(rank, world_size):
     config = TrainConfig()
     config.world_size = world_size
 
     ddp_setup(rank, world_size)
     
-    num_image_list = [1000]#[200]#[1600,3200,6400,12800,25600]
+    num_image_list = [100]#[200]#[1600,3200,6400,12800,25600]
     for i, num_image in enumerate(num_image_list):
         config.num_image = num_image
         # config.world_size = world_size
@@ -577,18 +577,13 @@ def main(rank, world_size):
 
         
 if __name__ == "__main__":
+    print(" training ".center(100,'-'))
     # torch.multiprocessing.set_start_method("spawn")
     # args = (config, nn_model, ddpm, optimizer, dataloader, lr_scheduler)
     world_size = torch.cuda.device_count()
 
-    mp.spawn(main, args=(world_size,), nprocs=world_size, join=True)
+    mp.spawn(train, args=(world_size,), nprocs=world_size, join=True)
     # notebook_launcher(ddpm21cm.train, num_processes=1, mixed_precision='fp16')
-
-# %%
-# torch.cuda.set_device(0)
-
-# %%
-# print(torch.cuda.__dir__())
 
 # %%
 # print("torch.cuda.is_initialized() =", torch.cuda.is_initialized())
@@ -602,31 +597,71 @@ if __name__ == "__main__":
 # print(torch.cuda.memory())
 # print('here')
 # print(torch.cuda.memory_summary())
-
 # %% [markdown]
 # # Sampling
 
 # %%
-# if __name__ == "__main__":
-#     # num_image_list = [1600,3200,6400,12800,25600]
-#     num_image_list = [1000]
-#     # num_image_list = [3200,6400,12800,25600]
-#     # args = (config, nn_model, ddpm, optimizer, dataloader, lr_scheduler)
-#     repeat = 2
-#     config = TrainConfig()
-#     for i, num_image in enumerate(num_image_list):
-#         config.num_image = num_image
-#         ddpm21cm = DDPM21CM(config)
 
-#         ddpm21cm.sample(f"./outputs/model_state-N{num_image}", params=torch.tensor([4.4, 131.341]), repeat=repeat)
+def generate_samples(ddpm21cm, num_new_img, max_num_img_per_gpu, rank, world_size):
+    samples = []
+    for _ in range(num_new_img // max_num_img_per_gpu):    
+        sample = ddpm21cm.sample(params=torch.tensor([4.4, 131.341]), num_new_img=max_num_img_per_gpu)
+        samples.append(sample)
+        # ddpm21cm.sample(params=torch.tensor((5.6, 19.037)), num_new_img=max_num_img_per_gpu)
+        # ddpm21cm.sample(params=torch.tensor((4.699, 30)), num_new_img=max_num_img_per_gpu)
+        # ddpm21cm.sample(params=torch.tensor((5.477, 200)), num_new_img=max_num_img_per_gpu)
+        # ddpm21cm.sample(params=torch.tensor((4.8, 131.341)), num_new_img=max_num_img_per_gpu)
+    samples = np.concatenate(samples, axis=0)
 
-#         # ddpm21cm.sample(f"./outputs/model_state-N{num_image}", params=torch.tensor((5.6, 19.037)), repeat=repeat)
+    samples_list = [np.empty_like(samples) for _ in range(world_size)]
+    dist.all_gather_object(samples_list, samples)
 
-#         # ddpm21cm.sample(f"./outputs/model_state-N{num_image}", params=torch.tensor((4.699, 30)), repeat=repeat)
+    if rank == 0:
+        all_samples = np.concatenate(samples_list, axis=0)
+        return all_samples
+    else:
+        return None
 
-#         # ddpm21cm.sample(f"./outputs/model_state-N{num_image}", params=torch.tensor((5.477, 200)), repeat=repeat)
 
-#         # ddpm21cm.sample(f"./outputs/model_state-N{num_image}", params=torch.tensor((4.8, 131.341)), repeat=repeat)
+def sample(rank, world_size, config, num_new_img, max_num_img_per_gpu, return_dict):
+    ddp_setup(rank, world_size)
+    ddpm21cm = DDPM21CM(config)
+
+    samples = generate_samples(ddpm21cm, num_new_img, max_num_img_per_gpu, rank, world_size)
+
+    if rank == 0:
+        return_dict['samples'] = samples
+
+    dist.destroy_process_group()
+
+
+if __name__ == "__main__":
+    print(" sampling ".center(100,'-'))
+    world_size = torch.cuda.device_count()
+    # num_image_list = [1600,3200,6400,12800,25600]
+    num_image_list = [100]
+    num_new_img = 6
+    max_num_img_per_gpu = 2
+
+    # print("config = TrainConfig()")
+    config = TrainConfig()
+    config.world_size = world_size
+    # print("config.world_size = world_size")
+
+    for num_image in num_image_list:
+        config.num_image = num_image
+        config.resume = f"./outputs/model_state-N{num_image}-epoch4-device0"
+
+        # print("ddpm21cm = DDPM21CM(config)")
+        manager = mp.Manager()
+        return_dict = manager.dict()
+
+        mp.spawn(sample, args=(world_size, config, num_new_img, max_num_img_per_gpu, return_dict), nprocs=world_size, join=True)
+
+        if "samples" in return_dict:
+            samples = return_dict["samples"]
+            print(f"Generated samples shape: {samples.shape}")
+
 
 # %%
 # ls -lth outputs | head

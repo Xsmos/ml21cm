@@ -274,12 +274,11 @@ class TrainConfig:
     # save_period = 1 #10 # the period of saving model
     # cond = True # if training using the conditional information
     # lr_decay = False #True# if using the learning rate decay
-    resume = save_name # if resume from the trained checkpoints
+    resume = False # if resume from the trained checkpoints
     # params_single = torch.tensor([0.2,0.80000023])
     # params = torch.tile(params_single,(n_sample,1)).to(device)
     # params =  params
     # data_dir = './data' # data directory
-
 
     mixed_precision = "fp16"
     gradient_accumulation_steps = 1
@@ -302,12 +301,12 @@ class TrainConfig:
 # @dataclass
 class DDPM21CM:
     def __init__(self, config):
-        print(
-            "torch.cuda.is_available() =", torch.cuda.is_available(), 
-            "torch.cuda.device_count() =", torch.cuda.device_count(),
-            "torch.cuda.is_initialized() =", torch.cuda.is_initialized(),
-            "torch.cuda.current_device() =", torch.cuda.current_device()
-        )
+        # print(
+        #     "torch.cuda.is_available() =", torch.cuda.is_available(), 
+        #     "torch.cuda.device_count() =", torch.cuda.device_count(),
+        #     "torch.cuda.is_initialized() =", torch.cuda.is_initialized(),
+        #     "torch.cuda.current_device() =", torch.cuda.current_device()
+        # )
         # config = TrainConfig()
         # date = datetime.datetime.now().strftime("%m%d-%H%M")
         config.run_name = datetime.datetime.now().strftime("%m%d-%H%M") # the unique name of each experiment
@@ -322,10 +321,6 @@ class DDPM21CM:
         # initialize the unet
         self.nn_model = ContextUnet(n_param=config.n_param, image_size=config.HII_DIM, dim=config.dim, stride=config.stride)
 
-        if config.resume and os.path.exists(config.resume):
-            # resume_file = os.path.join(config.output_dir, f"{config.resume}")
-            self.nn_model.load_state_dict(torch.load(config.resume)['unet_state_dict'])
-            print(f"resumed nn_model from {config.resume}")
         # nn_model = ContextUnet(n_param=1, image_size=28)
         self.nn_model.train()
         # print("self.ddpm.device =", self.ddpm.device)
@@ -333,8 +328,16 @@ class DDPM21CM:
         self.nn_model = DDP(self.nn_model, device_ids=[self.ddpm.device])
         # print("nn_model.device =", ddpm.device)
         # number of parameters to be trained
-        self.number_of_params = sum(x.numel() for x in self.nn_model.parameters())
-        print(f"Number of parameters for nn_model: {self.number_of_params}")
+
+        if config.resume and os.path.exists(config.resume):
+            # resume_file = os.path.join(config.output_dir, f"{config.resume}")
+            # self.nn_model.load_state_dict(torch.load(config.resume)['unet_state_dict'])
+            # print(f"resumed nn_model from {config.resume}")
+            self.nn_model.module.load_state_dict(torch.load(config.resume)['unet_state_dict'])
+            print(f"device {torch.cuda.current_device()} resumed nn_model from {config.resume}")
+
+        # self.number_of_params = sum(x.numel() for x in self.nn_model.parameters())
+        # print(f"Number of parameters for nn_model: {self.number_of_params}")
 
         # whether to use ema
         if config.ema:
@@ -508,7 +511,7 @@ class DDPM21CM:
 
     def sample(self, params:torch.tensor=None, num_new_img=192, ema=False, entire=False, save=False):
         # n_sample = params.shape[0]
-        file = self.config.resume
+        # file = self.config.resume
 
         if params is None:
             params = torch.tensor([0.20000000000000018, 0.5055875000000001])
@@ -528,11 +531,11 @@ class DDPM21CM:
         # params = torch.tile(params, (n_sample,1)).to(device)
 
         # nn_model = ContextUnet(n_param=self.config.n_param, image_size=self.config.HII_DIM, dim=self.config.dim, stride=self.config.stride).to(self.config.device)
-        if ema:
-            self.nn_model.module.load_state_dict(torch.load(file)['ema_unet_state_dict'])
-        else:
-            self.nn_model.module.load_state_dict(torch.load(file)['unet_state_dict'])
-        print(f"nn_model resumed from {file}")
+        # if ema:
+        #     self.nn_model.module.load_state_dict(torch.load(file)['ema_unet_state_dict'])
+        # else:
+        #     self.nn_model.module.load_state_dict(torch.load(file)['unet_state_dict'])
+        # print(f"device {torch.cuda.current_device()} resumed nn_model from {file}")
         # nn_model = ContextUnet(n_param=1, image_size=28)
         # nn_model.train()
         # self.nn_model.to(self.ddpm.device)
@@ -622,15 +625,16 @@ def generate_samples(ddpm21cm, num_new_img, max_num_img_per_gpu, rank, world_siz
     else:
         return None
 
-
 def sample(rank, world_size, config, num_new_img, max_num_img_per_gpu, return_dict):
     ddp_setup(rank, world_size)
     ddpm21cm = DDPM21CM(config)
 
     samples = generate_samples(ddpm21cm, num_new_img, max_num_img_per_gpu, rank, world_size)
 
+    # print(f"device {torch.cuda.current_device()}, rank = {rank}, keys = {return_dict.keys()}, samples.shape = {np.shape(samples)}")
     if rank == 0:
         return_dict['samples'] = samples
+    # print(f"device {torch.cuda.current_device()}, rank = {rank}, keys = {return_dict.keys()}")
 
     dist.destroy_process_group()
 
@@ -640,7 +644,7 @@ if __name__ == "__main__":
     world_size = torch.cuda.device_count()
     # num_image_list = [1600,3200,6400,12800,25600]
     num_image_list = [100]
-    num_new_img = 6
+    num_new_img = 2
     max_num_img_per_gpu = 2
 
     # print("config = TrainConfig()")
@@ -658,9 +662,11 @@ if __name__ == "__main__":
 
         mp.spawn(sample, args=(world_size, config, num_new_img, max_num_img_per_gpu, return_dict), nprocs=world_size, join=True)
 
+        # print("---"*30)
+        # print(f"device {torch.cuda.current_device()}, keys = {return_dict.keys()}")
         if "samples" in return_dict:
             samples = return_dict["samples"]
-            print(f"Generated samples shape: {samples.shape}")
+            print(f"device {torch.cuda.current_device()} generated samples shape: {samples.shape}")
 
 
 # %%

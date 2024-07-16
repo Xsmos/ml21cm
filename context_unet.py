@@ -32,6 +32,7 @@ class GroupNorm32(nn.GroupNorm):
         self.swish = swish
 
     def forward(self, x):
+        # print("GroupNorm32, x.dtype =", x.dtype)
         y = super().forward(x.float()).to(x.dtype)
         if self.swish == 1.0:
             y = F.silu(y)
@@ -187,6 +188,7 @@ class ResBlock(TimestepBlock):
             h = in_conv(h)
         else:
             h = self.in_layers(x)
+        # print("forward, h.dtype =", h.dtype)
         emb_out = self.emb_layers(emb).type(h.dtype)
 
         while len(emb_out.shape) < len(h.shape):
@@ -224,6 +226,7 @@ class QKVAttention(nn.Module):
 
         scale = 1 / math.sqrt(math.sqrt(ch))
         weight = torch.einsum("bct,bcs->bts", q*scale, k*scale)
+        # print("forward, weight.dtype =", weight.dtype)
         weight = torch.softmax(weight.float(), dim=-1).type(weight.dtype)
 
         a = torch.einsum("bts,bcs->bct", weight, v)
@@ -314,7 +317,8 @@ class ContextUnet(nn.Module):
         conv_resample = True,
         encoder_channels = None,
         dim = 2,
-        stride = (2,2)
+        stride = (2,2),
+        dtype = torch.float32,
         ):
         super().__init__()
 
@@ -326,7 +330,7 @@ class ContextUnet(nn.Module):
             elif image_size == 128:
                 channel_mult = (1, 1, 2, 3, 4)
             elif image_size == 64:
-                channel_mult = (1, 1, 2, 2, 4, 4)#(1, 2, 3, 4)
+                channel_mult = (1, 2, 2, 4, 4)#(1, 2, 2, 4)#(1, 2, 8, 8, 8)#(1, 2, 4)#(1, 2, 2, 4)#(0.5,1,2,2,4,4)#(1, 1, 2, 2, 4, 4)#
             elif image_size == 32:
                 channel_mult = (1, 2, 2, 4)
             elif image_size == 28:
@@ -347,7 +351,8 @@ class ContextUnet(nn.Module):
 
         # self.n_param = n_param
         self.model_channels = model_channels
-        self.dtype = torch.float32
+        # self.use_fp16 = use_fp16
+        self.dtype = dtype#torch.float16 if self.use_fp16 else torch.float32
 
         self.token_embedding = nn.Linear(n_param, model_channels * 4)
 
@@ -522,6 +527,7 @@ class ContextUnet(nn.Module):
             text_outputs = self.token_embedding(y.float())
             emb = emb + text_outputs.to(emb)
 
+        # print("forward, h = x.type(self.dtype), self.dtype =", self.dtype)
         h = x.type(self.dtype)
         # print("0,h.shape =", h.shape)
         for module in self.input_blocks:
@@ -539,6 +545,7 @@ class ContextUnet(nn.Module):
             h = module(h, emb)
             # print("module decoder, h.shape =", h.shape)
 
+        # print("h = h.type(x.dtype), x.dtype =", x.dtype)
         h = h.type(x.dtype)
         h = self.out(h)
         # print("self.out(h)", "h.shape =", h.shape)

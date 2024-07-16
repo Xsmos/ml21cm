@@ -96,7 +96,7 @@ def ddp_setup(rank: int, world_size: int):
 
 # %%
 class DDPMScheduler(nn.Module):
-    def __init__(self, betas: tuple, num_timesteps: int, img_shape: list, device='cpu'):
+    def __init__(self, betas: tuple, num_timesteps: int, img_shape: list, device='cpu', dtype=torch.float32):
         super().__init__()
         
         beta_1, beta_T = betas
@@ -112,6 +112,8 @@ class DDPMScheduler(nn.Module):
         self.alpha_t = 1 - self.beta_t
         # self.bar_alpha_t = torch.exp(torch.cumsum(torch.log(self.alpha_t), dim=0))
         self.bar_alpha_t = torch.cumprod(self.alpha_t, dim=0)
+        # self.use_fp16 = use_fp16
+        self.dtype = dtype#torch.float16 if self.use_fp16 else torch.float32
 
     def add_noise(self, clean_images):
         shape = clean_images.shape
@@ -234,12 +236,12 @@ class TrainConfig:
 
     # dim = 2
     dim = 3
-    stride = (2,2) if dim == 2 else (2,2,1)
-    num_image = 2000#32000#20000#15000#7000#25600#3000#10000#1000#10000#5000#2560#800#2560
-    batch_size = 10#2#50#20#2#100 # 10
-    n_epoch = 5# 10#50#20#20#2#5#25 # 120
-    HII_DIM = 28#64
-    num_redshift = 2#128#64#512#256#256#64#512#128
+    stride = (2,2) if dim == 2 else (2,2,4)
+    num_image = 1000#32000#20000#15000#7000#25600#3000#10000#1000#10000#5000#2560#800#2560
+    batch_size = 1#2#50#20#2#100 # 10
+    n_epoch = 8#4# 10#50#20#20#2#5#25 # 120
+    HII_DIM = 64
+    num_redshift = 512#128#64#512#256#256#64#512#128
     channel = 1
     img_shape = (channel, HII_DIM, num_redshift) if dim == 2 else (channel, HII_DIM, HII_DIM, num_redshift)
 
@@ -264,7 +266,7 @@ class TrainConfig:
     # seed = 0
     # save_dir = './outputs/'
 
-    save_period = np.infty#.1 # the period of sampling
+    save_period = 1#np.infty#.1 # the period of sampling
     # general parameters for the name and logger    
     # device = "cuda" if torch.cuda.is_available() else "cpu"
     lrate = 1e-4
@@ -280,6 +282,8 @@ class TrainConfig:
     # params =  params
     # data_dir = './data' # data directory
 
+    use_fp16 = False
+    dtype = torch.float16 if use_fp16 else torch.float32
     mixed_precision = "fp16"
     gradient_accumulation_steps = 1
 
@@ -316,10 +320,10 @@ class DDPM21CM:
         # # print("shape_loaded =", self.shape_loaded)
         # self.dataloader = DataLoader(dataset, batch_size=config.batch_size, shuffle=True)
         # del dataset
-        self.ddpm = DDPMScheduler(betas=(1e-4, 0.02), num_timesteps=config.num_timesteps, img_shape=config.img_shape, device=config.device)
+        self.ddpm = DDPMScheduler(betas=(1e-4, 0.02), num_timesteps=config.num_timesteps, img_shape=config.img_shape, device=config.device, dtype=config.dtype)
 
         # initialize the unet
-        self.nn_model = ContextUnet(n_param=config.n_param, image_size=config.HII_DIM, dim=config.dim, stride=config.stride)
+        self.nn_model = ContextUnet(n_param=config.n_param, image_size=config.HII_DIM, dim=config.dim, stride=config.stride, dtype=config.dtype)
 
         # nn_model = ContextUnet(n_param=1, image_size=28)
         self.nn_model.train()
@@ -336,14 +340,14 @@ class DDPM21CM:
             self.nn_model.module.load_state_dict(torch.load(config.resume)['unet_state_dict'])
             print(f"device {torch.cuda.current_device()} resumed nn_model from {config.resume}")
 
-        # self.number_of_params = sum(x.numel() for x in self.nn_model.parameters())
-        # print(f"Number of parameters for nn_model: {self.number_of_params}")
+        self.number_of_params = sum(x.numel() for x in self.nn_model.parameters())
+        print(f" Number of parameters for nn_model: {self.number_of_params} ".center(100,'-'))
 
         # whether to use ema
         if config.ema:
             self.ema = EMA(config.ema_rate)
             if config.resume and os.path.exists(config.resume):
-                self.ema_model = ContextUnet(n_param=config.n_param, image_size=config.HII_DIM, dim=config.dim, stride=config.stride).to(config.device)
+                self.ema_model = ContextUnet(n_param=config.n_param, image_size=config.HII_DIM, dim=config.dim, stride=config.stride, dtype=config.dtype).to(config.device)
                 self.ema_model.load_state_dict(torch.load(config.resume)['ema_unet_state_dict'])
                 print(f"resumed ema_model from {config.resume}")
             else:
@@ -432,6 +436,9 @@ class DDPM21CM:
                 # print(f"device {torch.cuda.current_device()}, x[:,0,:2,0,0] =", x[:,0,:2,0,0])
                 with self.accelerator.accumulate(self.nn_model):
                     x = x.to(self.config.device)
+                    # print("x = x.to(self.config.device), x.dtype =", x.dtype)
+                    # x = x.to(self.config.dtype)
+                    # print("x = x.to(self.dtype), x.dtype =", x.dtype)
                     xt, noise, ts = self.ddpm.add_noise(x)
                     
                     if self.config.guide_w == -1:
@@ -439,6 +446,8 @@ class DDPM21CM:
                     else:
                         c = c.to(self.config.device)
                         noise_pred = self.nn_model(xt, ts, c)
+
+                    # print("noise_pred = self.nn_model(xt, ts, c), noise_pred.dtype =", noise_pred.dtype)
                     
                     loss = F.mse_loss(noise, noise_pred)
                     self.accelerator.backward(loss)
@@ -567,23 +576,23 @@ def train(rank, world_size):
 
     ddp_setup(rank, world_size)
     
-    num_image_list = [100]#[200]#[1600,3200,6400,12800,25600]
+    num_image_list = [2000]#[200]#[1600,3200,6400,12800,25600]
     for i, num_image in enumerate(num_image_list):
         config.num_image = num_image
         # config.world_size = world_size
         
         ddpm21cm = DDPM21CM(config)
-        print(f" num_image = {ddpm21cm.config.num_image} ".center(50, '-'))
+        # print(f" num_image = {ddpm21cm.config.num_image} ".center(50, '-'))
         print(f"run_name = {ddpm21cm.config.run_name}")
         ddpm21cm.train()
         destroy_process_group()
 
         
-if __name__ == "__main__":
-    print(" training ".center(100,'-'))
+if __name__ == False:#"__main__":
+    world_size = torch.cuda.device_count()
+    print(f" training, world_size = {world_size} ".center(100,'-'))
     # torch.multiprocessing.set_start_method("spawn")
     # args = (config, nn_model, ddpm, optimizer, dataloader, lr_scheduler)
-    world_size = torch.cuda.device_count()
 
     mp.spawn(train, args=(world_size,), nprocs=world_size, join=True)
     # notebook_launcher(ddpm21cm.train, num_processes=1, mixed_precision='fp16')
@@ -640,12 +649,12 @@ def sample(rank, world_size, config, num_new_img, max_num_img_per_gpu, return_di
 
 
 if __name__ == "__main__":
-    print(" sampling ".center(100,'-'))
     world_size = torch.cuda.device_count()
+    print(f" sampling, world_size = {world_size} ".center(100,'-'))
     # num_image_list = [1600,3200,6400,12800,25600]
-    num_image_list = [100]
+    num_image_list = [2000]
     num_new_img = 2
-    max_num_img_per_gpu = 2
+    max_num_img_per_gpu = 1
 
     # print("config = TrainConfig()")
     config = TrainConfig()
@@ -654,7 +663,7 @@ if __name__ == "__main__":
 
     for num_image in num_image_list:
         config.num_image = num_image
-        config.resume = f"./outputs/model_state-N{num_image}-epoch4-device0"
+        config.resume = f"./outputs/model_state-N{num_image}-epoch3-device0"
 
         # print("ddpm21cm = DDPM21CM(config)")
         manager = mp.Manager()

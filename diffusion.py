@@ -237,7 +237,7 @@ class TrainConfig:
     # dim = 2
     dim = 3
     stride = (2,2) if dim == 2 else (2,2,4)
-    num_image = 1000#32000#20000#15000#7000#25600#3000#10000#1000#10000#5000#2560#800#2560
+    num_image = 1000#2000#20000#15000#7000#25600#3000#10000#1000#10000#5000#2560#800#2560
     batch_size = 1#2#50#20#2#100 # 10
     n_epoch = 8#4# 10#50#20#20#2#5#25 # 120
     HII_DIM = 64
@@ -690,7 +690,7 @@ if __name__ == "__main__":
 
     for num_image in num_train_image_list:
         config.num_image = num_image
-        config.resume = f"./outputs/model_state-N{num_image}-epoch7-device0"
+        config.resume = f"./outputs/model_state-N{num_image}-epoch6-device0"
 
         # print("ddpm21cm = DDPM21CM(config)")
         manager = mp.Manager()

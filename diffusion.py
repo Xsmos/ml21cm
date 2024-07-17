@@ -508,7 +508,10 @@ class DDPM21CM:
     #     for i, from_ranges in self.ranges_dict[type].items():
     #         value[i] = (value[i] - from_ranges[0])/(from_ranges[1]-from_ranges[0]) # normalize
     #         value[i] = 
-    def rescale(self, value, ranges, to: list):
+    def rescale(self, params, ranges, to: list):
+        # value = np.array(params).copy()
+        value = params.clone()
+
         if value.ndim == 1:
             value = value.view(-1,len(value))
             
@@ -518,20 +521,21 @@ class DDPM21CM:
         value = value * (to[1]-to[0]) + to[0]
         return value 
 
-    def sample(self, params:torch.tensor=None, num_new_img=192, ema=False, entire=False, save=False):
+    def sample(self, params:torch.tensor=None, num_new_img_per_gpu=192, ema=False, entire=False, save=True):
         # n_sample = params.shape[0]
         # file = self.config.resume
 
+        print(f"device {torch.cuda.current_device()}, sample, params = {params}")
         if params is None:
-            params = torch.tensor([0.20000000000000018, 0.5055875000000001])
-            params_backup = params.numpy().copy()
-        else:
-            params_backup = params.numpy().copy()
-            params = self.rescale(params, self.ranges_dict['params'], to=[0,1])
+            params = torch.tensor([4.4, 131.341])
+            # params_backup = params.numpy().copy()
+        # else:
+        params_backup = params.numpy().copy()
+        params_normalized = self.rescale(params, self.ranges_dict['params'], to=[0,1])
 
-        print(f"device {torch.cuda.current_device()} sampling {num_new_img} images with normalized params = {params}")
-        params = params.repeat(num_new_img,1)
-        assert params.dim() == 2, "params must be a 2D torch.tensor"
+        print(f"device {torch.cuda.current_device()} sampling {num_new_img_per_gpu} images with normalized params = {params_normalized}")
+        params_normalized = params_normalized.repeat(num_new_img_per_gpu,1)
+        assert params_normalized.dim() == 2, "params_normalized must be a 2D torch.tensor"
         # print("params =", params)
         # print("params =", params)
         # print("len(params) =", len(params))
@@ -557,18 +561,24 @@ class DDPM21CM:
         with torch.no_grad():
             x_last, x_entire = self.ddpm.sample(
                 nn_model=self.nn_model, 
-                params=params.to(self.config.device), 
+                params=params_normalized.to(self.config.device), 
                 device=self.config.device, 
                 guide_w=self.config.guide_w
                 )
 
         if save:    
             # np.save(os.path.join(self.config.output_dir, f"{self.config.run_name}{'ema' if ema else ''}.npy"), x_last)
-            np.save(os.path.join(self.config.output_dir, f"Tvir{params_backup[0]}-zeta{params_backup[1]}-N{self.config.num_image}{'ema' if ema else ''}.npy"), x_last)
+            savetime = datetime.datetime.now().strftime("%m%d-%H%M")
+            savename = os.path.join(self.config.output_dir, f"Tvir{params_backup[0]}-zeta{params_backup[1]}-N{self.config.num_image}-device{torch.cuda.current_device()}-{savetime}{'ema' if ema else ''}.npy")
+            print(f"saving {savename} ...")
+            np.save(savename, x_last)
+
             if entire:
-                np.save(os.path.join(self.config.output_dir, f"Tvir{params_backup[0]}-zeta{params_backup[1]}-N{self.config.num_image}{'ema' if ema else ''}_entire.npy"), x_last)
-        else:
-            return x_last
+                savename = os.path.join(self.config.output_dir, f"Tvir{params_backup[0]}-zeta{params_backup[1]}-N{self.config.num_image}-device{torch.cuda.current_device()}-{savetime}{'ema' if ema else ''}_entire.npy")
+                print(f"saving {savename} ...")
+                np.save(savename, x_entire)
+        # else:
+        return x_last
 # %%
 def train(rank, world_size):
     config = TrainConfig()
@@ -576,8 +586,8 @@ def train(rank, world_size):
 
     ddp_setup(rank, world_size)
     
-    num_image_list = [2000]#[200]#[1600,3200,6400,12800,25600]
-    for i, num_image in enumerate(num_image_list):
+    num_train_image_list = [3200]#[200]#[1600,3200,6400,12800,25600]
+    for i, num_image in enumerate(num_train_image_list):
         config.num_image = num_image
         # config.world_size = world_size
         
@@ -588,7 +598,7 @@ def train(rank, world_size):
         destroy_process_group()
 
         
-if __name__ == False:#"__main__":
+if __name__ == "__main__":
     world_size = torch.cuda.device_count()
     print(f" training, world_size = {world_size} ".center(100,'-'))
     # torch.multiprocessing.set_start_method("spawn")
@@ -614,35 +624,50 @@ if __name__ == False:#"__main__":
 
 # %%
 
-def generate_samples(ddpm21cm, num_new_img, max_num_img_per_gpu, rank, world_size):
-    samples = []
-    for _ in range(num_new_img // max_num_img_per_gpu):    
-        sample = ddpm21cm.sample(params=torch.tensor([4.4, 131.341]), num_new_img=max_num_img_per_gpu)
-        samples.append(sample)
-        # ddpm21cm.sample(params=torch.tensor((5.6, 19.037)), num_new_img=max_num_img_per_gpu)
-        # ddpm21cm.sample(params=torch.tensor((4.699, 30)), num_new_img=max_num_img_per_gpu)
-        # ddpm21cm.sample(params=torch.tensor((5.477, 200)), num_new_img=max_num_img_per_gpu)
-        # ddpm21cm.sample(params=torch.tensor((4.8, 131.341)), num_new_img=max_num_img_per_gpu)
-    samples = np.concatenate(samples, axis=0)
+# def generate_samples(ddpm21cm, num_new_img_per_gpu, max_num_img_per_gpu, rank, world_size, params):
+#     # samples = []
+#     for _ in range(num_new_img_per_gpu // max_num_img_per_gpu):    
+#         sample = ddpm21cm.sample(
+#             params=params, 
+#             num_new_img_per_gpu=max_num_img_per_gpu
+#             )
 
-    samples_list = [np.empty_like(samples) for _ in range(world_size)]
-    dist.all_gather_object(samples_list, samples)
+#         print(f"device {torch.cuda.current_device()} generated sample of shape: {sample.shape}")
 
-    if rank == 0:
-        all_samples = np.concatenate(samples_list, axis=0)
-        return all_samples
-    else:
-        return None
+#         # samples.append(sample)
+#         # ddpm21cm.sample(params=torch.tensor((5.6, 19.037)), num_new_img_per_gpu=max_num_img_per_gpu)
+#         # ddpm21cm.sample(params=torch.tensor((4.699, 30)), num_new_img_per_gpu=max_num_img_per_gpu)
+#         # ddpm21cm.sample(params=torch.tensor((5.477, 200)), num_new_img_per_gpu=max_num_img_per_gpu)
+#         # ddpm21cm.sample(params=torch.tensor((4.8, 131.341)), num_new_img_per_gpu=max_num_img_per_gpu)
+#     # samples = np.concatenate(samples, axis=0)
 
-def sample(rank, world_size, config, num_new_img, max_num_img_per_gpu, return_dict):
+#     # samples_list = [np.empty_like(samples) for _ in range(world_size)]
+#     # dist.all_gather_object(samples_list, samples)
+
+#     # if rank == 0:
+#     #     all_samples = np.concatenate(samples_list, axis=0)
+#     #     return all_samples
+#     # else:
+#     #     return None
+
+def generate_samples(rank, world_size, config, num_new_img_per_gpu, max_num_img_per_gpu, return_dict, params):
     ddp_setup(rank, world_size)
     ddpm21cm = DDPM21CM(config)
 
-    samples = generate_samples(ddpm21cm, num_new_img, max_num_img_per_gpu, rank, world_size)
+    # generate_samples(ddpm21cm, num_new_img_per_gpu, max_num_img_per_gpu, rank, world_size, params)
+
+    # samples = []
+    for _ in range(num_new_img_per_gpu // max_num_img_per_gpu):    
+        sample = ddpm21cm.sample(
+            params=params, 
+            num_new_img_per_gpu=max_num_img_per_gpu
+            )
+            
+        print(f"device {torch.cuda.current_device()} generated sample of shape: {sample.shape}")
 
     # print(f"device {torch.cuda.current_device()}, rank = {rank}, keys = {return_dict.keys()}, samples.shape = {np.shape(samples)}")
-    if rank == 0:
-        return_dict['samples'] = samples
+    # if rank == 0:
+    #     return_dict['samples'] = samples
     # print(f"device {torch.cuda.current_device()}, rank = {rank}, keys = {return_dict.keys()}")
 
     dist.destroy_process_group()
@@ -651,31 +676,33 @@ def sample(rank, world_size, config, num_new_img, max_num_img_per_gpu, return_di
 if __name__ == "__main__":
     world_size = torch.cuda.device_count()
     print(f" sampling, world_size = {world_size} ".center(100,'-'))
-    # num_image_list = [1600,3200,6400,12800,25600]
-    num_image_list = [2000]
-    num_new_img = 2
+    # num_train_image_list = [1600,3200,6400,12800,25600]
+    num_train_image_list = [3200]
+    num_new_img_per_gpu = 9
     max_num_img_per_gpu = 1
+
+    params = torch.tensor([4.4, 131.341])
 
     # print("config = TrainConfig()")
     config = TrainConfig()
     config.world_size = world_size
     # print("config.world_size = world_size")
 
-    for num_image in num_image_list:
+    for num_image in num_train_image_list:
         config.num_image = num_image
-        config.resume = f"./outputs/model_state-N{num_image}-epoch3-device0"
+        config.resume = f"./outputs/model_state-N{num_image}-epoch7-device0"
 
         # print("ddpm21cm = DDPM21CM(config)")
         manager = mp.Manager()
         return_dict = manager.dict()
 
-        mp.spawn(sample, args=(world_size, config, num_new_img, max_num_img_per_gpu, return_dict), nprocs=world_size, join=True)
+        mp.spawn(generate_samples, args=(world_size, config, num_new_img_per_gpu, max_num_img_per_gpu, return_dict, params), nprocs=world_size, join=True)
 
         # print("---"*30)
         # print(f"device {torch.cuda.current_device()}, keys = {return_dict.keys()}")
-        if "samples" in return_dict:
-            samples = return_dict["samples"]
-            print(f"device {torch.cuda.current_device()} generated samples shape: {samples.shape}")
+        # if "samples" in return_dict:
+        #     samples = return_dict["samples"]
+        #     print(f"device {torch.cuda.current_device()} generated samples shape: {samples.shape}")
 
 
 # %%

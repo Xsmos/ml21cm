@@ -330,7 +330,7 @@ class ContextUnet(nn.Module):
             elif image_size == 128:
                 channel_mult = (1, 1, 2, 3, 4)
             elif image_size == 64:
-                channel_mult = (1, 2, 2, 4, 4)#(1, 2, 2, 4)#(1, 2, 8, 8, 8)#(1, 2, 4)#(1, 2, 2, 4)#(0.5,1,2,2,4,4)#(1, 1, 2, 2, 4, 4)#
+                channel_mult = (1, 2, 4, 4, 4)#(1, 2, 2, 4)#(1, 2, 8, 8, 8)#(1, 2, 4)#(1, 2, 2, 4)#(0.5,1,2,2,4,4)#(1, 1, 2, 2, 4, 4)#
             elif image_size == 32:
                 channel_mult = (1, 2, 2, 4)
             elif image_size == 28:

@@ -23,6 +23,8 @@
 # - it takes 62 mins to generated 8 images with shape of (64,64,64), which is even slower than simulation, which takes ~5 mins for each image. Besides, the batch_size during training and num of images to be generated are limited to be 2 and 8, respectively.
 # - the slowerness can be solved by using multi-GPUs, and the limited-num-of-images can be solved by multi-accuracy, multi-GPUs.
 # - In addtion, the performance of DDPM can looks better compared to computation-intensive simulations. 
+# 1 GPU, batch_size = 10, num_image = 3200, 50s for each epoch
+# 4 GPU, batch_size = 10, num_image = 3200, 
 
 # %%
 from dataclasses import dataclass
@@ -235,13 +237,13 @@ class TrainConfig:
     # repeat = 2
 
     # dim = 2
-    dim = 3
-    stride = (2,2) if dim == 2 else (2,2,4)
+    dim = 2
+    stride = (2,2) if dim == 2 else (2,2,2)
     num_image = 1000#2000#20000#15000#7000#25600#3000#10000#1000#10000#5000#2560#800#2560
-    batch_size = 1#2#50#20#2#100 # 10
-    n_epoch = 2#4# 10#50#20#20#2#5#25 # 120
+    batch_size = 20#1#2#50#20#2#100 # 10
+    n_epoch = 30#120#5#4# 10#50#20#20#2#5#25 # 120
     HII_DIM = 64
-    num_redshift = 512#128#64#512#256#256#64#512#128
+    num_redshift = 64#512#128#64#512#256#256#64#512#128
     channel = 1
     img_shape = (channel, HII_DIM, num_redshift) if dim == 2 else (channel, HII_DIM, HII_DIM, num_redshift)
 
@@ -266,7 +268,7 @@ class TrainConfig:
     # seed = 0
     # save_dir = './outputs/'
 
-    save_period = 1#np.infty#.1 # the period of sampling
+    save_period = np.infty#.1 # the period of sampling
     # general parameters for the name and logger    
     # device = "cuda" if torch.cuda.is_available() else "cpu"
     lrate = 1e-4
@@ -499,7 +501,7 @@ class DDPM21CM:
                             'unet_state_dict': self.nn_model.module.state_dict(),
                             # 'ema_unet_state_dict': self.ema_model.state_dict(),
                             }
-                        save_name = self.config.save_name+f"-N{self.config.num_image}-epoch{ep}-device{torch.cuda.current_device()}"
+                        save_name = self.config.save_name+f"-N{self.config.num_image}-device_count{torch.cuda.device_count()}-epoch{ep}"
                         torch.save(model_state, save_name)
                         print(f'device {torch.cuda.current_device()} saved model at ' + save_name)
                         # print('saved model at ' + config.save_dir + f"model_epoch_{ep}_test_{config.run_name}.pth")
@@ -580,13 +582,16 @@ class DDPM21CM:
         # else:
         return x_last
 # %%
+
+num_train_image_list = [5000]
+
 def train(rank, world_size):
     config = TrainConfig()
     config.world_size = world_size
 
     ddp_setup(rank, world_size)
     
-    num_train_image_list = [3200]#[3200]#[200]#[1600,3200,6400,12800,25600]
+    #[3200]#[200]#[1600,3200,6400,12800,25600]
     for i, num_image in enumerate(num_train_image_list):
         config.num_image = num_image
         # config.world_size = world_size
@@ -599,7 +604,7 @@ def train(rank, world_size):
 
         
 if __name__ == "__main__":
-    world_size = torch.cuda.device_count()
+    world_size = 1#torch.cuda.device_count()
     print(f" training, world_size = {world_size} ".center(100,'-'))
     # torch.multiprocessing.set_start_method("spawn")
     # args = (config, nn_model, ddpm, optimizer, dataloader, lr_scheduler)
@@ -607,20 +612,6 @@ if __name__ == "__main__":
     mp.spawn(train, args=(world_size,), nprocs=world_size, join=True)
     # notebook_launcher(ddpm21cm.train, num_processes=1, mixed_precision='fp16')
 
-# %%
-# print("torch.cuda.is_initialized() =", torch.cuda.is_initialized())
-# print("torch.cuda.get_device_name() =", torch.cuda.get_device_name())
-# print("torch.cuda.current_device() =", torch.cuda.current_device())
-# print("torch.cuda.get_device_capability() =", torch.cuda.get_device_capability())
-# print("torch.cuda.get_device_properties(torch.cuda.device) =", torch.cuda.get_device_properties(torch.cuda.device))
-# print('here')
-# print(torch.cuda.memory_usage())
-# print(torch.cuda.utilization())
-# print(torch.cuda.memory())
-# print('here')
-# print(torch.cuda.memory_summary())
-# %% [markdown]
-# # Sampling
 
 # %%
 
@@ -675,13 +666,13 @@ def generate_samples(rank, world_size, config, num_new_img_per_gpu, max_num_img_
 
 if __name__ == "__main__":
     world_size = torch.cuda.device_count()
-    print(f" sampling, world_size = {world_size} ".center(100,'-'))
+    # print(f" sampling, world_size = {world_size} ".center(100,'-'))
     # num_train_image_list = [1600,3200,6400,12800,25600]
-    num_train_image_list = [3200]
-    num_new_img_per_gpu = 9
-    max_num_img_per_gpu = 1
+    # num_train_image_list = [5000]
+    num_new_img_per_gpu = 200
+    max_num_img_per_gpu = 40
 
-    params = torch.tensor([4.4, 131.341])
+    # params = torch.tensor([4.4, 131.341])
 
     # print("config = TrainConfig()")
     config = TrainConfig()
@@ -690,13 +681,22 @@ if __name__ == "__main__":
 
     for num_image in num_train_image_list:
         config.num_image = num_image
-        config.resume = f"./outputs/model_state-N{num_image}-epoch6-device0"
+        config.resume = f"./outputs/model_state-N{num_image}-device_count{torch.cuda.device_count()}-epoch{config.n_epoch-1}"
 
         # print("ddpm21cm = DDPM21CM(config)")
         manager = mp.Manager()
         return_dict = manager.dict()
 
-        mp.spawn(generate_samples, args=(world_size, config, num_new_img_per_gpu, max_num_img_per_gpu, return_dict, params), nprocs=world_size, join=True)
+        params_pairs = [
+            (4.4, 131.341),
+            (5.6, 19.037),
+            (4.699, 30),
+            (5.477, 200),
+            (4.8, 131.341),
+        ]
+        for params in params_pairs:
+            print(f" sampling for {params}, world_size = {world_size} ".center(100,'-'))
+            mp.spawn(generate_samples, args=(world_size, config, num_new_img_per_gpu, max_num_img_per_gpu, return_dict, torch.tensor(params)), nprocs=world_size, join=True)
 
         # print("---"*30)
         # print(f"device {torch.cuda.current_device()}, keys = {return_dict.keys()}")

@@ -241,7 +241,7 @@ class TrainConfig:
     stride = (2,2) if dim == 2 else (2,2,2)
     num_image = 1000#2000#20000#15000#7000#25600#3000#10000#1000#10000#5000#2560#800#2560
     batch_size = 50#1#2#50#20#2#100 # 10
-    n_epoch = 200#30#120#5#4# 10#50#20#20#2#5#25 # 120
+    n_epoch = 100#30#120#5#4# 10#50#20#20#2#5#25 # 120
     HII_DIM = 64
     num_redshift = 64#512#128#64#512#256#256#64#512#128
     channel = 1
@@ -527,7 +527,7 @@ class DDPM21CM:
         # n_sample = params.shape[0]
         # file = self.config.resume
 
-        print(f"device {torch.cuda.current_device()}, sample, params = {params}")
+        # print(f"device {torch.cuda.current_device()}, sample, params = {params}")
         if params is None:
             params = torch.tensor([4.4, 131.341])
             # params_backup = params.numpy().copy()

@@ -241,7 +241,7 @@ class TrainConfig:
     stride = (2,2) if dim == 2 else (2,2,2)
     num_image = 1000#2000#20000#15000#7000#25600#3000#10000#1000#10000#5000#2560#800#2560
     batch_size = 50#1#2#50#20#2#100 # 10
-    n_epoch = 50#30#120#5#4# 10#50#20#20#2#5#25 # 120
+    n_epoch = 200#30#120#5#4# 10#50#20#20#2#5#25 # 120
     HII_DIM = 64
     num_redshift = 64#512#128#64#512#256#256#64#512#128
     channel = 1
@@ -583,7 +583,7 @@ class DDPM21CM:
         return x_last
 # %%
 
-num_train_image_list = [7000]
+num_train_image_list = [8000]
 
 def train(rank, world_size):
     config = TrainConfig()
@@ -604,7 +604,7 @@ def train(rank, world_size):
 
         
 if __name__ == "__main__":
-    world_size = 1#torch.cuda.device_count()
+    world_size = torch.cuda.device_count()
     print(f" training, world_size = {world_size} ".center(100,'-'))
     # torch.multiprocessing.set_start_method("spawn")
     # args = (config, nn_model, ddpm, optimizer, dataloader, lr_scheduler)

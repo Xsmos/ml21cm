@@ -26,14 +26,28 @@ import datetime
 # from huggingface_hub import create_repo, upload_folder
 
 class Dataset4h5(Dataset):
-    def __init__(self, dir_name, num_image=10, field='brightness_temp', shuffle=False, idx=None, num_redshift=512, HII_DIM=64, rescale=True, drop_prob = 0, dim=2, transform=True, ranges_dict=None):
+    def __init__(
+        self,
+        dir_name, 
+        num_image=10, 
+        field='brightness_temp', 
+        idx='random', 
+        num_redshift=512, 
+        HII_DIM=64, 
+        rescale=True, 
+        drop_prob = 0, 
+        dim=2, 
+        transform=True, 
+        ranges_dict=None, 
+        # shuffle=False,
+        ):
         super().__init__()
         
         self.dir_name = dir_name
         self.num_image = num_image
-        self.field = field
-        self.shuffle = shuffle
         self.idx = idx
+        self.field = field
+        # self.shuffle = shuffle
         self.num_redshift = num_redshift
         self.HII_DIM = HII_DIM
         self.drop_prob = drop_prob
@@ -81,14 +95,24 @@ class Dataset4h5(Dataset):
             self.params_keys = list(f['params']['keys'])
             print(f"params keys = {self.params_keys}")
 
-            if self.idx is None:
-                if self.shuffle:
-                    self.idx = np.sort(random.sample(range(max_num_image), self.num_image))
-                    print(f"loading {self.num_image} images randomly")
-                    # print(self.idx)
-                else:
-                    self.idx = range(self.num_image)
-                    print(f"loading {len(self.idx)} images with idx = {self.idx}")
+            # if self.idx is None:
+            #     if self.shuffle:
+            #         self.idx = np.sort(random.sample(range(max_num_image), self.num_image))
+            #         print(f"loading {self.num_image} images randomly")
+            #         # print(self.idx)
+            #     else:
+            #         self.idx = range(self.num_image)
+            #         print(f"loading {len(self.idx)} images with idx = {self.idx}")
+            if self.idx == "random":
+                self.idx = np.sort(random.sample(range(max_num_image), self.num_image))
+                print(f"loading {self.num_image} images randomly")
+                # print(self.idx)
+            elif self.idx == "range":
+                rank = torch.cuda.current_device()
+                self.idx = range(
+                    rank*self.num_image, (rank+1)*self.num_image
+                    )
+                print(f"loading {len(self.idx)} images with idx = {self.idx}")
             else:
                 print(f"loading {len(self.idx)} images with idx = {self.idx}")
 
@@ -110,6 +134,7 @@ class Dataset4h5(Dataset):
             # plt.show()
 
     def flip_rotate(self, img):
+        # print(f"flip_rotate, img.shape = {img.shape}")
         # num_transform = np.random.randint(img.shape[0])
         x_flip_idx = random.sample(range(len(img)), np.random.randint(1,len(img)+1))
         img[x_flip_idx] = img[x_flip_idx, :, ::-1, :]

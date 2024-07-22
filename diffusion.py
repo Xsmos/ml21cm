@@ -241,9 +241,9 @@ class TrainConfig:
     stride = (2,2) if dim == 2 else (2,2,2)
     num_image = 1000#2000#20000#15000#7000#25600#3000#10000#1000#10000#5000#2560#800#2560
     batch_size = 50#1#2#50#20#2#100 # 10
-    n_epoch = 100#30#120#5#4# 10#50#20#20#2#5#25 # 120
+    n_epoch = 50#100#30#120#5#4# 10#50#20#20#2#5#25 # 120
     HII_DIM = 64
-    num_redshift = 64#512#128#64#512#256#256#64#512#128
+    num_redshift = 64#256CUDAoom#128#64#512#128#64#512#256#256#64#512#128
     channel = 1
     img_shape = (channel, HII_DIM, num_redshift) if dim == 2 else (channel, HII_DIM, HII_DIM, num_redshift)
 
@@ -341,6 +341,8 @@ class DDPM21CM:
             # print(f"resumed nn_model from {config.resume}")
             self.nn_model.module.load_state_dict(torch.load(config.resume)['unet_state_dict'])
             print(f"device {torch.cuda.current_device()} resumed nn_model from {config.resume}")
+        else:
+            print(f"device {torch.cuda.current_device()} initialized nn_model randomly")
 
         self.number_of_params = sum(x.numel() for x in self.nn_model.parameters())
         print(f" Number of parameters for nn_model: {self.number_of_params} ".center(100,'-'))
@@ -366,18 +368,28 @@ class DDPM21CM:
         self.ranges_dict = config.ranges_dict
 
     def load(self):
-        dataset = Dataset4h5(self.config.dataset_name, num_image=self.config.num_image, HII_DIM=self.config.HII_DIM, num_redshift=self.config.num_redshift, drop_prob=self.config.drop_prob, dim=self.config.dim, ranges_dict=self.ranges_dict)
+        # rank = torch.cuda.current_device()
+        dataset = Dataset4h5(
+            self.config.dataset_name, 
+            num_image=self.config.num_image,
+            idx = 'range',
+            HII_DIM=self.config.HII_DIM, 
+            num_redshift=self.config.num_redshift,
+            drop_prob=self.config.drop_prob, 
+            dim=self.config.dim,
+            ranges_dict=self.ranges_dict
+            )
         # self.shape_loaded = dataset.images.shape
         # print("shape_loaded =", self.shape_loaded)
         # print(f"load, current_device() = {torch.cuda.current_device()}")
         self.dataloader = DataLoader(
             dataset=dataset, 
             batch_size=self.config.batch_size, 
-            shuffle=False, 
-            num_workers=1,#len(os.sched_getaffinity(0)), 
+            shuffle=True,#False, 
+            num_workers=len(os.sched_getaffinity(0)), 
             pin_memory=True,
             persistent_workers=True,
-            sampler=DistributedSampler(dataset),
+            # sampler=DistributedSampler(dataset),
             )
 
         del dataset
@@ -414,14 +426,14 @@ class DDPM21CM:
 
 
         # print("!!!!!!!!!!!!!!!!, before prepare, self.dataloader.sampler =", self.dataloader.sampler)
-        # self.nn_model, self.optimizer, self.dataloader, self.lr_scheduler = \
-        #     self.accelerator.prepare(
-        #     self.nn_model, self.optimizer, self.dataloader, self.lr_scheduler
-        #     )
-        self.nn_model, self.optimizer, self.lr_scheduler = \
+        self.nn_model, self.optimizer, self.dataloader, self.lr_scheduler = \
             self.accelerator.prepare(
-            self.nn_model, self.optimizer, self.lr_scheduler
+            self.nn_model, self.optimizer, self.dataloader, self.lr_scheduler
             )
+        # self.nn_model, self.optimizer, self.lr_scheduler = \
+        #     self.accelerator.prepare(
+        #     self.nn_model, self.optimizer, self.lr_scheduler
+        #     )
 
         # print("!!!!!!!!!!!!!!!!, after prepare, self.dataloader.sampler =", self.dataloader.sampler)
         # print("!!!!!!!!!!!!!!!!, after prepare, self.dataloader.batch_sampler =", self.dataloader.batch_sampler)
@@ -430,7 +442,7 @@ class DDPM21CM:
         global_step = 0
         for ep in range(self.config.n_epoch):
             self.ddpm.train()
-            self.dataloader.sampler.set_epoch(ep)
+            # self.dataloader.sampler.set_epoch(ep)
 
             pbar_train = tqdm(total=len(self.dataloader), disable=not self.accelerator.is_local_main_process)
             pbar_train.set_description(f"device {torch.cuda.current_device()}, Epoch {ep}")
@@ -501,7 +513,7 @@ class DDPM21CM:
                             'unet_state_dict': self.nn_model.module.state_dict(),
                             # 'ema_unet_state_dict': self.ema_model.state_dict(),
                             }
-                        save_name = self.config.save_name+f"-N{self.config.num_image}-device_count{torch.cuda.device_count()}-epoch{ep}"
+                        save_name = self.config.save_name+f"-N{self.config.num_image}-device_count{self.config.world_size}-epoch{ep}"
                         torch.save(model_state, save_name)
                         print(f'device {torch.cuda.current_device()} saved model at ' + save_name)
                         # print('saved model at ' + config.save_dir + f"model_epoch_{ep}_test_{config.run_name}.pth")
@@ -593,7 +605,7 @@ def train(rank, world_size):
     
     #[3200]#[200]#[1600,3200,6400,12800,25600]
     for i, num_image in enumerate(num_train_image_list):
-        config.num_image = num_image
+        config.num_image = num_image // world_size
         # config.world_size = world_size
         
         ddpm21cm = DDPM21CM(config)
@@ -604,7 +616,7 @@ def train(rank, world_size):
 
         
 if __name__ == "__main__":
-    world_size = torch.cuda.device_count()
+    world_size = 2#torch.cuda.device_count()
     print(f" training, world_size = {world_size} ".center(100,'-'))
     # torch.multiprocessing.set_start_method("spawn")
     # args = (config, nn_model, ddpm, optimizer, dataloader, lr_scheduler)
@@ -680,8 +692,8 @@ if __name__ == "__main__":
     # print("config.world_size = world_size")
 
     for num_image in num_train_image_list:
-        config.num_image = num_image
-        config.resume = f"./outputs/model_state-N{num_image}-device_count{torch.cuda.device_count()}-epoch{config.n_epoch-1}"
+        config.num_image = num_image // world_size
+        config.resume = f"./outputs/model_state-N4000-device_count2-epoch{config.n_epoch-1}"
 
         # print("ddpm21cm = DDPM21CM(config)")
         manager = mp.Manager()

@@ -136,13 +136,16 @@ class Dataset4h5(Dataset):
     def flip_rotate(self, img):
         # print(f"flip_rotate, img.shape = {img.shape}")
         # num_transform = np.random.randint(img.shape[0])
-        x_flip_idx = random.sample(range(len(img)), np.random.randint(1,len(img)+1))
+        x_flip_idx = random.sample(range(len(img)), len(img)//2)
         img[x_flip_idx] = img[x_flip_idx, :, ::-1, :]
+        print(f"device{torch.cuda.current_device()}, x_flip_idx = {np.sort(x_flip_idx)}")
         # if img.ndim-2 == 2:
         #     img[x_flip_idx] = img[x_flip_idx, :, ::-1, :]
         if img.ndim-2 == 3:
-            y_flip_idx = random.sample(range(len(img)), np.random.randint(1,len(img)+1))
-            xy_flip_idx = random.sample(range(len(img)), np.random.randint(1,len(img)+1))
+            y_flip_idx = random.sample(range(len(img)), len(img)//2)
+            xy_flip_idx = random.sample(range(len(img)), len(img)//2)
+            print(f"device{torch.cuda.current_device()}, y_flip_idx = {np.sort(y_flip_idx)}")
+            print(f"device{torch.cuda.current_device()}, xy_flip_idx = {np.sort(xy_flip_idx)}")
             # img[x_flip_idx] = img[x_flip_idx, :, ::-1, :, :]
             img[y_flip_idx] = img[y_flip_idx, :, :, ::-1, :]
             img[xy_flip_idx] = img[xy_flip_idx, :, :, :, :].transpose(0,1,3,2,4)

@@ -655,9 +655,8 @@ def train(rank, world_size):
         ddpm21cm.train()
         destroy_process_group()
 
-        
 if __name__ == "__main__":
-    world_size = 1#torch.cuda.device_count()
+    world_size = torch.cuda.device_count()
     print(f" training, world_size = {world_size} ".center(100,'-'))
     # torch.multiprocessing.set_start_method("spawn")
     # args = (config, nn_model, ddpm, optimizer, dataloader, lr_scheduler)

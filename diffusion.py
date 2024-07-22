@@ -305,6 +305,39 @@ class TrainConfig:
 
 # %%
 # @dataclass
+
+# def check_params_consistency(model, rank, world_size):
+#     all_params_consistent = True
+#     for name, param in model.named_parameters():
+#         if param.requires_grad:
+#             param_tensor = param.detach().clone()
+#             dist.all_reduce(param_tensor, op=dist.ReduceOp.SUM)
+#             param_tensor /= world_size
+
+#             if not torch.allclose(param_tensor, param.detach()):
+#                 all_params_consistent = False
+#                 if rank == 0:
+#                     print(f"Parameter {name} is not consistent across GPUs.")
+#     if rank == 0 and all_params_consistent:
+#         print("All model parameters are consistent across GPUs.")
+#     return all_params_consistent
+
+# def check_gradients_consistency(model, rank, world_size):
+#     all_gradients_consistent = True
+#     for name, param in model.named_parameters():
+#         if param.requires_grad and param.grad is not None:
+#             grad_tensor = param.grad.detach().clone()
+#             dist.all_reduce(grad_tensor, op=dist.ReduceOp.SUM)
+#             grad_tensor /= world_size
+
+#             if not torch.allclose(grad_tensor, param.grad.detach()):
+#                 all_gradients_consistent = False
+#                 if rank == 0:
+#                     print(f"Gradient {name} is not consistent across GPUs.")
+#     if rank == 0 and all_gradients_consistent:
+#         print("All model gradients are consistent across GPUs.")
+#     return all_gradients_consistent
+
 class DDPM21CM:
     def __init__(self, config):
         # print(
@@ -487,6 +520,14 @@ class DDPM21CM:
 
             # if ep == config.n_epoch-1 or (ep+1)*config.save_period==1:
             self.save(ep)
+            # # 检查参数和梯度的一致性
+            # rank = torch.cuda.current_device()
+            # params_consistent = check_params_consistency(self.ddpm, rank, self.config.world_size)
+            # gradients_consistent = check_gradients_consistency(self.ddpm, rank, self.config.world_size)
+            # # 如果任何一致性检查失败，在所有rank上打印警告
+            # if not (params_consistent and gradients_consistent):
+            #     print(f"Rank {rank}: Parameter or gradient inconsistency detected.")
+
 
         del self.nn_model
         if self.config.ema:
@@ -513,7 +554,7 @@ class DDPM21CM:
                             'unet_state_dict': self.nn_model.module.state_dict(),
                             # 'ema_unet_state_dict': self.ema_model.state_dict(),
                             }
-                        save_name = self.config.save_name+f"-N{self.config.num_image}-device_count{self.config.world_size}-epoch{ep}"
+                        save_name = self.config.save_name+f"-N{self.config.num_image}-GPU{self.config.world_size}-epoch{ep}"
                         torch.save(model_state, save_name)
                         print(f'device {torch.cuda.current_device()} saved model at ' + save_name)
                         # print('saved model at ' + config.save_dir + f"model_epoch_{ep}_test_{config.run_name}.pth")
@@ -616,7 +657,7 @@ def train(rank, world_size):
 
         
 if __name__ == "__main__":
-    world_size = 2#torch.cuda.device_count()
+    world_size = 1#torch.cuda.device_count()
     print(f" training, world_size = {world_size} ".center(100,'-'))
     # torch.multiprocessing.set_start_method("spawn")
     # args = (config, nn_model, ddpm, optimizer, dataloader, lr_scheduler)
@@ -693,7 +734,7 @@ if __name__ == "__main__":
 
     for num_image in num_train_image_list:
         config.num_image = num_image // world_size
-        config.resume = f"./outputs/model_state-N4000-device_count2-epoch{config.n_epoch-1}"
+        config.resume = f"./outputs/model_state-N8000-GPU1-epoch{config.n_epoch-1}"
 
         # print("ddpm21cm = DDPM21CM(config)")
         manager = mp.Manager()

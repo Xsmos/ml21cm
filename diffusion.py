@@ -238,12 +238,12 @@ class TrainConfig:
 
     # dim = 2
     dim = 2
-    stride = (2,2) if dim == 2 else (2,2,2)
+    stride = (2,4) if dim == 2 else (2,2,2)
     num_image = 1000#2000#20000#15000#7000#25600#3000#10000#1000#10000#5000#2560#800#2560
-    batch_size = 50#1#2#50#20#2#100 # 10
-    n_epoch = 50#100#30#120#5#4# 10#50#20#20#2#5#25 # 120
+    batch_size = 20#50#1#2#50#20#2#100 # 10
+    n_epoch = 50#50#100#30#120#5#4# 10#50#20#20#2#5#25 # 120
     HII_DIM = 64
-    num_redshift = 64#256CUDAoom#128#64#512#128#64#512#256#256#64#512#128
+    num_redshift = 512#64#256CUDAoom#128#64#512#128#64#512#256#256#64#512#128
     channel = 1
     img_shape = (channel, HII_DIM, num_redshift) if dim == 2 else (channel, HII_DIM, HII_DIM, num_redshift)
 
@@ -268,7 +268,7 @@ class TrainConfig:
     # seed = 0
     # save_dir = './outputs/'
 
-    save_period = np.infty#.1 # the period of sampling
+    save_period = n_epoch // 2 #np.infty#.1 # the period of sampling
     # general parameters for the name and logger    
     # device = "cuda" if torch.cuda.is_available() else "cpu"
     lrate = 1e-4
@@ -554,7 +554,7 @@ class DDPM21CM:
                             'unet_state_dict': self.nn_model.module.state_dict(),
                             # 'ema_unet_state_dict': self.ema_model.state_dict(),
                             }
-                        save_name = self.config.save_name+f"-N{self.config.num_image}-GPU{self.config.world_size}-epoch{ep}"
+                        save_name = self.config.save_name+f"-N{self.config.num_image}-device_count{self.config.world_size}-epoch{ep}"
                         torch.save(model_state, save_name)
                         print(f'device {torch.cuda.current_device()} saved model at ' + save_name)
                         # print('saved model at ' + config.save_dir + f"model_epoch_{ep}_test_{config.run_name}.pth")
@@ -636,7 +636,7 @@ class DDPM21CM:
         return x_last
 # %%
 
-num_train_image_list = [8000]
+num_train_image_list = [8000]#[1000]#[100]#
 
 def train(rank, world_size):
     config = TrainConfig()
@@ -722,7 +722,7 @@ if __name__ == "__main__":
     # num_train_image_list = [1600,3200,6400,12800,25600]
     # num_train_image_list = [5000]
     num_new_img_per_gpu = 200
-    max_num_img_per_gpu = 40
+    max_num_img_per_gpu = 20
 
     # params = torch.tensor([4.4, 131.341])
 
@@ -733,7 +733,7 @@ if __name__ == "__main__":
 
     for num_image in num_train_image_list:
         config.num_image = num_image // world_size
-        config.resume = f"./outputs/model_state-N8000-GPU1-epoch{config.n_epoch-1}"
+        config.resume = f"./outputs/model_state-N{config.num_image}-device_count{world_size}-epoch{config.n_epoch-1}"
 
         # print("ddpm21cm = DDPM21CM(config)")
         manager = mp.Manager()

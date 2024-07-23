@@ -19,6 +19,7 @@ import os
 # from diffusers import UNet2DModel#, UNet3DConditionModel
 # from diffusers import DDPMScheduler
 # from diffusers.utils import make_image_grid
+from time import time
 import datetime
 # from pathlib import Path
 # from diffusers.optimization import get_cosine_schedule_with_warmup
@@ -67,23 +68,24 @@ class Dataset4h5(Dataset):
 
         self.load_h5()
         if rescale:
+            rescale_start = time()
             self.images = self.rescale(self.images, ranges=ranges_dict['images'], to=[-1,1])
             self.params = self.rescale(self.params, ranges=ranges_dict['params'], to=[0,1])
+            rescale_end = time()
+            print(f"rescaling costs {rescale_end-rescale_start:.3f} sec")
+            print(f"images rescaled to [{self.images.min()}, {self.images.max()}]")
+            print(f"params rescaled to [{self.params.min()}, {self.params.max()}]")
 
+        # from_numpy_start = time()
         self.len = len(self.params)
         self.images = torch.from_numpy(self.images)
-        print(f"images rescaled to [{self.images.min()}, {self.images.max()}]")
+        # from_numpy_end = time()
+        # print(f"torch.from_numpy costs {from_numpy_end-from_numpy_start:.3f} sec")
 
-        # print("before self.images.shape =", self.images.shape)
-        # self.images = torch.ones_like(self.images) * torch.arange(len(self.images))[:,None,None,None,None]
-        # # self.images = self.images.numpy()
-        # print("after self.images.shape =", self.images.shape)
-        # print(self.images[:6,0,:2,0,0])
-        # # self.images = self.images.numpy()
-
+        # rescale_start = time()
         cond_filter = torch.bernoulli(torch.ones(len(self.params),1)-self.drop_prob).repeat(1,self.params.shape[1]).numpy()
         self.params = torch.from_numpy(self.params*cond_filter)
-        print(f"params rescaled to [{self.params.min()}, {self.params.max()}]")
+        # rescale_end = time()
 
     def load_h5(self):
         with h5py.File(self.dir_name, 'r') as f:
@@ -116,18 +118,28 @@ class Dataset4h5(Dataset):
             else:
                 print(f"loading {len(self.idx)} images with idx = {self.idx}")
 
+            load_start = time()
             if self.dim == 2:
                 self.images = f[self.field][self.idx,0,:self.HII_DIM,-self.num_redshift:][:,None]
                 # self.images = f[self.field][self.idx,:self.HII_DIM,:self.HII_DIM,-3][:,None]
                 # self.images = self.images[:,:,::x_step,:]
             elif self.dim == 3:
                 self.images = f[self.field][self.idx,:self.HII_DIM,:self.HII_DIM,-self.num_redshift:][:,None]
+            load_end = time()
+            print(f"images of shape {self.images.shape} loaded after {load_end-load_start:.3f} sec")
+
+            transform_start = time()
             if self.transform:
                 self.images = self.flip_rotate(self.images)
-            print(f"images loaded:", self.images.shape)
+            # print(f"images transformed:", self.images.shape)
+            transform_end = time()
+            print(f"images transformed after {transform_end-transform_start:.3f} sec")
 
+            param_start = time()
             self.params = f['params']['values'][self.idx]
-            print("params loaded:", self.params.shape)
+            # print("params loaded:", self.params.shape)
+            param_end = time()
+            print(f"params of shape {self.params.shape} loaded after {param_end-param_start:.3f} sec")
 
             
             # plt.imshow(self.images[0,0,0])
@@ -138,14 +150,14 @@ class Dataset4h5(Dataset):
         # num_transform = np.random.randint(img.shape[0])
         x_flip_idx = random.sample(range(len(img)), len(img)//2)
         img[x_flip_idx] = img[x_flip_idx, :, ::-1, :]
-        print(f"device{torch.cuda.current_device()}, x_flip_idx = {np.sort(x_flip_idx)}")
+        # print(f"device{torch.cuda.current_device()}, x_flip_idx = {x_flip_idx}")
         # if img.ndim-2 == 2:
         #     img[x_flip_idx] = img[x_flip_idx, :, ::-1, :]
         if img.ndim-2 == 3:
             y_flip_idx = random.sample(range(len(img)), len(img)//2)
             xy_flip_idx = random.sample(range(len(img)), len(img)//2)
-            print(f"device{torch.cuda.current_device()}, y_flip_idx = {np.sort(y_flip_idx)}")
-            print(f"device{torch.cuda.current_device()}, xy_flip_idx = {np.sort(xy_flip_idx)}")
+            #print(f"device{torch.cuda.current_device()}, y_flip_idx = {np.sort(y_flip_idx)}")
+            #print(f"device{torch.cuda.current_device()}, xy_flip_idx = {np.sort(xy_flip_idx)}")
             # img[x_flip_idx] = img[x_flip_idx, :, ::-1, :, :]
             img[y_flip_idx] = img[y_flip_idx, :, :, ::-1, :]
             img[xy_flip_idx] = img[xy_flip_idx, :, :, :, :].transpose(0,1,3,2,4)

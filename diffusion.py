@@ -240,10 +240,10 @@ class TrainConfig:
     dim = 2
     stride = (2,4) if dim == 2 else (2,2,2)
     num_image = 1000#2000#20000#15000#7000#25600#3000#10000#1000#10000#5000#2560#800#2560
-    batch_size = 20#50#1#2#50#20#2#100 # 10
+    batch_size = 10#50#20#50#1#2#50#20#2#100 # 10
     n_epoch = 50#50#100#30#120#5#4# 10#50#20#20#2#5#25 # 120
     HII_DIM = 64
-    num_redshift = 512#64#256CUDAoom#128#64#512#128#64#512#256#256#64#512#128
+    num_redshift = 512#64#512#64#256CUDAoom#128#64#512#128#64#512#256#256#64#512#128
     channel = 1
     img_shape = (channel, HII_DIM, num_redshift) if dim == 2 else (channel, HII_DIM, HII_DIM, num_redshift)
 
@@ -268,7 +268,7 @@ class TrainConfig:
     # seed = 0
     # save_dir = './outputs/'
 
-    save_period = n_epoch // 2 #np.infty#.1 # the period of sampling
+    save_period = 20#n_epoch // 2 #np.infty#.1 # the period of sampling
     # general parameters for the name and logger    
     # device = "cuda" if torch.cuda.is_available() else "cpu"
     lrate = 1e-4
@@ -636,7 +636,7 @@ class DDPM21CM:
         return x_last
 # %%
 
-num_train_image_list = [8000]#[1000]#[100]#
+num_train_image_list = [6000]#[600]#[8000]#[1000]#[100]#
 
 def train(rank, world_size):
     config = TrainConfig()

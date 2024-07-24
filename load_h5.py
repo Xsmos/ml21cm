@@ -21,6 +21,8 @@ import os
 # from diffusers.utils import make_image_grid
 from time import time
 import datetime
+import concurrent.futures
+import psutil
 # from pathlib import Path
 # from diffusers.optimization import get_cosine_schedule_with_warmup
 # from accelerate import notebook_launcher, Accelerator
@@ -32,7 +34,7 @@ class Dataset4h5(Dataset):
         dir_name, 
         num_image=10, 
         field='brightness_temp', 
-        idx='random', 
+        idx='range', 
         num_redshift=512, 
         HII_DIM=64, 
         rescale=True, 
@@ -72,7 +74,7 @@ class Dataset4h5(Dataset):
             self.images = self.rescale(self.images, ranges=ranges_dict['images'], to=[-1,1])
             self.params = self.rescale(self.params, ranges=ranges_dict['params'], to=[0,1])
             rescale_end = time()
-            print(f"rescaling costs {rescale_end-rescale_start:.3f} sec")
+            print(f"rescaling costs {rescale_end-rescale_start:.3f} s")
             print(f"images rescaled to [{self.images.min()}, {self.images.max()}]")
             print(f"params rescaled to [{self.params.min()}, {self.params.max()}]")
 
@@ -80,7 +82,7 @@ class Dataset4h5(Dataset):
         self.len = len(self.params)
         self.images = torch.from_numpy(self.images)
         # from_numpy_end = time()
-        # print(f"torch.from_numpy costs {from_numpy_end-from_numpy_start:.3f} sec")
+        # print(f"torch.from_numpy costs {from_numpy_end-from_numpy_start:.3f} s")
 
         # rescale_start = time()
         cond_filter = torch.bernoulli(torch.ones(len(self.params),1)-self.drop_prob).repeat(1,self.params.shape[1]).numpy()
@@ -97,53 +99,76 @@ class Dataset4h5(Dataset):
             self.params_keys = list(f['params']['keys'])
             print(f"params keys = {self.params_keys}")
 
-            # if self.idx is None:
-            #     if self.shuffle:
-            #         self.idx = np.sort(random.sample(range(max_num_image), self.num_image))
-            #         print(f"loading {self.num_image} images randomly")
-            #         # print(self.idx)
-            #     else:
-            #         self.idx = range(self.num_image)
-            #         print(f"loading {len(self.idx)} images with idx = {self.idx}")
-            if self.idx == "random":
-                self.idx = np.sort(random.sample(range(max_num_image), self.num_image))
-                print(f"loading {self.num_image} images randomly")
-                # print(self.idx)
-            elif self.idx == "range":
-                rank = torch.cuda.current_device()
-                self.idx = range(
-                    rank*self.num_image, (rank+1)*self.num_image
-                    )
-                print(f"loading {len(self.idx)} images with idx = {self.idx}")
-            else:
-                print(f"loading {len(self.idx)} images with idx = {self.idx}")
+        # if self.idx is None:
+        #     if self.shuffle:
+        #         self.idx = np.sort(random.sample(range(max_num_image), self.num_image))
+        #         print(f"loading {self.num_image} images randomly")
+        #         # print(self.idx)
+        #     else:
+        #         self.idx = range(self.num_image)
+        #         print(f"loading {len(self.idx)} images with idx = {self.idx}")
+        if self.idx == "random":
+            self.idx = np.sort(random.sample(range(max_num_image), self.num_image))
+            print(f"loading {self.num_image} images randomly")
+            # print(self.idx)
+        elif self.idx == "range":
+            rank = torch.cuda.current_device()
+            self.idx = range(
+                rank*self.num_image, (rank+1)*self.num_image
+                )
+            print(f"loading {len(self.idx)} images with idx = {self.idx}")
+        else:
+            print(f"loading {len(self.idx)} images with idx = {self.idx}")
 
-            load_start = time()
+        concurrent_start = time()
+        self.images = []
+        self.params = []
+        max_workers = len(os.sched_getaffinity(0))
+        with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
+            print(f"concurrently loading by {max_workers} max_workers...")
+            futures = []
+            for idx in np.array_split(self.idx, max_workers):
+                futures.append(executor.submit(self.read_data_chunk, self.dir_name, idx))
+            for future in concurrent.futures.as_completed(futures):
+                images, params = future.result()
+                self.images.append(images)
+                self.params.append(params)
+        self.images = np.concatenate(self.images, axis=0)
+        self.params = np.concatenate(self.params, axis=0)
+        concurrent_end = time()
+        print(f"images {self.images.shape} & params {self.params.shape} concurrently loaded after {concurrent_end-concurrent_start:.3f}s")
+
+        transform_start = time()
+        if self.transform:
+            self.images = self.flip_rotate(self.images)
+        # print(f"images transformed:", self.images.shape)
+        transform_end = time()
+        print(f"images transformed after {transform_end-transform_start:.3f}s")
+
+    def read_data_chunk(self, f, idx):
+        pid = os.getpid()
+        # process = psutil.Process(pid)
+        # cpu_affinity = process.cpu_affinity()
+        # cpu_num = psutil.Process().cpu_num()
+
+        # print(f"cpu_num = {cpu_num}")#, cpu_affinity = {cpu_affinity}")
+
+        with h5py.File(self.dir_name, 'r') as f:
+            images_start = time()
             if self.dim == 2:
-                self.images = f[self.field][self.idx,0,:self.HII_DIM,-self.num_redshift:][:,None]
-                # self.images = f[self.field][self.idx,:self.HII_DIM,:self.HII_DIM,-3][:,None]
-                # self.images = self.images[:,:,::x_step,:]
+                images = f[self.field][idx,0,:self.HII_DIM,-self.num_redshift:][:,None]
+                # images = f[self.field][idx,:self.HII_DIM,:self.HII_DIM,-3][:,None]
             elif self.dim == 3:
-                self.images = f[self.field][self.idx,:self.HII_DIM,:self.HII_DIM,-self.num_redshift:][:,None]
-            load_end = time()
-            print(f"images of shape {self.images.shape} loaded after {load_end-load_start:.3f} sec")
-
-            transform_start = time()
-            if self.transform:
-                self.images = self.flip_rotate(self.images)
-            # print(f"images transformed:", self.images.shape)
-            transform_end = time()
-            print(f"images transformed after {transform_end-transform_start:.3f} sec")
+                images = f[self.field][idx,:self.HII_DIM,:self.HII_DIM,-self.num_redshift:][:,None]
+            images_end = time()
+            # print(f"pid {pid}: images of shape {images.shape} loaded after {load_end-load_start:.3f} s")
 
             param_start = time()
-            self.params = f['params']['values'][self.idx]
-            # print("params loaded:", self.params.shape)
+            params = f['params']['values'][idx]
             param_end = time()
-            print(f"params of shape {self.params.shape} loaded after {param_end-param_start:.3f} sec")
+            print(f"pid {pid}: images {images.shape} & params {params.shape} loaded after {images_end-images_start:.3f}s & {param_end-param_start:.3f}s")
 
-            
-            # plt.imshow(self.images[0,0,0])
-            # plt.show()
+        return images, params
 
     def flip_rotate(self, img):
         # print(f"flip_rotate, img.shape = {img.shape}")

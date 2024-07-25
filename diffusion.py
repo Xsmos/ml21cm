@@ -154,7 +154,7 @@ class DDPMScheduler(nn.Module):
         # for i in range(self.num_timesteps, 0, -1):
         # print(f'sampling!!!')
         pbar_sample = tqdm(total=self.num_timesteps)
-        pbar_sample.set_description(f"device {torch.cuda.current_device()} sampling")
+        pbar_sample.set_description(f"cuda:{torch.cuda.current_device()} sampling")
         for i in reversed(range(0, self.num_timesteps)):
             # print(f'sampling timestep {i:4d}',end='\r')
             t_is = torch.tensor([i]).to(device)
@@ -232,8 +232,9 @@ class TrainConfig:
     hub_model_id = "Xsmos/ml21cm"
     hub_private_repo = False
     dataset_name = "/storage/home/hcoda1/3/bxia34/scratch/LEN128-DIM64-CUB8.h5"
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    world_size = torch.cuda.device_count()
+    device = "cuda" if torch.cuda.is_available() else 'cpu'
+    # device = f"cuda:{torch.cuda.current_device()}" if torch.cuda.is_available() else 'cpu'
+    world_size = 1#torch.cuda.device_count()
     # repeat = 2
 
     # dim = 2
@@ -241,7 +242,7 @@ class TrainConfig:
     stride = (2,4) if dim == 2 else (2,2,2)
     num_image = 1000#2000#20000#15000#7000#25600#3000#10000#1000#10000#5000#2560#800#2560
     batch_size = 10#50#20#50#1#2#50#20#2#100 # 10
-    n_epoch = 50#50#100#30#120#5#4# 10#50#20#20#2#5#25 # 120
+    n_epoch = 50#100#50#100#30#120#5#4# 10#50#20#20#2#5#25 # 120
     HII_DIM = 64
     num_redshift = 512#64#512#64#256CUDAoom#128#64#512#128#64#512#256#256#64#512#128
     channel = 1
@@ -268,7 +269,7 @@ class TrainConfig:
     # seed = 0
     # save_dir = './outputs/'
 
-    save_period = 20#n_epoch // 2 #np.infty#.1 # the period of sampling
+    save_period = n_epoch // 3 #np.infty#.1 # the period of sampling
     # general parameters for the name and logger    
     # device = "cuda" if torch.cuda.is_available() else "cpu"
     lrate = 1e-4
@@ -355,17 +356,21 @@ class DDPM21CM:
         # # print("shape_loaded =", self.shape_loaded)
         # self.dataloader = DataLoader(dataset, batch_size=config.batch_size, shuffle=True)
         # del dataset
+        # print("self.ddpm = DDPMScheduler")
         self.ddpm = DDPMScheduler(betas=(1e-4, 0.02), num_timesteps=config.num_timesteps, img_shape=config.img_shape, device=config.device, dtype=config.dtype)
 
+        # print("self.nn_model = ContextUnet")
         # initialize the unet
         self.nn_model = ContextUnet(n_param=config.n_param, image_size=config.HII_DIM, dim=config.dim, stride=config.stride, dtype=config.dtype)
 
+        # print("self.nn_model.train()")
         # nn_model = ContextUnet(n_param=1, image_size=28)
         self.nn_model.train()
         # print("self.ddpm.device =", self.ddpm.device)
         self.nn_model.to(self.ddpm.device)
+        # print("before, nn_model.device =", self.ddpm.device)
         self.nn_model = DDP(self.nn_model, device_ids=[self.ddpm.device])
-        # print("nn_model.device =", ddpm.device)
+        # print("after, nn_model.device =", self.ddpm.device)
         # number of parameters to be trained
 
         if config.resume and os.path.exists(config.resume):
@@ -373,12 +378,12 @@ class DDPM21CM:
             # self.nn_model.load_state_dict(torch.load(config.resume)['unet_state_dict'])
             # print(f"resumed nn_model from {config.resume}")
             self.nn_model.module.load_state_dict(torch.load(config.resume)['unet_state_dict'])
-            print(f"device {torch.cuda.current_device()} resumed nn_model from {config.resume}")
+            print(f"cuda:{torch.cuda.current_device()} resumed nn_model from {config.resume}")
         else:
-            print(f"device {torch.cuda.current_device()} initialized nn_model randomly")
+            print(f"cuda:{torch.cuda.current_device()} initialized nn_model randomly")
 
         self.number_of_params = sum(x.numel() for x in self.nn_model.parameters())
-        print(f" Number of parameters for nn_model: {self.number_of_params} ".center(100,'-'))
+        print(f" Number of parameters for nn_model: {self.number_of_params} ".center(120,'-'))
 
         # whether to use ema
         if config.ema:
@@ -405,12 +410,13 @@ class DDPM21CM:
         dataset = Dataset4h5(
             self.config.dataset_name, 
             num_image=self.config.num_image,
-            idx = 'range',
+            idx = "random",#'range',
             HII_DIM=self.config.HII_DIM, 
             num_redshift=self.config.num_redshift,
             drop_prob=self.config.drop_prob, 
             dim=self.config.dim,
-            ranges_dict=self.ranges_dict
+            ranges_dict=self.ranges_dict,
+            num_workers=len(os.sched_getaffinity(0))//self.config.world_size,
             )
         # self.shape_loaded = dataset.images.shape
         # print("shape_loaded =", self.shape_loaded)
@@ -419,7 +425,7 @@ class DDPM21CM:
             dataset=dataset, 
             batch_size=self.config.batch_size, 
             shuffle=True,#False, 
-            num_workers=len(os.sched_getaffinity(0)), 
+            num_workers=len(os.sched_getaffinity(0))//self.config.world_size,
             pin_memory=True,
             persistent_workers=True,
             # sampler=DistributedSampler(dataset),
@@ -478,9 +484,9 @@ class DDPM21CM:
             # self.dataloader.sampler.set_epoch(ep)
 
             pbar_train = tqdm(total=len(self.dataloader), disable=not self.accelerator.is_local_main_process)
-            pbar_train.set_description(f"device {torch.cuda.current_device()}, Epoch {ep}")
+            pbar_train.set_description(f"cuda:{torch.cuda.current_device()}, Epoch {ep}")
             for i, (x, c) in enumerate(self.dataloader):
-                # print(f"device {torch.cuda.current_device()}, x[:,0,:2,0,0] =", x[:,0,:2,0,0])
+                # print(f"cuda:{torch.cuda.current_device()}, x[:,0,:2,0,0] =", x[:,0,:2,0,0])
                 with self.accelerator.accumulate(self.nn_model):
                     x = x.to(self.config.device)
                     # print("x = x.to(self.config.device), x.dtype =", x.dtype)
@@ -556,7 +562,7 @@ class DDPM21CM:
                             }
                         save_name = self.config.save_name+f"-N{self.config.num_image}-device_count{self.config.world_size}-epoch{ep}"
                         torch.save(model_state, save_name)
-                        print(f'device {torch.cuda.current_device()} saved model at ' + save_name)
+                        print(f'cuda:{torch.cuda.current_device()} saved model at ' + save_name)
                         # print('saved model at ' + config.save_dir + f"model_epoch_{ep}_test_{config.run_name}.pth")
 
     # def rescale(self, value, type='params', to_ranges=[0,1]):
@@ -580,7 +586,7 @@ class DDPM21CM:
         # n_sample = params.shape[0]
         # file = self.config.resume
 
-        # print(f"device {torch.cuda.current_device()}, sample, params = {params}")
+        # print(f"cuda:{torch.cuda.current_device()}, sample, params = {params}")
         if params is None:
             params = torch.tensor([4.4, 131.341])
             # params_backup = params.numpy().copy()
@@ -588,7 +594,7 @@ class DDPM21CM:
         params_backup = params.numpy().copy()
         params_normalized = self.rescale(params, self.ranges_dict['params'], to=[0,1])
 
-        print(f"device {torch.cuda.current_device()} sampling {num_new_img_per_gpu} images with normalized params = {params_normalized}")
+        print(f"cuda:{torch.cuda.current_device()} sampling {num_new_img_per_gpu} images with normalized params = {params_normalized}")
         params_normalized = params_normalized.repeat(num_new_img_per_gpu,1)
         assert params_normalized.dim() == 2, "params_normalized must be a 2D torch.tensor"
         # print("params =", params)
@@ -603,7 +609,7 @@ class DDPM21CM:
         #     self.nn_model.module.load_state_dict(torch.load(file)['ema_unet_state_dict'])
         # else:
         #     self.nn_model.module.load_state_dict(torch.load(file)['unet_state_dict'])
-        # print(f"device {torch.cuda.current_device()} resumed nn_model from {file}")
+        # print(f"cuda:{torch.cuda.current_device()} resumed nn_model from {file}")
         # nn_model = ContextUnet(n_param=1, image_size=28)
         # nn_model.train()
         # self.nn_model.to(self.ddpm.device)
@@ -636,28 +642,33 @@ class DDPM21CM:
         return x_last
 # %%
 
-num_train_image_list = [6000]#[600]#[8000]#[1000]#[100]#
+num_train_image_list = [6000]#[60]#[8000]#[1000]#[100]#
 
 def train(rank, world_size):
-    config = TrainConfig()
-    config.world_size = world_size
-
+    # print("before ddp_setup")
     ddp_setup(rank, world_size)
+    # print("after ddp_setup")
+    # print("TrainConfig()")
+    config = TrainConfig()
+    config.device = f"cuda:{rank}"
+    # print("torch.cuda.current_device(), config.device =", torch.cuda.current_device(), config.device)
+    config.world_size = world_size
     
     #[3200]#[200]#[1600,3200,6400,12800,25600]
     for i, num_image in enumerate(num_train_image_list):
-        config.num_image = num_image // world_size
+        config.num_image = num_image
         # config.world_size = world_size
-        
+        # print("ddpm21cm = DDPM21CM(config)")
+        # print(f"config.device, torch.cuda.current_device() = {config.device}, {torch.cuda.current_device()}")
         ddpm21cm = DDPM21CM(config)
         # print(f" num_image = {ddpm21cm.config.num_image} ".center(50, '-'))
         print(f"run_name = {ddpm21cm.config.run_name}")
         ddpm21cm.train()
         destroy_process_group()
 
-if __name__ == "__main__":
+if __name__ == "__main__":# and False:
     world_size = torch.cuda.device_count()
-    print(f" training, world_size = {world_size} ".center(100,'-'))
+    print(f" training, world_size = {world_size} ".center(120,'-'))
     # torch.multiprocessing.set_start_method("spawn")
     # args = (config, nn_model, ddpm, optimizer, dataloader, lr_scheduler)
 
@@ -675,7 +686,7 @@ if __name__ == "__main__":
 #             num_new_img_per_gpu=max_num_img_per_gpu
 #             )
 
-#         print(f"device {torch.cuda.current_device()} generated sample of shape: {sample.shape}")
+#         print(f"cuda:{torch.cuda.current_device()} generated sample of shape: {sample.shape}")
 
 #         # samples.append(sample)
 #         # ddpm21cm.sample(params=torch.tensor((5.6, 19.037)), num_new_img_per_gpu=max_num_img_per_gpu)
@@ -706,19 +717,19 @@ def generate_samples(rank, world_size, config, num_new_img_per_gpu, max_num_img_
             num_new_img_per_gpu=max_num_img_per_gpu
             )
             
-        print(f"device {torch.cuda.current_device()} generated sample of shape: {sample.shape}")
+        print(f"cuda:{torch.cuda.current_device()} generated sample of shape: {sample.shape}")
 
-    # print(f"device {torch.cuda.current_device()}, rank = {rank}, keys = {return_dict.keys()}, samples.shape = {np.shape(samples)}")
+    # print(f"cuda:{torch.cuda.current_device()}, rank = {rank}, keys = {return_dict.keys()}, samples.shape = {np.shape(samples)}")
     # if rank == 0:
     #     return_dict['samples'] = samples
-    # print(f"device {torch.cuda.current_device()}, rank = {rank}, keys = {return_dict.keys()}")
+    # print(f"cuda:{torch.cuda.current_device()}, rank = {rank}, keys = {return_dict.keys()}")
 
     dist.destroy_process_group()
 
 
 if __name__ == "__main__":
     world_size = torch.cuda.device_count()
-    # print(f" sampling, world_size = {world_size} ".center(100,'-'))
+    # print(f" sampling, world_size = {world_size} ".center(120,'-'))
     # num_train_image_list = [1600,3200,6400,12800,25600]
     # num_train_image_list = [5000]
     num_new_img_per_gpu = 200
@@ -732,8 +743,9 @@ if __name__ == "__main__":
     # print("config.world_size = world_size")
 
     for num_image in num_train_image_list:
-        config.num_image = num_image // world_size
+        config.num_image = num_image# // world_size
         config.resume = f"./outputs/model_state-N{config.num_image}-device_count{world_size}-epoch{config.n_epoch-1}"
+        # config.resume = f"./outputs/model_state-N{config.num_image}-device_count1-epoch{config.n_epoch-1}"
 
         # print("ddpm21cm = DDPM21CM(config)")
         manager = mp.Manager()
@@ -747,14 +759,14 @@ if __name__ == "__main__":
             (4.8, 131.341),
         ]
         for params in params_pairs:
-            print(f" sampling for {params}, world_size = {world_size} ".center(100,'-'))
-            mp.spawn(generate_samples, args=(world_size, config, num_new_img_per_gpu, max_num_img_per_gpu, return_dict, torch.tensor(params)), nprocs=world_size, join=True)
+            print(f" sampling for {params}, world_size = {world_size} ".center(120,'-'))
+            mp.spawn(generate_samples, args=(world_size, config, num_new_img_per_gpu, max_num_img_per_gpu, return_dict, torch.tensor(params)), nprocs=torch.cuda.device_count(), join=True)
 
         # print("---"*30)
-        # print(f"device {torch.cuda.current_device()}, keys = {return_dict.keys()}")
+        # print(f"cuda:{torch.cuda.current_device()}, keys = {return_dict.keys()}")
         # if "samples" in return_dict:
         #     samples = return_dict["samples"]
-        #     print(f"device {torch.cuda.current_device()} generated samples shape: {samples.shape}")
+        #     print(f"cuda:{torch.cuda.current_device()} generated samples shape: {samples.shape}")
 
 
 # %%

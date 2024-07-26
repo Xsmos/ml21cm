@@ -72,9 +72,9 @@ import torch.distributed as dist
 
 import argparse
 import socket
-
+import sys
 # %%
-def ddp_setup(rank: int, world_size: int, master_addr, master_port):
+def ddp_setup(rank: int, world_size: int, local_world_size, master_addr, master_port):
   """
   Args:
       rank: Unique identifier of each process
@@ -83,7 +83,7 @@ def ddp_setup(rank: int, world_size: int, master_addr, master_port):
   os.environ["MASTER_ADDR"] = master_addr
   os.environ["MASTER_PORT"] = master_port
 #   print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!ddp_setup, rank =", rank)
-  init_process_group(backend="nccl", rank=rank, world_size=world_size)
+  init_process_group(backend="nccl", rank=rank, world_size=world_size*local_world_size)
 
 # %%
 # notebook_login()
@@ -160,7 +160,7 @@ class DDPMScheduler(nn.Module):
         # print("self.num_timesteps =", self.num_timesteps)
         # for i in range(self.num_timesteps, 0, -1):
         # print(f'sampling!!!')
-        pbar_sample = tqdm(total=self.num_timesteps)
+        pbar_sample = tqdm(total=self.num_timesteps, file=sys.stderr)
         pbar_sample.set_description(f"cuda:{torch.cuda.current_device()} sampling")
         for i in reversed(range(0, self.num_timesteps)):
             # print(f'sampling timestep {i:4d}',end='\r')
@@ -276,7 +276,7 @@ class TrainConfig:
     # seed = 0
     # save_dir = './outputs/'
 
-    save_period = n_epoch // 3 #np.infty#.1 # the period of sampling
+    save_period = n_epoch // 2 #np.infty#.1 # the period of sampling
     # general parameters for the name and logger    
     # device = "cuda" if torch.cuda.is_available() else "cpu"
     lrate = 1e-4
@@ -490,7 +490,7 @@ class DDPM21CM:
             self.ddpm.train()
             # self.dataloader.sampler.set_epoch(ep)
 
-            pbar_train = tqdm(total=len(self.dataloader), disable=not self.accelerator.is_local_main_process)
+            pbar_train = tqdm(total=len(self.dataloader), disable=not self.accelerator.is_local_main_process, file=sys.stderr)
             pbar_train.set_description(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()} Epoch {ep}")
             for i, (x, c) in enumerate(self.dataloader):
                 # print(f"cuda:{torch.cuda.current_device()}, x[:,0,:2,0,0] =", x[:,0,:2,0,0])
@@ -652,11 +652,12 @@ class DDPM21CM:
 #num_train_image_list = [6000]#[60]#[8000]#[1000]#[100]#
 def train(rank, world_size, local_world_size, master_addr, master_port):
     #print("before ddp_setup")
-    ddp_setup(rank, world_size, master_addr, master_port)
+    ddp_setup(rank, world_size, local_world_size, master_addr, master_port)
     #print("after ddp_setup")
     local_rank = rank % local_world_size
     torch.cuda.set_device(local_rank)
     #print("after set device")
+    print(f"rank = {rank}, local_rank = {local_rank}, world_size = {world_size}, local_world_size = {local_world_size}")
 
     config = TrainConfig()
     config.device = f"cuda:{local_rank}"
@@ -704,7 +705,7 @@ def train(rank, world_size, local_world_size, master_addr, master_port):
 #     #     return None
 
 def generate_samples(rank, world_size, local_world_size, master_addr, master_port, config, num_new_img_per_gpu, max_num_img_per_gpu, params):
-    ddp_setup(rank, world_size, master_addr, master_port)
+    ddp_setup(rank, world_size, local_world_size, master_addr, master_port)
     ddpm21cm = DDPM21CM(config)
 
     # generate_samples(ddpm21cm, num_new_img_per_gpu, max_num_img_per_gpu, rank, world_size, params)

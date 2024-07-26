@@ -7,6 +7,7 @@
 #SBATCH --mem-per-gpu=32G                        # Memory per core
 #SBATCH -t 10:00                                    # Duration of the job (Ex: 15 mins)
 #SBATCH -oReport-%j                         # Combined output and error messages file
+#SBATCH --error=error-%j
 #SBATCH --mail-type=BEGIN,END,FAIL              # Mail preferences
 
 #module load gcc/10.3.0-o57x6h

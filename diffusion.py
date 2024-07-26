@@ -71,7 +71,7 @@ from torch.distributed import init_process_group, destroy_process_group
 import torch.distributed as dist
 
 import argparse
-
+import socket
 
 # %%
 def ddp_setup(rank: int, world_size: int, master_addr, master_port):
@@ -385,9 +385,9 @@ class DDPM21CM:
             # self.nn_model.load_state_dict(torch.load(config.resume)['unet_state_dict'])
             # print(f"resumed nn_model from {config.resume}")
             self.nn_model.module.load_state_dict(torch.load(config.resume)['unet_state_dict'])
-            print(f" cuda:{torch.cuda.current_device()} resumed nn_model from {config.resume} with {sum(x.numel() for x in self.nn_model.parameters())} parameters ".center(120,'-'))
+            print(f" {socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()} resumed nn_model from {config.resume} with {sum(x.numel() for x in self.nn_model.parameters())} parameters ".center(120,'-'))
         else:
-            print(f" cuda:{torch.cuda.current_device()} initialized nn_model randomly with {sum(x.numel() for x in self.nn_model.parameters())} parameters ".center(120,'-'))
+            print(f" {socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()} initialized nn_model randomly with {sum(x.numel() for x in self.nn_model.parameters())} parameters ".center(120,'-'))
 
         # self.number_of_params = sum(x.numel() for x in self.nn_model.parameters())
         # print(f" Number of parameters for nn_model: {self.number_of_params} ".center(120,'-'))
@@ -491,7 +491,7 @@ class DDPM21CM:
             # self.dataloader.sampler.set_epoch(ep)
 
             pbar_train = tqdm(total=len(self.dataloader), disable=not self.accelerator.is_local_main_process)
-            pbar_train.set_description(f"cuda:{torch.cuda.current_device()}, Epoch {ep}")
+            pbar_train.set_description(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()} Epoch {ep}")
             for i, (x, c) in enumerate(self.dataloader):
                 # print(f"cuda:{torch.cuda.current_device()}, x[:,0,:2,0,0] =", x[:,0,:2,0,0])
                 with self.accelerator.accumulate(self.nn_model):
@@ -651,15 +651,16 @@ class DDPM21CM:
 
 #num_train_image_list = [6000]#[60]#[8000]#[1000]#[100]#
 def train(rank, world_size, local_world_size, master_addr, master_port):
+    #print("before ddp_setup")
     ddp_setup(rank, world_size, master_addr, master_port)
-
+    #print("after ddp_setup")
     local_rank = rank % local_world_size
     torch.cuda.set_device(local_rank)
-
+    #print("after set device")
 
     config = TrainConfig()
     config.device = f"cuda:{local_rank}"
-    config.world_size = world_size
+    config.world_size = local_world_size
     
     #[3200]#[200]#[1600,3200,6400,12800,25600]
     #for i, num_image in enumerate(num_train_image_list):
@@ -667,10 +668,11 @@ def train(rank, world_size, local_world_size, master_addr, master_port):
         # config.world_size = world_size
         # print("ddpm21cm = DDPM21CM(config)")
         # print(f"config.device, torch.cuda.current_device() = {config.device}, {torch.cuda.current_device()}")
+    #print("before dppm21cm")
     ddpm21cm = DDPM21CM(config)
     # print(f" num_image = {ddpm21cm.config.num_image} ".center(50, '-'))
     # print(f"run_name = {ddpm21cm.config.run_name}")
-    print(f"run_name {ddpm21cm.config.run_name}, global_rank {rank}, local_rank {local_rank}, current_device {torch.cuda.current_device()}, local_world_size {local_world_size}, world_size {world_size}")
+    #print(f"run_name {ddpm21cm.config.run_name}, global_rank {rank}, local_rank {local_rank}, current_device {torch.cuda.current_device()}, local_world_size {local_world_size}, world_size {world_size}")
     ddpm21cm.train()
     destroy_process_group()
 # %%
@@ -730,15 +732,16 @@ if __name__ == "__main__":
     parser.add_argument("--sample", type=int, required=False, help="whether to sample", default=0)
     args = parser.parse_args()
 
-    master_addr = os.environ["SLURM_NODELIST"].split(",")[0]
+    #master_addr = os.environ["SLURM_NODELIST"].split(",")[0]
+    master_addr = os.environ.get("MASTER_ADDR", "localhost")
     master_port = "12355"
     world_size = int(os.environ["SLURM_NTASKS"])
     local_world_size = torch.cuda.device_count()
 
     ############################ training ################################
-    world_size = torch.cuda.device_count()
+    #world_size = torch.cuda.device_count()
     if args.train:
-        print(f" training, master_addr = {master_addr}, local_world_size = {local_world_size}, world_size = {world_size} ".center(120,'-'))
+        print(f" training, ip_addr = {socket.gethostbyname(socket.gethostname())}, master_addr = {master_addr}, local_world_size = {local_world_size}, world_size = {world_size} ".center(120,'-'))
         mp.spawn(
                 train, 
                 args=(world_size, local_world_size, master_addr, master_port), 

@@ -27,6 +27,7 @@ import psutil
 # from diffusers.optimization import get_cosine_schedule_with_warmup
 # from accelerate import notebook_launcher, Accelerator
 # from huggingface_hub import create_repo, upload_folder
+import socket
 
 class Dataset4h5(Dataset):
     def __init__(
@@ -126,7 +127,7 @@ class Dataset4h5(Dataset):
         self.params = []
         # self.num_workers = len(os.sched_getaffinity(0))//torch.cuda.device_count()
         with concurrent.futures.ProcessPoolExecutor(max_workers=self.num_workers) as executor:
-            print(f" cuda:{torch.cuda.current_device()}, concurrently loading by {self.num_workers} workers ".center(120, '-'))
+            print(f" {socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}, concurrently loading by {self.num_workers} workers ".center(120, '-'))
             futures = []
             for idx in np.array_split(self.idx, self.num_workers):
                 futures.append(executor.submit(self.read_data_chunk, self.dir_name, idx, torch.cuda.current_device()))
@@ -137,7 +138,7 @@ class Dataset4h5(Dataset):
         self.images = np.concatenate(self.images, axis=0)
         self.params = np.concatenate(self.params, axis=0)
         concurrent_end = time()
-        print(f" cuda:{torch.cuda.current_device()}: images {self.images.shape} & params {self.params.shape} concurrently loaded after {concurrent_end-concurrent_start:.3f}s ".center(120, '-'))
+        print(f" {socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}: images {self.images.shape} & params {self.params.shape} concurrently loaded after {concurrent_end-concurrent_start:.3f}s ".center(120, '-'))
 
         transform_start = time()
         if self.transform:
@@ -167,7 +168,7 @@ class Dataset4h5(Dataset):
             param_start = time()
             params = f['params']['values'][idx]
             param_end = time()
-            print(f"cuda:{torch.cuda.current_device()}, CPU-pid {cpu_num}-{pid}: images {images.shape} & params {params.shape} loaded after {images_end-images_start:.3f}s & {param_end-param_start:.3f}s")
+            print(f"{socket.gethostbyname(socket.gethostname())}, cuda:{torch.cuda.current_device()}, CPU-pid {cpu_num}-{pid}: images {images.shape} & params {params.shape} loaded after {images_end-images_start:.3f}s & {param_end-param_start:.3f}s")
 
         return images, params
 

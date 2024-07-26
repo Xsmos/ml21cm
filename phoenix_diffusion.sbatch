@@ -2,7 +2,8 @@
 #SBATCH -J diffusion # Job name
 #SBATCH -A gts-jw254-coda20 
 #SBATCH -qembers
-#SBATCH -N2 --gpus-per-node=RTX_6000:4 # -C A100-80GB              # Number of nodes and cores per node required
+#SBATCH -N1 --gpus-per-node=RTX_6000:2 # -C A100-80GB              # Number of nodes and cores per node required
+#SBATCH --ntasks-per-node=1
 #SBATCH --mem-per-gpu=32G                        # Memory per core
 #SBATCH -t 10:00                                    # Duration of the job (Ex: 15 mins)
 #SBATCH -oReport-%j                         # Combined output and error messages file

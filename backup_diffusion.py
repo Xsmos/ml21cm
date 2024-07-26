@@ -27,11 +27,6 @@
 # 4 GPU, batch_size = 10, num_image = 3200, 
 
 # %%
-import logging
-#logging.getLogger("torch").setLevel(logging.ERROR)
-import warnings
-#warnings.filterwarnings("ignore", message=r"^Detected kernel version")
-
 from dataclasses import dataclass
 import h5py
 import torch
@@ -70,19 +65,17 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed import init_process_group, destroy_process_group
 import torch.distributed as dist
 
-import argparse
-
-
 # %%
-def ddp_setup(rank: int, world_size: int, master_addr, master_port):
+def ddp_setup(rank: int, world_size: int):
   """
   Args:
       rank: Unique identifier of each process
      world_size: Total number of processes
   """
-  os.environ["MASTER_ADDR"] = master_addr
-  os.environ["MASTER_PORT"] = master_port
+  os.environ["MASTER_ADDR"] = "localhost"
+  os.environ["MASTER_PORT"] = "12355"
 #   print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!ddp_setup, rank =", rank)
+  torch.cuda.set_device(rank)
   init_process_group(backend="nccl", rank=rank, world_size=world_size)
 
 # %%
@@ -247,9 +240,9 @@ class TrainConfig:
     # dim = 2
     dim = 2
     stride = (2,4) if dim == 2 else (2,2,2)
-    num_image = 30#60#6000#1000#2000#20000#15000#7000#25600#3000#10000#1000#10000#5000#2560#800#2560
+    num_image = 1000#2000#20000#15000#7000#25600#3000#10000#1000#10000#5000#2560#800#2560
     batch_size = 10#50#20#50#1#2#50#20#2#100 # 10
-    n_epoch = 5#50#100#50#100#30#120#5#4# 10#50#20#20#2#5#25 # 120
+    n_epoch = 50#100#50#100#30#120#5#4# 10#50#20#20#2#5#25 # 120
     HII_DIM = 64
     num_redshift = 512#64#512#64#256CUDAoom#128#64#512#128#64#512#256#256#64#512#128
     channel = 1
@@ -649,30 +642,40 @@ class DDPM21CM:
         return x_last
 # %%
 
-#num_train_image_list = [6000]#[60]#[8000]#[1000]#[100]#
-def train(rank, world_size, local_world_size, master_addr, master_port):
-    ddp_setup(rank, world_size, master_addr, master_port)
+num_train_image_list = [6000]#[60]#[8000]#[1000]#[100]#
 
-    local_rank = rank % local_world_size
-    torch.cuda.set_device(local_rank)
-
-    print(f"global rank {rank}, local rank {local_rank}, current_device {torch.cuda.current_device()}, local_world_size {local_world_size}, world_size {world_size}")
-
+def train(rank, world_size):
+    # print("before ddp_setup")
+    ddp_setup(rank, world_size)
+    # print("after ddp_setup")
+    # print("TrainConfig()")
     config = TrainConfig()
-    config.device = f"cuda:{local_rank}"
+    config.device = f"cuda:{rank}"
+    # print("torch.cuda.current_device(), config.device =", torch.cuda.current_device(), config.device)
     config.world_size = world_size
     
     #[3200]#[200]#[1600,3200,6400,12800,25600]
-    #for i, num_image in enumerate(num_train_image_list):
-        #config.num_image = num_image
+    for i, num_image in enumerate(num_train_image_list):
+        config.num_image = num_image
         # config.world_size = world_size
         # print("ddpm21cm = DDPM21CM(config)")
         # print(f"config.device, torch.cuda.current_device() = {config.device}, {torch.cuda.current_device()}")
-    ddpm21cm = DDPM21CM(config)
-    # print(f" num_image = {ddpm21cm.config.num_image} ".center(50, '-'))
-    print(f"run_name = {ddpm21cm.config.run_name}")
-    ddpm21cm.train()
-    destroy_process_group()
+        ddpm21cm = DDPM21CM(config)
+        # print(f" num_image = {ddpm21cm.config.num_image} ".center(50, '-'))
+        print(f"run_name = {ddpm21cm.config.run_name}")
+        ddpm21cm.train()
+        destroy_process_group()
+
+if __name__ == "__main__":# and False:
+    world_size = torch.cuda.device_count()
+    print(f" training, world_size = {world_size} ".center(120,'-'))
+    # torch.multiprocessing.set_start_method("spawn")
+    # args = (config, nn_model, ddpm, optimizer, dataloader, lr_scheduler)
+
+    mp.spawn(train, args=(world_size,), nprocs=world_size, join=True)
+    # notebook_launcher(ddpm21cm.train, num_processes=1, mixed_precision='fp16')
+
+
 # %%
 
 # def generate_samples(ddpm21cm, num_new_img_per_gpu, max_num_img_per_gpu, rank, world_size, params):
@@ -701,8 +704,8 @@ def train(rank, world_size, local_world_size, master_addr, master_port):
 #     # else:
 #     #     return None
 
-def generate_samples(rank, world_size, local_world_size, master_addr, master_port, config, num_new_img_per_gpu, max_num_img_per_gpu, params):
-    ddp_setup(rank, world_size, master_addr, master_port)
+def generate_samples(rank, world_size, config, num_new_img_per_gpu, max_num_img_per_gpu, return_dict, params):
+    ddp_setup(rank, world_size)
     ddpm21cm = DDPM21CM(config)
 
     # generate_samples(ddpm21cm, num_new_img_per_gpu, max_num_img_per_gpu, rank, world_size, params)
@@ -725,43 +728,28 @@ def generate_samples(rank, world_size, local_world_size, master_addr, master_por
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--train", type=int, required=False, help="whether to train the model", default=1)
-    parser.add_argument("--sample", type=int, required=False, help="whether to sample", default=0)
-    args = parser.parse_args()
-
-    master_addr = os.environ["SLURM_NODELIST"].split(",")[0]
-    master_port = "12355"
-    world_size = int(os.environ["SLURM_NTASKS"])
-    local_world_size = torch.cuda.device_count()
-
-    ############################ training ################################
     world_size = torch.cuda.device_count()
-    if args.train:
-        print(f" training, world_size = {world_size} ".center(120,'-'))
-        mp.spawn(
-                train, 
-                args=(world_size, local_world_size, master_addr, master_port), 
-                nprocs=local_world_size, 
-                join=True
-                )
+    # print(f" sampling, world_size = {world_size} ".center(120,'-'))
+    # num_train_image_list = [1600,3200,6400,12800,25600]
+    # num_train_image_list = [5000]
+    num_new_img_per_gpu = 200
+    max_num_img_per_gpu = 20
 
+    # params = torch.tensor([4.4, 131.341])
 
-    ############################ sampling ################################
-    if args.sample:
-        num_new_img_per_gpu = 200
-        max_num_img_per_gpu = 20
-        config = TrainConfig()
-        config.world_size = world_size
-        # print("config.world_size = world_size")
-    
-        #for num_image in num_train_image_list:
-            #config.num_image = num_image# // world_size
+    # print("config = TrainConfig()")
+    config = TrainConfig()
+    config.world_size = world_size
+    # print("config.world_size = world_size")
+
+    for num_image in num_train_image_list:
+        config.num_image = num_image# // world_size
         config.resume = f"./outputs/model_state-N{config.num_image}-device_count{world_size}-epoch{config.n_epoch-1}"
         # config.resume = f"./outputs/model_state-N{config.num_image}-device_count1-epoch{config.n_epoch-1}"
 
-        # manager = mp.Manager()
-        # return_dict = manager.dict()
+        # print("ddpm21cm = DDPM21CM(config)")
+        manager = mp.Manager()
+        return_dict = manager.dict()
 
         params_pairs = [
             (4.4, 131.341),
@@ -770,15 +758,9 @@ if __name__ == "__main__":
             (5.477, 200),
             (4.8, 131.341),
         ]
-
         for params in params_pairs:
             print(f" sampling for {params}, world_size = {world_size} ".center(120,'-'))
-            mp.spawn(
-                    generate_samples, 
-                    args=(world_size, local_world_size, master_addr, master_port, config, num_new_img_per_gpu, max_num_img_per_gpu, torch.tensor(params)), 
-                    nprocs=local_world_size, 
-                    join=True
-                    )
+            mp.spawn(generate_samples, args=(world_size, config, num_new_img_per_gpu, max_num_img_per_gpu, return_dict, torch.tensor(params)), nprocs=torch.cuda.device_count(), join=True)
 
         # print("---"*30)
         # print(f"cuda:{torch.cuda.current_device()}, keys = {return_dict.keys()}")

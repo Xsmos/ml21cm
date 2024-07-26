@@ -3,7 +3,6 @@ Report-*
 *.h5
 __pycache__/
 hive*
-phoenix*
 *pace.gatech.edu
 frontera*
 test*
@@ -11,3 +10,4 @@ ST4Diffusion/
 runs/
 outputs/
 data/
+# phoenix*

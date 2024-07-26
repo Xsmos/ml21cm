@@ -385,12 +385,12 @@ class DDPM21CM:
             # self.nn_model.load_state_dict(torch.load(config.resume)['unet_state_dict'])
             # print(f"resumed nn_model from {config.resume}")
             self.nn_model.module.load_state_dict(torch.load(config.resume)['unet_state_dict'])
-            print(f"cuda:{torch.cuda.current_device()} resumed nn_model from {config.resume}")
+            print(f" cuda:{torch.cuda.current_device()} resumed nn_model from {config.resume} with {sum(x.numel() for x in self.nn_model.parameters())} parameters ".center(120,'-'))
         else:
-            print(f"cuda:{torch.cuda.current_device()} initialized nn_model randomly")
+            print(f" cuda:{torch.cuda.current_device()} initialized nn_model randomly with {sum(x.numel() for x in self.nn_model.parameters())} parameters ".center(120,'-'))
 
-        self.number_of_params = sum(x.numel() for x in self.nn_model.parameters())
-        print(f" Number of parameters for nn_model: {self.number_of_params} ".center(120,'-'))
+        # self.number_of_params = sum(x.numel() for x in self.nn_model.parameters())
+        # print(f" Number of parameters for nn_model: {self.number_of_params} ".center(120,'-'))
 
         # whether to use ema
         if config.ema:
@@ -656,7 +656,6 @@ def train(rank, world_size, local_world_size, master_addr, master_port):
     local_rank = rank % local_world_size
     torch.cuda.set_device(local_rank)
 
-    print(f"global rank {rank}, local rank {local_rank}, current_device {torch.cuda.current_device()}, local_world_size {local_world_size}, world_size {world_size}")
 
     config = TrainConfig()
     config.device = f"cuda:{local_rank}"
@@ -670,7 +669,8 @@ def train(rank, world_size, local_world_size, master_addr, master_port):
         # print(f"config.device, torch.cuda.current_device() = {config.device}, {torch.cuda.current_device()}")
     ddpm21cm = DDPM21CM(config)
     # print(f" num_image = {ddpm21cm.config.num_image} ".center(50, '-'))
-    print(f"run_name = {ddpm21cm.config.run_name}")
+    # print(f"run_name = {ddpm21cm.config.run_name}")
+    print(f"run_name {ddpm21cm.config.run_name}, global_rank {rank}, local_rank {local_rank}, current_device {torch.cuda.current_device()}, local_world_size {local_world_size}, world_size {world_size}")
     ddpm21cm.train()
     destroy_process_group()
 # %%
@@ -738,7 +738,7 @@ if __name__ == "__main__":
     ############################ training ################################
     world_size = torch.cuda.device_count()
     if args.train:
-        print(f" training, world_size = {world_size} ".center(120,'-'))
+        print(f" training, master_addr = {master_addr}, local_world_size = {local_world_size}, world_size = {world_size} ".center(120,'-'))
         mp.spawn(
                 train, 
                 args=(world_size, local_world_size, master_addr, master_port), 
@@ -772,7 +772,7 @@ if __name__ == "__main__":
         ]
 
         for params in params_pairs:
-            print(f" sampling for {params}, world_size = {world_size} ".center(120,'-'))
+            print(f" sampling for {params}, master_addr = {master_addr}, local_world_size = {local_world_size}, world_size = {world_size} ".center(120,'-'))
             mp.spawn(
                     generate_samples, 
                     args=(world_size, local_world_size, master_addr, master_port, config, num_new_img_per_gpu, max_num_img_per_gpu, torch.tensor(params)), 

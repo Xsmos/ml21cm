@@ -94,9 +94,9 @@ class Dataset4h5(Dataset):
         with h5py.File(self.dir_name, 'r') as f:
             print(f"dataset content: {f.keys()}")
             max_num_image = len(f['brightness_temp'])#.shape[0]
-            print(f"{max_num_image} images can be loaded")
             field_shape = f['brightness_temp'].shape[1:]
-            print(f"field.shape = {field_shape}")
+            print(f"{max_num_image} images of shape {field_shape} can be loaded")
+            #print(f"field.shape = {field_shape}")
             self.params_keys = list(f['params']['keys'])
             print(f"params keys = {self.params_keys}")
 

@@ -2,7 +2,7 @@
 #SBATCH -J diffusion # Job name
 #SBATCH -A gts-jw254-coda20 
 #SBATCH -qembers
-#SBATCH -N1 --gpus-per-node=RTX_6000:2 # -C A100-80GB              # Number of nodes and cores per node required
+#SBATCH -N2 --gpus-per-node=RTX_6000:3 # -C A100-80GB              # Number of nodes and cores per node required
 #SBATCH --ntasks-per-node=1
 #SBATCH --mem-per-gpu=32G                        # Memory per core
 #SBATCH -t 10:00                                    # Duration of the job (Ex: 15 mins)
@@ -21,5 +21,11 @@ module list
 conda activate diffusers 
 conda env list
 cat $0
+
+MASTER_ADDR=$(scontrol show hostnames $SLURM_JOB_NODELIST | head -n 1)
+MASTER_PORT=$((10000 + RANDOM % 10000)) #12355
+
+export MASTER_ADDR=$MASTER_ADDR
+export MASTER_PORT=$MASTER_PORT
 
 srun python diffusion.py --train 1 --sample 0 

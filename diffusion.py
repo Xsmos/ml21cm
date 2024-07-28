@@ -73,17 +73,27 @@ import torch.distributed as dist
 import argparse
 import socket
 import sys
+from datetime import timedelta
+
 # %%
-def ddp_setup(rank: int, world_size: int, local_world_size, master_addr, master_port):
-  """
-  Args:
-      rank: Unique identifier of each process
-     world_size: Total number of processes
-  """
-  os.environ["MASTER_ADDR"] = master_addr
-  os.environ["MASTER_PORT"] = master_port
-#   print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!ddp_setup, rank =", rank)
-  init_process_group(backend="nccl", rank=rank, world_size=world_size*local_world_size)
+def ddp_setup(rank: int, world_size: int, master_addr, master_port):
+    """
+    Args:
+       rank: Unique identifier of each process
+       world_size: Total number of processes
+    """
+
+    #print("inside ddp_setup")
+    os.environ["MASTER_ADDR"] = master_addr
+    os.environ["MASTER_PORT"] = master_port
+    #print("ddp_setup, rank =", rank)
+    init_process_group(
+            backend="nccl", 
+            init_method=f"tcp://{master_addr}:{master_port}", 
+            rank=rank, 
+            world_size=world_size,
+            timeout=timedelta(minutes=4)
+            )
 
 # %%
 # notebook_login()
@@ -161,7 +171,7 @@ class DDPMScheduler(nn.Module):
         # for i in range(self.num_timesteps, 0, -1):
         # print(f'sampling!!!')
         pbar_sample = tqdm(total=self.num_timesteps, file=sys.stderr)
-        pbar_sample.set_description(f"cuda:{torch.cuda.current_device()} sampling")
+        pbar_sample.set_description(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} sampling")
         for i in reversed(range(0, self.num_timesteps)):
             # print(f'sampling timestep {i:4d}',end='\r')
             t_is = torch.tensor([i]).to(device)
@@ -276,7 +286,7 @@ class TrainConfig:
     # seed = 0
     # save_dir = './outputs/'
 
-    save_period = n_epoch // 2 #np.infty#.1 # the period of sampling
+    save_period = np.infty #n_epoch // 2 #np.infty#.1 # the period of sampling
     # general parameters for the name and logger    
     # device = "cuda" if torch.cuda.is_available() else "cpu"
     lrate = 1e-4
@@ -385,9 +395,9 @@ class DDPM21CM:
             # self.nn_model.load_state_dict(torch.load(config.resume)['unet_state_dict'])
             # print(f"resumed nn_model from {config.resume}")
             self.nn_model.module.load_state_dict(torch.load(config.resume)['unet_state_dict'])
-            print(f" {socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()} resumed nn_model from {config.resume} with {sum(x.numel() for x in self.nn_model.parameters())} parameters ".center(120,'-'))
+            print(f" {socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} resumed nn_model from {config.resume} with {sum(x.numel() for x in self.nn_model.parameters())} parameters ".center(120,'-'))
         else:
-            print(f" {socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()} initialized nn_model randomly with {sum(x.numel() for x in self.nn_model.parameters())} parameters ".center(120,'-'))
+            print(f" {socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} initialized nn_model randomly with {sum(x.numel() for x in self.nn_model.parameters())} parameters ".center(120,'-'))
 
         # self.number_of_params = sum(x.numel() for x in self.nn_model.parameters())
         # print(f" Number of parameters for nn_model: {self.number_of_params} ".center(120,'-'))
@@ -491,7 +501,7 @@ class DDPM21CM:
             # self.dataloader.sampler.set_epoch(ep)
 
             pbar_train = tqdm(total=len(self.dataloader), disable=not self.accelerator.is_local_main_process, file=sys.stderr)
-            pbar_train.set_description(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()} Epoch {ep}")
+            pbar_train.set_description(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} Epoch {ep}")
             for i, (x, c) in enumerate(self.dataloader):
                 # print(f"cuda:{torch.cuda.current_device()}, x[:,0,:2,0,0] =", x[:,0,:2,0,0])
                 with self.accelerator.accumulate(self.nn_model):
@@ -550,7 +560,7 @@ class DDPM21CM:
     def save(self, ep):
         # save model
         # if self.accelerator.is_main_process:
-        if torch.cuda.current_device() == 0:
+        if self.config.global_rank == 0:# or torch.cuda.current_device() == 0:
             if ep == self.config.n_epoch-1 or (ep+1) % self.config.save_period == 0:
                 self.nn_model.eval()
                 with torch.no_grad():
@@ -567,9 +577,9 @@ class DDPM21CM:
                             'unet_state_dict': self.nn_model.module.state_dict(),
                             # 'ema_unet_state_dict': self.ema_model.state_dict(),
                             }
-                        save_name = self.config.save_name+f"-N{self.config.num_image}-device_count{self.config.world_size}-epoch{ep}"
+                        save_name = self.config.save_name+f"-N{self.config.num_image}-device_count{self.config.world_size}-epoch{ep}-{socket.gethostbyname(socket.gethostname())}"
                         torch.save(model_state, save_name)
-                        print(f'cuda:{torch.cuda.current_device()} saved model at ' + save_name)
+                        print(f'cuda:{torch.cuda.current_device()}/{self.config.global_rank} saved model at ' + save_name)
                         # print('saved model at ' + config.save_dir + f"model_epoch_{ep}_test_{config.run_name}.pth")
 
     # def rescale(self, value, type='params', to_ranges=[0,1]):
@@ -601,7 +611,7 @@ class DDPM21CM:
         params_backup = params.numpy().copy()
         params_normalized = self.rescale(params, self.ranges_dict['params'], to=[0,1])
 
-        print(f"cuda:{torch.cuda.current_device()} sampling {num_new_img_per_gpu} images with normalized params = {params_normalized}")
+        print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} sampling {num_new_img_per_gpu} images with normalized params = {params_normalized}")
         params_normalized = params_normalized.repeat(num_new_img_per_gpu,1)
         assert params_normalized.dim() == 2, "params_normalized must be a 2D torch.tensor"
         # print("params =", params)
@@ -652,17 +662,19 @@ class DDPM21CM:
 #num_train_image_list = [6000]#[60]#[8000]#[1000]#[100]#
 def train(rank, world_size, local_world_size, master_addr, master_port):
     #print("before ddp_setup")
-    ddp_setup(rank, world_size, local_world_size, master_addr, master_port)
+    global_rank = rank + local_world_size * int(os.environ["SLURM_NODEID"])
+
+    ddp_setup(global_rank, world_size, master_addr, master_port)
     #print("after ddp_setup")
-    local_rank = rank % local_world_size
-    torch.cuda.set_device(local_rank)
+    #local_rank = rank % local_world_size
+    torch.cuda.set_device(rank)
     #print("after set device")
-    print(f"rank = {rank}, local_rank = {local_rank}, world_size = {world_size}, local_world_size = {local_world_size}")
+    print(f"rank = {rank}, global_rank = {global_rank}, world_size = {world_size}, local_world_size = {local_world_size}")
 
     config = TrainConfig()
-    config.device = f"cuda:{local_rank}"
+    config.device = f"cuda:{rank}"
     config.world_size = local_world_size
-    
+    config.global_rank = global_rank 
     #[3200]#[200]#[1600,3200,6400,12800,25600]
     #for i, num_image in enumerate(num_train_image_list):
         #config.num_image = num_image
@@ -717,7 +729,7 @@ def generate_samples(rank, world_size, local_world_size, master_addr, master_por
             num_new_img_per_gpu=max_num_img_per_gpu
             )
             
-        print(f"cuda:{torch.cuda.current_device()} generated sample of shape: {sample.shape}")
+        print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} generated sample of shape: {sample.shape}")
 
     # print(f"cuda:{torch.cuda.current_device()}, rank = {rank}, keys = {return_dict.keys()}, samples.shape = {np.shape(samples)}")
     # if rank == 0:
@@ -734,10 +746,13 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     #master_addr = os.environ["SLURM_NODELIST"].split(",")[0]
-    master_addr = os.environ.get("MASTER_ADDR", "localhost")
-    master_port = "12355"
-    world_size = int(os.environ["SLURM_NTASKS"])
+    #master_addr = os.environ.get("MASTER_ADDR", "localhost")
+    #master_port = "12355"
+    master_addr = os.environ["MASTER_ADDR"]
+    master_port = os.environ["MASTER_PORT"]
     local_world_size = torch.cuda.device_count()
+    total_nodes = int(os.environ["SLURM_NNODES"])
+    world_size = local_world_size * total_nodes #6#int(os.environ["SLURM_NTASKS"])
 
     ############################ training ################################
     #world_size = torch.cuda.device_count()

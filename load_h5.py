@@ -96,10 +96,10 @@ class Dataset4h5(Dataset):
             print(f"dataset content: {f.keys()}")
             max_num_image = len(f['brightness_temp'])#.shape[0]
             field_shape = f['brightness_temp'].shape[1:]
-            print(f"{max_num_image} images of shape {field_shape} can be loaded")
             #print(f"field.shape = {field_shape}")
             self.params_keys = list(f['params']['keys'])
-            print(f"params keys = {self.params_keys}")
+            print(f"{max_num_image} images of shape {field_shape} can be loaded with different params.keys {self.params_keys}")
+            #print(f"params keys = {self.params_keys}")
 
         # if self.idx is None:
         #     if self.shuffle:
@@ -138,7 +138,7 @@ class Dataset4h5(Dataset):
         self.images = np.concatenate(self.images, axis=0)
         self.params = np.concatenate(self.params, axis=0)
         concurrent_end = time()
-        print(f" {socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}: images {self.images.shape} & params {self.params.shape} concurrently loaded after {concurrent_end-concurrent_start:.3f}s ".center(120, '-'))
+        print(f" {socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}, images {self.images.shape} & params {self.params.shape} concurrently loaded after {concurrent_end-concurrent_start:.3f}s ".center(120, '-'))
 
         transform_start = time()
         if self.transform:

@@ -5,7 +5,7 @@
 #SBATCH -N2 --gpus-per-node=RTX_6000:3 # -C A100-80GB              # Number of nodes and cores per node required
 #SBATCH --ntasks-per-node=1
 #SBATCH --mem-per-gpu=32G                        # Memory per core
-#SBATCH -t 10:00                                    # Duration of the job (Ex: 15 mins)
+#SBATCH -t 15:00                                    # Duration of the job (Ex: 15 mins)
 #SBATCH -oReport-%j                         # Combined output and error messages file
 #SBATCH --error=error-%j
 #SBATCH --mail-type=BEGIN,END,FAIL              # Mail preferences
@@ -28,4 +28,4 @@ MASTER_PORT=$((10000 + RANDOM % 10000)) #12355
 export MASTER_ADDR=$MASTER_ADDR
 export MASTER_PORT=$MASTER_PORT
 
-srun python diffusion.py --train 1 --sample 0 
+srun python diffusion.py --train 0 --sample 1 

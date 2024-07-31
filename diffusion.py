@@ -257,12 +257,12 @@ class TrainConfig:
 
     # dim = 2
     dim = 2
-    stride = (2,4) if dim == 2 else (2,2,2)
-    num_image = 30#60#6000#1000#2000#20000#15000#7000#25600#3000#10000#1000#10000#5000#2560#800#2560
-    batch_size = 10#50#20#50#1#2#50#20#2#100 # 10
-    n_epoch = 5#50#100#50#100#30#120#5#4# 10#50#20#20#2#5#25 # 120
+    stride = (2,2) if dim == 2 else (2,2,2)
+    num_image = 3000#6000#30#60#6000#1000#2000#20000#15000#7000#25600#3000#10000#1000#10000#5000#2560#800#2560
+    batch_size = 20#50#10#50#20#50#1#2#50#20#2#100 # 10
+    n_epoch = 50#5#50#100#50#100#30#120#5#4# 10#50#20#20#2#5#25 # 120
     HII_DIM = 64
-    num_redshift = 512#64#512#64#256CUDAoom#128#64#512#128#64#512#256#256#64#512#128
+    num_redshift = 64#512#64#512#64#256CUDAoom#128#64#512#128#64#512#256#256#64#512#128
     channel = 1
     img_shape = (channel, HII_DIM, num_redshift) if dim == 2 else (channel, HII_DIM, HII_DIM, num_redshift)
 
@@ -648,12 +648,12 @@ class DDPM21CM:
         if save:    
             # np.save(os.path.join(self.config.output_dir, f"{self.config.run_name}{'ema' if ema else ''}.npy"), x_last)
             savetime = datetime.datetime.now().strftime("%m%d-%H%M")
-            savename = os.path.join(self.config.output_dir, f"Tvir{params_backup[0]}-zeta{params_backup[1]}-N{self.config.num_image}-device{self.config.global_rank}-{savetime}{'ema' if ema else ''}.npy")
+            savename = os.path.join(self.config.output_dir, f"Tvir{params_backup[0]}-zeta{params_backup[1]}-N{self.config.num_image}-device{self.config.global_rank}-{os.path.basename(self.config.resume)}-{savetime}{'ema' if ema else ''}.npy")
             np.save(savename, x_last)
             print(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} saved images of shape {x_last.shape} to {savename}")
 
             if entire:
-                savename = os.path.join(self.config.output_dir, f"Tvir{params_backup[0]}-zeta{params_backup[1]}-N{self.config.num_image}-device{self.config.global_rank}-{savetime}{'ema' if ema else ''}_entire.npy")
+                savename = os.path.join(self.config.output_dir, f"Tvir{params_backup[0]}-zeta{params_backup[1]}-N{self.config.num_image}-device{self.config.global_rank}-{os.path.basename(self.config.resume)}-{savetime}{'ema' if ema else ''}_entire.npy")
                 np.save(savename, x_entire)
                 print(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} saved images of shape {x_entire.shape} to {savename}")
         # else:
@@ -665,7 +665,7 @@ def train(rank, world_size, local_world_size, master_addr, master_port):
     global_rank = rank + local_world_size * int(os.environ["SLURM_NODEID"])
     ddp_setup(global_rank, world_size, master_addr, master_port)
     torch.cuda.set_device(rank)
-    print(f"rank = {rank}, global_rank = {global_rank}, world_size = {world_size}, local_world_size = {local_world_size}")
+    #print(f"rank = {rank}, global_rank = {global_rank}, world_size = {world_size}, local_world_size = {local_world_size}")
 
     config = TrainConfig()
     config.device = f"cuda:{rank}"
@@ -692,9 +692,16 @@ def generate_samples(rank, world_size, local_world_size, master_addr, master_por
         #print(f"rank = {rank}, global_rank = {global_rank}, world_size = {world_size}, local_world_size = {local_world_size}")
         sample = ddpm21cm.sample(
             params=params, 
-            num_new_img_per_gpu=max_num_img_per_gpu
+            num_new_img_per_gpu=max_num_img_per_gpu,
             )
             
+    if num_new_img_per_gpu % max_num_img_per_gpu:
+        sample_extra = ddpm21cm.sample(
+            params=params, 
+            num_new_img_per_gpu=num_new_img_per_gpu % max_num_img_per_gpu,
+            )
+         
+
         #print(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{config.global_rank} generated sample of shape: {sample.shape}")
 
     dist.destroy_process_group()
@@ -704,6 +711,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--train", type=int, required=False, help="whether to train the model", default=1)
     parser.add_argument("--sample", type=int, required=False, help="whether to sample", default=0)
+    parser.add_argument("--resume", type=str, required=False, help="filename of the model to resume", default=False)
+    parser.add_argument("--num_new_img_per_gpu", type=int, required=False, default=4)
+    parser.add_argument("--max_num_img_per_gpu", type=int, required=False, default=2)
+
     args = parser.parse_args()
 
     master_addr = os.environ["MASTER_ADDR"]
@@ -723,24 +734,23 @@ if __name__ == "__main__":
                 )
     ############################ sampling ################################
     if args.sample:
-        num_new_img_per_gpu = 4#200
-        max_num_img_per_gpu = 2#20
+        num_new_img_per_gpu = args.num_new_img_per_gpu#200#4#200
+        max_num_img_per_gpu = args.max_num_img_per_gpu#40#2#20
         config = TrainConfig()
         config.world_size = world_size
     
-        config.resume = f"./outputs/model_state-N30-device_count3-epoch4-172.27.149.181"
+        config.resume = args.resume
+        # config.resume = f"./outputs/model_state-N30-device_count3-epoch4-172.27.149.181"
         # config.resume = f"./outputs/model_state-N{config.num_image}-device_count{world_size}-epoch{config.n_epoch-1}"
         # config.resume = f"./outputs/model_state-N{config.num_image}-device_count1-epoch{config.n_epoch-1}"
-
         # manager = mp.Manager()
         # return_dict = manager.dict()
-
         params_pairs = [
             (4.4, 131.341),
-            (5.6, 19.037),
-            (4.699, 30),
-            (5.477, 200),
-            (4.8, 131.341),
+            #(5.6, 19.037),
+            #(4.699, 30),
+            #(5.477, 200),
+            #(4.8, 131.341),
         ]
 
         for params in params_pairs:

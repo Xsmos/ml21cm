@@ -259,7 +259,7 @@ class TrainConfig:
     dim = 2
     stride = (2,2) if dim == 2 else (2,2,2)
     num_image = 3000#6000#30#60#6000#1000#2000#20000#15000#7000#25600#3000#10000#1000#10000#5000#2560#800#2560
-    batch_size = 20#50#10#50#20#50#1#2#50#20#2#100 # 10
+    batch_size = 30#50#10#50#20#50#1#2#50#20#2#100 # 10
     n_epoch = 50#5#50#100#50#100#30#120#5#4# 10#50#20#20#2#5#25 # 120
     HII_DIM = 64
     num_redshift = 64#512#64#512#64#256CUDAoom#128#64#512#128#64#512#256#256#64#512#128
@@ -367,7 +367,7 @@ class DDPM21CM:
         # )
         # config = TrainConfig()
         # date = datetime.datetime.now().strftime("%m%d-%H%M")
-        config.run_name = datetime.datetime.now().strftime("%m%d-%H%M") # the unique name of each experiment
+        config.run_name = datetime.datetime.now().strftime("%m%d-%H%M%S") # the unique name of each experiment
         self.config = config
         # dataset = Dataset4h5(config.dataset_name, num_image=config.num_image, HII_DIM=config.HII_DIM, num_redshift=config.num_redshift, drop_prob=config.drop_prob, dim=config.dim)
         # # self.shape_loaded = dataset.images.shape
@@ -396,9 +396,9 @@ class DDPM21CM:
             # self.nn_model.load_state_dict(torch.load(config.resume)['unet_state_dict'])
             # print(f"resumed nn_model from {config.resume}")
             self.nn_model.module.load_state_dict(torch.load(config.resume)['unet_state_dict'])
-            print(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} resumed nn_model from {config.resume} with {sum(x.numel() for x in self.nn_model.parameters())} parameters".center(120,'-'))
+            print(f"{config.run_name} {socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} resumed nn_model from {config.resume} with {sum(x.numel() for x in self.nn_model.parameters())} parameters".center(120,'-'))
         else:
-            print(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} initialized nn_model randomly with {sum(x.numel() for x in self.nn_model.parameters())} parameters".center(120,'-'))
+            print(f"{config.run_name} {socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} initialized nn_model randomly with {sum(x.numel() for x in self.nn_model.parameters())} parameters".center(120,'-'))
 
         # self.number_of_params = sum(x.numel() for x in self.nn_model.parameters())
         # print(f" Number of parameters for nn_model: {self.number_of_params} ".center(120,'-'))
@@ -648,7 +648,7 @@ class DDPM21CM:
 
         if save:    
             # np.save(os.path.join(self.config.output_dir, f"{self.config.run_name}{'ema' if ema else ''}.npy"), x_last)
-            savetime = datetime.datetime.now().strftime("%m%d-%H%M")
+            savetime = datetime.datetime.now().strftime("%m%d-%H%M%S")
             savename = os.path.join(self.config.output_dir, f"Tvir{params_backup[0]}-zeta{params_backup[1]}-N{self.config.num_image}-device{self.config.global_rank}-{os.path.basename(self.config.resume)}-{savetime}{'ema' if ema else ''}.npy")
             np.save(savename, x_last)
             print(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} saved images of shape {x_last.shape} to {savename}")

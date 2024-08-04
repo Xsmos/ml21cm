@@ -257,12 +257,12 @@ class TrainConfig:
 
     # dim = 2
     dim = 2
-    stride = (2,2) if dim == 2 else (2,2,2)
-    num_image = 3000#6000#30#60#6000#1000#2000#20000#15000#7000#25600#3000#10000#1000#10000#5000#2560#800#2560
-    batch_size = 30#50#10#50#20#50#1#2#50#20#2#100 # 10
-    n_epoch = 50#5#50#100#50#100#30#120#5#4# 10#50#20#20#2#5#25 # 120
+    stride = (2,4) if dim == 2 else (2,2,2)
+    num_image = 3000#300#3000#6000#30#60#6000#1000#2000#20000#15000#7000#25600#3000#10000#1000#10000#5000#2560#800#2560
+    batch_size = 10#50#10#50#20#50#1#2#50#20#2#100 # 10
+    n_epoch = 50#1#50#5#50#5#50#100#50#100#30#120#5#4# 10#50#20#20#2#5#25 # 120
     HII_DIM = 64
-    num_redshift = 64#512#64#512#64#256CUDAoom#128#64#512#128#64#512#256#256#64#512#128
+    num_redshift = 512#64#512#64#512#64#256CUDAoom#128#64#512#128#64#512#256#256#64#512#128
     channel = 1
     img_shape = (channel, HII_DIM, num_redshift) if dim == 2 else (channel, HII_DIM, HII_DIM, num_redshift)
 
@@ -711,7 +711,7 @@ def generate_samples(rank, world_size, local_world_size, master_addr, master_por
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--train", type=int, required=False, help="whether to train the model", default=1)
-    parser.add_argument("--sample", type=int, required=False, help="whether to sample", default=0)
+    #parser.add_argument("--sample", type=int, required=False, help="whether to sample", default=0)
     parser.add_argument("--resume", type=str, required=False, help="filename of the model to resume", default=False)
     parser.add_argument("--num_new_img_per_gpu", type=int, required=False, default=4)
     parser.add_argument("--max_num_img_per_gpu", type=int, required=False, default=2)
@@ -725,7 +725,7 @@ if __name__ == "__main__":
     world_size = local_world_size * total_nodes #6#int(os.environ["SLURM_NTASKS"])
 
     ############################ training ################################
-    if args.train:
+    if args.train == 1:
         print(f" training, ip_addr = {socket.gethostbyname(socket.gethostname())}, master_addr = {master_addr}, local_world_size = {local_world_size}, world_size = {world_size} ".center(120,'-'))
         mp.spawn(
                 train, 
@@ -734,7 +734,7 @@ if __name__ == "__main__":
                 join=True,
                 )
     ############################ sampling ################################
-    if args.sample:
+    if args.train == 0:
         num_new_img_per_gpu = args.num_new_img_per_gpu#200#4#200
         max_num_img_per_gpu = args.max_num_img_per_gpu#40#2#20
         config = TrainConfig()
@@ -748,10 +748,10 @@ if __name__ == "__main__":
         # return_dict = manager.dict()
         params_pairs = [
             (4.4, 131.341),
-            #(5.6, 19.037),
-            #(4.699, 30),
-            #(5.477, 200),
-            #(4.8, 131.341),
+            (5.6, 19.037),
+            (4.699, 30),
+            (5.477, 200),
+            (4.8, 131.341),
         ]
 
         for params in params_pairs:

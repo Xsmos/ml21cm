@@ -2,10 +2,10 @@
 #SBATCH -J diffusion # Job name
 #SBATCH -A gts-jw254-coda20 
 #SBATCH -qembers
-#SBATCH -N4 --gpus-per-node=RTX_6000:1 # -C A100-80GB              # Number of nodes and cores per node required
+#SBATCH -N8 --gpus-per-node=RTX_6000:1 # -C A100-80GB              # Number of nodes and cores per node required
 #SBATCH --ntasks-per-node=1
-#SBATCH --mem-per-gpu=16G                        # Memory per core
-#SBATCH -t 01:00:00                                    # Duration of the job (Ex: 15 mins)
+#SBATCH --mem-per-gpu=8G                        # Memory per core
+#SBATCH -t 08:00:00                                    # Duration of the job (Ex: 15 mins)
 #SBATCH -oReport-%j                         # Combined output and error messages file
 #SBATCH --error=error-%j
 #SBATCH --mail-type=BEGIN,END,FAIL              # Mail preferences
@@ -30,10 +30,9 @@ export MASTER_PORT=$MASTER_PORT
 
 srun python diffusion.py \
     --train 0 \
-    --sample 1 \
-    --resume outputs/model_state-N3000-device_count3-node2-epoch49-172.27.145.67 \
-    --num_new_img_per_gpu 200 \
-    --max_num_img_per_gpu 40 \
+    --resume outputs/model_state-N3000-device_count1-node8-epoch49-172.27.149.181 \
+    --num_new_img_per_gpu 50 \
+    --max_num_img_per_gpu 10 \
 
 ######################################################################################
 

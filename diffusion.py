@@ -256,13 +256,13 @@ class TrainConfig:
     # repeat = 2
 
     # dim = 2
-    dim = 2
-    stride = (2,4) if dim == 2 else (2,2,2)
-    num_image = 3000#300#3000#6000#30#60#6000#1000#2000#20000#15000#7000#25600#3000#10000#1000#10000#5000#2560#800#2560
-    batch_size = 10#50#10#50#20#50#1#2#50#20#2#100 # 10
-    n_epoch = 50#1#50#5#50#5#50#100#50#100#30#120#5#4# 10#50#20#20#2#5#25 # 120
+    dim = 3#2
+    stride = (2,4) if dim == 2 else (2,2,4)
+    num_image = 480#1200#120#3000#300#3000#6000#30#60#6000#1000#2000#20000#15000#7000#25600#3000#10000#1000#10000#5000#2560#800#2560
+    batch_size = 1#10#50#10#50#20#50#1#2#50#20#2#100 # 10
+    n_epoch = 50#1#50#10#1#50#1#50#5#50#5#50#100#50#100#30#120#5#4# 10#50#20#20#2#5#25 # 120
     HII_DIM = 64
-    num_redshift = 512#64#512#64#512#64#256CUDAoom#128#64#512#128#64#512#256#256#64#512#128
+    num_redshift = 512#256#512#256#512#256#512#64#512#64#512#64#256CUDAoom#128#64#512#128#64#512#256#256#64#512#128
     channel = 1
     img_shape = (channel, HII_DIM, num_redshift) if dim == 2 else (channel, HII_DIM, HII_DIM, num_redshift)
 
@@ -303,7 +303,7 @@ class TrainConfig:
     # params =  params
     # data_dir = './data' # data directory
 
-    use_fp16 = False
+    use_fp16 = True 
     dtype = torch.float16 if use_fp16 else torch.float32
     mixed_precision = "fp16"
     gradient_accumulation_steps = 1

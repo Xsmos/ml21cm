@@ -32,12 +32,15 @@ class GroupNorm32(nn.GroupNorm):
         self.swish = swish
 
     def forward(self, x):
-        # print("GroupNorm32, x.dtype =", x.dtype)
-        y = super().forward(x.float()).to(x.dtype)
+        #print(f"GroupNorm32, x.dtype = {x.dtype}, x.float().dtype = {x.float().dtype}, swish = {self.swish}")
+        #y = super().forward(x.float()).to(x.dtype)
+        y = super().forward(x)
+        #print(f"swish == {self.swish}, {y.dtype}")
         if self.swish == 1.0:
             y = F.silu(y)
         elif self.swish:
             y = y * F.sigmoid(y * float(self.swish))
+        #print(f"swish == {self.swish}, {y.dtype}")
         return y
 
 def normalization(channels, swish=0.0):
@@ -284,7 +287,7 @@ def timestep_embedding(timesteps, dim, max_period=10000):
     :param max_period: controls the minimum frequency of the embeddings.
     :return: an [N x dim] Tensor of positional embeddings.
     """
-    #print (timesteps.shape)
+    #print(f"timestep_embedding is running")
     half = dim // 2
     freqs = torch.exp(
         -math.log(max_period) * torch.arange(start=0, end=half, dtype=torch.float32) / half
@@ -294,6 +297,7 @@ def timestep_embedding(timesteps, dim, max_period=10000):
     embedding = torch.cat([torch.cos(args), torch.sin(args)], dim=-1)
     if dim % 2:
         embedding = torch.cat([embedding, torch.zeros_like(embedding[:, :1])], dim=-1)
+    #print(f"timestep_embedding is ending")
     return embedding
 
 class ContextUnet(nn.Module):
@@ -522,32 +526,34 @@ class ContextUnet(nn.Module):
     def forward(self, x, timesteps, y=None):
         hs = []
         # print("device of timesteps, self.model_channels:", timesteps.device, self.model_channels)
-        emb = self.time_embed(timestep_embedding(timesteps, self.model_channels))
+        emb = self.time_embed(timestep_embedding(timesteps, self.model_channels).to(self.dtype))
+        #print(f"forward after emb")
         if y != None:
-            text_outputs = self.token_embedding(y.float())
+            #text_outputs = self.token_embedding(y.float())
+            text_outputs = self.token_embedding(y.to(self.dtype))
             emb = emb + text_outputs.to(emb)
 
-        # print("forward, h = x.type(self.dtype), self.dtype =", self.dtype)
+        #print("forward, h = x.type(self.dtype), self.dtype =", self.dtype)
         h = x.type(self.dtype)
-        # print("0,h.shape =", h.shape)
+        #print("0,h.shape =", h.shape)
         for module in self.input_blocks:
             h = module(h, emb)
             hs.append(h)
-            # print("module encoder, h.shape =", h.shape)
+            #print("module encoder, h.shape =", h.shape)
         # print("2,h.shape =", h.shape)
         h = self.middle_block(h, emb)
-        # print("middle block, h.shape =", h.shape)
+        #print("middle block, h.shape =", h.shape)
         # print("2,h.shape =", h.shape)
         for module in self.output_blocks:
-            # print("for module in self.output_blocks, h.shape =", h.shape)
+            #print("for module in self.output_blocks, h.shape =", h.shape)
             # print("len(hs) =", len(hs), ", hs[-1].shape =", hs[-1].shape)
             h = torch.cat([h, hs.pop()], dim=1)
             h = module(h, emb)
             # print("module decoder, h.shape =", h.shape)
 
-        # print("h = h.type(x.dtype), x.dtype =", x.dtype)
+        #print("h = h.type(x.dtype), x.dtype =", x.dtype)
         h = h.type(x.dtype)
         h = self.out(h)
-        # print("self.out(h)", "h.shape =", h.shape)
+        #print("self.out(h)", "h.shape =", h.shape)
 
         return h 

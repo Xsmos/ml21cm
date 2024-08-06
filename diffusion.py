@@ -115,8 +115,9 @@ def ddp_setup(rank: int, world_size: int, master_addr, master_port):
 
 # %%
 class DDPMScheduler(nn.Module):
-    def __init__(self, betas: tuple, num_timesteps: int, img_shape: list, device='cpu', dtype=torch.float32, config=None):
+    def __init__(self, betas: tuple, num_timesteps: int, img_shape: list, device='cpu', dtype=torch.float16, config=None):
         super().__init__()
+        self.dtype = dtype#torch.float16 if self.use_fp16 else torch.float32
         
         beta_1, beta_T = betas
         assert 0 < beta_1 <= beta_T <= 1, "ensure 0 < beta_1 <= beta_T <= 1"
@@ -124,6 +125,7 @@ class DDPMScheduler(nn.Module):
         self.num_timesteps = num_timesteps
         self.img_shape = img_shape
         self.beta_t = torch.linspace(beta_1, beta_T, self.num_timesteps) #* (beta_T-beta_1) + beta_1
+        self.beta_t = self.beta_t.to(self.dtype)
         self.beta_t = self.beta_t.to(self.device)
 
         # self.drop_prob = drop_prob
@@ -132,7 +134,6 @@ class DDPMScheduler(nn.Module):
         # self.bar_alpha_t = torch.exp(torch.cumsum(torch.log(self.alpha_t), dim=0))
         self.bar_alpha_t = torch.cumprod(self.alpha_t, dim=0)
         # self.use_fp16 = use_fp16
-        self.dtype = dtype#torch.float16 if self.use_fp16 else torch.float32
         self.config = config
 
     def add_noise(self, clean_images):
@@ -157,7 +158,9 @@ class DDPMScheduler(nn.Module):
     def sample(self, nn_model, params, device, guide_w = 0):
         n_sample = len(params) #params.shape[0]
         # print("params.shape[0], len(params)", params.shape[0], len(params))
-        x_i = torch.randn(n_sample, *self.img_shape).to(device)
+        x_i = torch.randn(n_sample, *self.img_shape).to(self.dtype)
+        x_i = x_i.to(device)
+        #print(f"#1 x_i.device = {x_i.device}")
         # print("x_i.shape =", x_i.shape)
         # print("x_i.shape =", x_i.shape)
         if guide_w != -1:
@@ -166,6 +169,7 @@ class DDPMScheduler(nn.Module):
             # uncond_tokens = torch.tensor(np.float32(np.array([0,0]))).to(device)
             # uncond_tokens = uncond_tokens.repeat(int(n_sample),1)
             c_i = torch.cat((c_i, uncond_tokens), 0)
+            c_i = c_i.to(self.dtype)
 
         x_i_entire = [] # keep track of generated steps in case want to plot something
         # print("self.num_timesteps =", self.num_timesteps)
@@ -177,8 +181,10 @@ class DDPMScheduler(nn.Module):
             # print(f'sampling timestep {i:4d}',end='\r')
             t_is = torch.tensor([i]).to(device)
             t_is = t_is.repeat(n_sample)
+            t_is = t_is.to(self.dtype)
 
-            z = torch.randn(n_sample, *self.img_shape).to(device) if i > 0 else 0
+            z = torch.randn(n_sample, *self.img_shape).to(device) if i > 0 else torch.tensor(0.)
+            z = z.to(self.dtype)
 
             if guide_w == -1:
                 # eps = nn_model(x_i, t_is, return_dict=False)[0]
@@ -186,11 +192,13 @@ class DDPMScheduler(nn.Module):
                 # x_i = 1/torch.sqrt(self.alpha_t[i])*(x_i-eps*self.beta_t[i]/torch.sqrt(1-self.bar_alpha_t[i])) + torch.sqrt(self.beta_t[i])*z
             else:
                 # double batch
+                #print(f"#2 x_i.device = {x_i.device}")
                 x_i = x_i.repeat(2, *torch.ones(len(self.img_shape), dtype=int).tolist())
                 t_is = t_is.repeat(2)
 
                 # split predictions and compute weighting
                 # print("nn_model input shape", x_i.shape, t_is.shape, c_i.shape)
+                #print(f"sample, i = {i}, x_i.dtype = {x_i.dtype}, c_i.dtype = {c_i.dtype}")
                 eps = nn_model(x_i, t_is, c_i)
                 eps1 = eps[:n_sample]
                 eps2 = eps[n_sample:]
@@ -200,8 +208,10 @@ class DDPMScheduler(nn.Module):
                 # x_i = 1/torch.sqrt(self.alpha_t[i])*(x_i-eps*self.beta_t[i]/torch.sqrt(1-self.bar_alpha_t[i])) + torch.sqrt(self.beta_t[i])*z
             
             # print("x_i.shape =", x_i.shape)
+            #print(f"before, x_i.dtype = {x_i.dtype}, beta_t.dtype = {self.beta_t.dtype}, eps.dtype = {eps.dtype}, alpha_t.dtype = {self.alpha_t.dtype}, z.dtype = {z.dtype}")
             x_i = 1/torch.sqrt(self.alpha_t[i])*(x_i-eps*self.beta_t[i]/torch.sqrt(1-self.bar_alpha_t[i])) + torch.sqrt(self.beta_t[i])*z
-            
+            #print(f"after, x_i.dtype = {x_i.dtype}, beta_t.dtype = {self.beta_t.dtype}, eps.dtype = {eps.dtype}, alpha_t.dtype = {self.alpha_t.dtype}, z.dtype = {z.dtype}")
+
             pbar_sample.update(1)
             
             # store only part of the intermediate steps
@@ -262,7 +272,7 @@ class TrainConfig:
     batch_size = 1#10#50#10#50#20#50#1#2#50#20#2#100 # 10
     n_epoch = 50#1#50#10#1#50#1#50#5#50#5#50#100#50#100#30#120#5#4# 10#50#20#20#2#5#25 # 120
     HII_DIM = 64
-    num_redshift = 512#256#512#256#512#256#512#64#512#64#512#64#256CUDAoom#128#64#512#128#64#512#256#256#64#512#128
+    num_redshift = 256#512#256#512#256#512#256#512#64#512#64#512#64#256CUDAoom#128#64#512#128#64#512#256#256#64#512#128
     channel = 1
     img_shape = (channel, HII_DIM, num_redshift) if dim == 2 else (channel, HII_DIM, HII_DIM, num_redshift)
 
@@ -287,7 +297,7 @@ class TrainConfig:
     # seed = 0
     # save_dir = './outputs/'
 
-    save_period = np.infty #n_epoch // 2 #np.infty#.1 # the period of sampling
+    save_period = 10#np.infty #n_epoch // 2 #np.infty#.1 # the period of sampling
     # general parameters for the name and logger    
     # device = "cuda" if torch.cuda.is_available() else "cpu"
     lrate = 1e-4
@@ -396,6 +406,7 @@ class DDPM21CM:
             # self.nn_model.load_state_dict(torch.load(config.resume)['unet_state_dict'])
             # print(f"resumed nn_model from {config.resume}")
             self.nn_model.module.load_state_dict(torch.load(config.resume)['unet_state_dict'])
+            self.nn_model.module.to(config.dtype)
             print(f"{config.run_name} {socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} resumed nn_model from {config.resume} with {sum(x.numel() for x in self.nn_model.parameters())} parameters".center(120,'-'))
         else:
             print(f"{config.run_name} {socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} initialized nn_model randomly with {sum(x.numel() for x in self.nn_model.parameters())} parameters".center(120,'-'))
@@ -511,8 +522,9 @@ class DDPM21CM:
                     # print("x = x.to(self.config.device), x.dtype =", x.dtype)
                     # x = x.to(self.config.dtype)
                     # print("x = x.to(self.dtype), x.dtype =", x.dtype)
+                    #print(f"ddpm.add_noise(x), x.dtype = {x.dtype}") 
                     xt, noise, ts = self.ddpm.add_noise(x)
-                    
+                    #print(f"ddpm.add_noise(x), xt.dtype = {xt.dtype}") 
                     if self.config.guide_w == -1:
                         noise_pred = self.nn_model(xt, ts)
                     else:

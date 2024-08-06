@@ -201,6 +201,7 @@ class Generator():
                 user_params = kwargs_params_cpu,
                 cosmo_params = p21c.CosmoParams(kwargs_params_cpu),
                 astro_params = p21c.AstroParams(kwargs_params_cpu),
+                flag_options = p21c.FlagOptions(kwargs_params_cpu),
                 random_seed = random_seed,
                 write = kwargs_params_cpu['write'],
             )
@@ -210,11 +211,13 @@ class Generator():
         elif self.kwargs['p21c_run'] == 'lightcone':
             lightcone_cpu = p21c.run_lightcone(
                 redshift = kwargs_params_cpu['redshift'][0],
-                max_redshift = kwargs_params_cpu['redshift'][-1],
+                #max_redshift = kwargs_params_cpu['redshift'][-1],
+                z_heat_max = kwargs_params_cpu['redshift'][-1],
                 lightcone_quantities = kwargs_params_cpu['fields'],
                 user_params = kwargs_params_cpu,
                 cosmo_params = p21c.CosmoParams(kwargs_params_cpu),
                 astro_params = p21c.AstroParams(kwargs_params_cpu),
+                flag_options = p21c.FlagOptions(kwargs_params_cpu),
                 random_seed = random_seed,
                 write = kwargs_params_cpu['write'],
             )
@@ -436,16 +439,17 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     params_ranges = dict(
-        ION_Tvir_MIN = 4.4, #[4,6],
-        HII_EFF_FACTOR = 131.341, #[10, 250],
+        ION_Tvir_MIN = [4, 6],#4.8,#5.477,#4.699,#5.6,#4.4, #[4,6],
+        HII_EFF_FACTOR = [10, 250],#131.341,#200,#30,#19.037,#131.341, #[10, 250],
         )
 
     kwargs = dict(
         num_images=args.num_images,#2400,#30000,
         fields = ['brightness_temp', 'density', 'xH_box'],
-        BOX_LEN=args.BOX_LEN,#128,
-        HII_DIM=args.HII_DIM, 
-        verbose=3, redshift=[7.51, 11.93],
+        BOX_LEN = args.BOX_LEN,#128,
+        HII_DIM = args.HII_DIM, 
+        verbose = 3, 
+        redshift = [7.51, 20.9],#11.93],
         NON_CUBIC_FACTOR = args.NON_CUBIC_FACTOR,
         write = True,
         cpus_per_node = args.cpus_per_node,#10,#112,#20,

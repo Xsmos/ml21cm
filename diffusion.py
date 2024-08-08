@@ -165,10 +165,10 @@ class DDPMScheduler(nn.Module):
         # print("x_i.shape =", x_i.shape)
         if guide_w != -1:
             c_i = params
-            uncond_tokens = torch.zeros(int(n_sample), params.shape[1]).to(device)
+            #uncond_tokens = torch.zeros(int(n_sample), params.shape[1]).to(device)
             # uncond_tokens = torch.tensor(np.float32(np.array([0,0]))).to(device)
             # uncond_tokens = uncond_tokens.repeat(int(n_sample),1)
-            c_i = torch.cat((c_i, uncond_tokens), 0)
+            #c_i = torch.cat((c_i, uncond_tokens), 0)
             c_i = c_i.to(self.dtype)
 
         x_i_entire = [] # keep track of generated steps in case want to plot something
@@ -193,18 +193,18 @@ class DDPMScheduler(nn.Module):
             else:
                 # double batch
                 #print(f"#2 x_i.device = {x_i.device}")
-                x_i = x_i.repeat(2, *torch.ones(len(self.img_shape), dtype=int).tolist())
-                t_is = t_is.repeat(2)
+                #x_i = x_i.repeat(2, *torch.ones(len(self.img_shape), dtype=int).tolist())
+                #t_is = t_is.repeat(2)
 
                 # split predictions and compute weighting
                 # print("nn_model input shape", x_i.shape, t_is.shape, c_i.shape)
                 #print(f"sample, i = {i}, x_i.dtype = {x_i.dtype}, c_i.dtype = {c_i.dtype}")
                 eps = nn_model(x_i, t_is, c_i)
-                eps1 = eps[:n_sample]
-                eps2 = eps[n_sample:]
-                eps = eps1 + guide_w*(eps1 - eps2)
+                #eps1 = eps[:n_sample]
+                #eps2 = eps[n_sample:]
+                #eps = eps1 + guide_w*(eps1 - eps2)
                 # eps = (1+guide_w)*eps1 - guide_w*eps2
-                x_i = x_i[:n_sample]
+                #x_i = x_i[:n_sample]
                 # x_i = 1/torch.sqrt(self.alpha_t[i])*(x_i-eps*self.beta_t[i]/torch.sqrt(1-self.bar_alpha_t[i])) + torch.sqrt(self.beta_t[i])*z
             
             # print("x_i.shape =", x_i.shape)

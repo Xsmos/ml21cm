@@ -25,15 +25,15 @@
 
 #SBATCH -J datasets           # Job name
 #SBATCH -o Report-%j       # Name of stdout output file
-#SBATCH -p small # Queue (partition) name
+#SBATCH -p development # Queue (partition) name
 #SBATCH -N 2 # 50              # Total # of nodes 
-#SBATCH -c 56              # Total # of mpi tasks
-#SBATCH -t 00:30:00        # Run time (hh:mm:ss)
+#SBATCH -t 02:00:00        # Run time (hh:mm:ss)
 #SBATCH --mail-type=all    # Send email at begin and end of job
 #SBATCH --mail-user=xiabin@gatech.edu
 #SBATCH --ntasks-per-node=1
 
 # Any other commands must follow all #SBATCH directives...
+############# #SBATCH -c 56              # Total # of mpi tasks
 
 #----------------------------------------------------
 cat $0
@@ -44,10 +44,10 @@ conda env list
 
 srun python generate_dataset.py \
     --save_direc $SCRATCH \
-    --num_images 1000 \
+    --num_images 152 \
     --BOX_LEN 128 \
     --HII_DIM 64 \
     --NON_CUBIC_FACTOR 16 \
-    # --cpus_per_node 5 \
+    --cpus_per_node 38 \
 #----------------------------------------------------
 

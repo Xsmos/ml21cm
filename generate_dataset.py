@@ -19,6 +19,7 @@ import fcntl
 import time
 from time import sleep
 from pathlib import Path
+import datetime
 
 # Parallize
 try:
@@ -120,6 +121,7 @@ class Generator():
             BOX_LEN = 150,
             HII_DIM = 60, 
             USE_INTERPOLATION_TABLES = True,
+            USE_TS_FLUCT = True,
             
             # cosmo_params of py21cmfast.run_coeval():
             SIGMA_8 = 0.810,
@@ -372,7 +374,9 @@ class Generator():
 
     # Save as hdf5
     def save(self, images_node, params_seeds):
-        max_num_images = None # self.kwargs['num_images']
+        #max_num_images = None # self.kwargs['num_images']
+        max_num_images = self.kwargs['num_images']
+        #print(f"max_num_images = {max_num_images}")
         with h5py.File(self.kwargs['save_direc_name'], 'a') as f:
             if 'kwargs' not in f.keys():
                 keys = list(self.kwargs)
@@ -439,8 +443,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     params_ranges = dict(
-        ION_Tvir_MIN = [4, 6],#4.8,#5.477,#4.699,#5.6,#4.4, #[4,6],
-        HII_EFF_FACTOR = [10, 250],#131.341,#200,#30,#19.037,#131.341, #[10, 250],
+        ION_Tvir_MIN = [4,6],#4.8,#5.477,#4.699,#5.6,#4.4, #[4,6],
+        HII_EFF_FACTOR = [10,250],#131.341,#200,#30,#19.037,#131.341, #[10, 250],
         )
 
     kwargs = dict(
@@ -449,14 +453,15 @@ if __name__ == '__main__':
         BOX_LEN = args.BOX_LEN,#128,
         HII_DIM = args.HII_DIM, 
         verbose = 3, 
-        redshift = [7.51, 20.9],#11.93],
+        redshift = [7.51, 21.02],#11.93],
         NON_CUBIC_FACTOR = args.NON_CUBIC_FACTOR,
         write = True,
         cpus_per_node = args.cpus_per_node,#10,#112,#20,
         cache_rmdir = False,
         )
 
-    save_name = f"LEN{kwargs['BOX_LEN']}-DIM{kwargs['HII_DIM']}-CUB{kwargs['NON_CUBIC_FACTOR']}-{params_ranges['ION_Tvir_MIN']}-{params_ranges['HII_EFF_FACTOR']}.h5"
+    now = datetime.datetime.now().strftime("%m%d-%H%M%S")
+    save_name = f"LEN{kwargs['BOX_LEN']}-DIM{kwargs['HII_DIM']}-CUB{kwargs['NON_CUBIC_FACTOR']}-Tvir{params_ranges['ION_Tvir_MIN']}-zeta{params_ranges['HII_EFF_FACTOR']}-{now}.h5"
     kwargs['save_direc_name'] = os.path.join(args.save_direc, save_name)
 
     generator = Generator(params_ranges, **kwargs)

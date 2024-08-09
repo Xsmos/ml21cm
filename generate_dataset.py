@@ -367,8 +367,8 @@ class Generator():
                 # break
             except IOError or BlockingIOError:
                 if try_time > 30:
-                    print(f"{rank}-{multiprocessing.current_process().pid}, try_time = {try_time:.2f} sec")
-                    sleep(10)
+                    print(f"cpu {multiprocessing.current_process().pid}-{rank}, try_time = {try_time:.2f} sec")
+                    sleep(5)
                 else:
                     sleep(0.1)
 

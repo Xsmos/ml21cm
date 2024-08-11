@@ -313,8 +313,8 @@ class TrainConfig:
     # params =  params
     # data_dir = './data' # data directory
 
-    use_fp16 = True 
-    dtype = torch.float16 if use_fp16 else torch.float32
+    #use_fp16 = True 
+    dtype = torch.float16 #if use_fp16 else torch.float32
     mixed_precision = "fp16"
     gradient_accumulation_steps = 1
 
@@ -751,7 +751,7 @@ if __name__ == "__main__":
         max_num_img_per_gpu = args.max_num_img_per_gpu#40#2#20
         config = TrainConfig()
         #config.world_size = world_size
-    
+        config.dtype = torch.float32 
         config.resume = args.resume
         # config.resume = f"./outputs/model_state-N30-device_count3-epoch4-172.27.149.181"
         # config.resume = f"./outputs/model_state-N{config.num_image}-device_count{world_size}-epoch{config.n_epoch-1}"

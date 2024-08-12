@@ -25,9 +25,9 @@
 
 #SBATCH -J datasets           # Job name
 #SBATCH -o Report-%j       # Name of stdout output file
-#SBATCH -p normal # Queue (partition) name
-#SBATCH -N 12 # 50              # Total # of nodes 
-#SBATCH -t 2-00:00:00        # Run time (hh:mm:ss)
+#SBATCH -p small # Queue (partition) name
+#SBATCH -N 2 # 50              # Total # of nodes 
+#SBATCH -t 09:00:00        # Run time (hh:mm:ss)
 #SBATCH --mail-type=all    # Send email at begin and end of job
 #SBATCH --mail-user=xiabin@gatech.edu
 #SBATCH --ntasks-per-node=1
@@ -44,7 +44,7 @@ conda env list
 
 srun python generate_dataset.py \
     --save_direc $SCRATCH \
-    --num_images 25600 \
+    --num_images 800\
     --BOX_LEN 128 \
     --HII_DIM 64 \
     --NON_CUBIC_FACTOR 16 \

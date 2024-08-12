@@ -188,7 +188,7 @@ class DDPMScheduler(nn.Module):
 
             if guide_w == -1:
                 # eps = nn_model(x_i, t_is, return_dict=False)[0]
-                eps = nn_model(x_i, t_is)
+                eps = nn_model(x_i, t_is).to(self.dtype)
                 # x_i = 1/torch.sqrt(self.alpha_t[i])*(x_i-eps*self.beta_t[i]/torch.sqrt(1-self.bar_alpha_t[i])) + torch.sqrt(self.beta_t[i])*z
             else:
                 # double batch
@@ -199,7 +199,7 @@ class DDPMScheduler(nn.Module):
                 # split predictions and compute weighting
                 # print("nn_model input shape", x_i.shape, t_is.shape, c_i.shape)
                 #print(f"sample, i = {i}, x_i.dtype = {x_i.dtype}, c_i.dtype = {c_i.dtype}")
-                eps = nn_model(x_i, t_is, c_i)
+                eps = nn_model(x_i, t_is, c_i).to(self.dtype)
                 #eps1 = eps[:n_sample]
                 #eps2 = eps[n_sample:]
                 #eps = eps1 + guide_w*(eps1 - eps2)
@@ -297,7 +297,7 @@ class TrainConfig:
     # seed = 0
     # save_dir = './outputs/'
 
-    save_period = 10#np.infty #n_epoch // 2 #np.infty#.1 # the period of sampling
+    save_period = np.infty #n_epoch // 2 #np.infty#.1 # the period of sampling
     # general parameters for the name and logger    
     # device = "cuda" if torch.cuda.is_available() else "cpu"
     lrate = 1e-4
@@ -520,20 +520,21 @@ class DDPM21CM:
                 with self.accelerator.accumulate(self.nn_model):
                     x = x.to(self.config.device)
                     # print("x = x.to(self.config.device), x.dtype =", x.dtype)
-                    # x = x.to(self.config.dtype)
+                    x = x.to(self.config.dtype)
                     # print("x = x.to(self.dtype), x.dtype =", x.dtype)
-                    #print(f"ddpm.add_noise(x), x.dtype = {x.dtype}") 
+                    # print(f"ddpm.add_noise(x), x.dtype = {x.dtype}") 
                     xt, noise, ts = self.ddpm.add_noise(x)
-                    #print(f"ddpm.add_noise(x), xt.dtype = {xt.dtype}") 
+                    # print(f"ddpm.add_noise(x), xt.dtype = {xt.dtype}") 
                     if self.config.guide_w == -1:
-                        noise_pred = self.nn_model(xt, ts)
+                        noise_pred = self.nn_model(xt, ts).to(x.dtype)
                     else:
                         c = c.to(self.config.device)
-                        noise_pred = self.nn_model(xt, ts, c)
+                        noise_pred = self.nn_model(xt, ts, c).to(x.dtype)
 
-                    # print("noise_pred = self.nn_model(xt, ts, c), noise_pred.dtype =", noise_pred.dtype)
+                    # print("noise_pred = self.nn_model(xt, ts, c), noise_pred.dtype =", noise_pred.dtype, noise.dtype)
                     
                     loss = F.mse_loss(noise, noise_pred)
+                    #print(f"loss.dtype =", loss.dtype)
                     self.accelerator.backward(loss)
                     self.accelerator.clip_grad_norm_(self.nn_model.parameters(), 1)
                     self.optimizer.step()
@@ -644,6 +645,20 @@ class DDPM21CM:
         # nn_model = ContextUnet(n_param=1, image_size=28)
         # nn_model.train()
         # self.nn_model.to(self.ddpm.device)
+
+        self.accelerator = Accelerator(
+            mixed_precision=self.config.mixed_precision,
+            gradient_accumulation_steps=self.config.gradient_accumulation_steps,
+            log_with="tensorboard",
+            project_dir=os.path.join(self.config.output_dir, "logs"),
+            # distributed_type="MULTI_GPU",
+        )
+
+        self.nn_model, self.optimizer, self.lr_scheduler = \
+            self.accelerator.prepare(
+                self.nn_model, self.optimizer, self.lr_scheduler
+                )
+
         self.nn_model.eval()
 
         # self.ema_model = ContextUnet(n_param=config.n_param, image_size=config.HII_DIM, dim=config.dim, stride=config.stride).to(config.device)

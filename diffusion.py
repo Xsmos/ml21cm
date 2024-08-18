@@ -33,8 +33,9 @@ import warnings
 #warnings.filterwarnings("ignore", message=r"^Detected kernel version")
 
 from dataclasses import dataclass
-import h5py
+#import h5py
 import torch
+#print(f"starting, torch.__path__ = {torch.__path__}, torch.cuda.device_count() = {torch.cuda.device_count()}, torch.cuda.is_available() = {torch.cuda.is_available()}")
 import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 # from datasets import Dataset
@@ -268,9 +269,9 @@ class TrainConfig:
     # dim = 2
     dim = 3#2
     stride = (2,4) if dim == 2 else (2,2,2)
-    num_image = 3000#480#1200#120#3000#300#3000#6000#30#60#6000#1000#2000#20000#15000#7000#25600#3000#10000#1000#10000#5000#2560#800#2560
-    batch_size = 5#1#10#50#10#50#20#50#1#2#50#20#2#100 # 10
-    n_epoch = 50#1#50#10#1#50#1#50#5#50#5#50#100#50#100#30#120#5#4# 10#50#20#20#2#5#25 # 120
+    num_image = 2000#480#1200#120#3000#300#3000#6000#30#60#6000#1000#2000#20000#15000#7000#25600#3000#10000#1000#10000#5000#2560#800#2560
+    batch_size = 1#1#10#50#10#50#20#50#1#2#50#20#2#100 # 10
+    n_epoch = 20#1#50#10#1#50#1#50#5#50#5#50#100#50#100#30#120#5#4# 10#50#20#20#2#5#25 # 120
     HII_DIM = 64
     num_redshift = 64#256#512#256#512#256#512#256#512#64#512#64#512#64#256CUDAoom#128#64#512#128#64#512#256#256#64#512#128
     channel = 1
@@ -303,7 +304,7 @@ class TrainConfig:
     lrate = 1e-4
     lr_warmup_steps = 0#5#00
     output_dir = "./outputs/"
-    save_name = os.path.join(output_dir, 'model_state')
+    save_name = os.path.join(output_dir, 'model')
     # save_period = 1 #10 # the period of saving model
     # cond = True # if training using the conditional information
     # lr_decay = False #True# if using the learning rate decay
@@ -377,7 +378,7 @@ class DDPM21CM:
         # )
         # config = TrainConfig()
         # date = datetime.datetime.now().strftime("%m%d-%H%M")
-        config.run_name = datetime.datetime.now().strftime("%m%d-%H%M%S") # the unique name of each experiment
+        config.run_name = datetime.datetime.now().strftime("%d%H%M%S") # the unique name of each experiment
         self.config = config
         # dataset = Dataset4h5(config.dataset_name, num_image=config.num_image, HII_DIM=config.HII_DIM, num_redshift=config.num_redshift, drop_prob=config.drop_prob, dim=config.dim)
         # # self.shape_loaded = dataset.images.shape
@@ -536,7 +537,7 @@ class DDPM21CM:
                     loss = F.mse_loss(noise, noise_pred)
                     #print(f"loss.dtype =", loss.dtype)
                     self.accelerator.backward(loss)
-                    self.accelerator.clip_grad_norm_(self.nn_model.parameters(), 1)
+                    #self.accelerator.clip_grad_norm_(self.nn_model.parameters(), 1)
                     self.optimizer.step()
                     self.lr_scheduler.step()
                     self.optimizer.zero_grad()
@@ -592,7 +593,7 @@ class DDPM21CM:
                             'unet_state_dict': self.nn_model.module.state_dict(),
                             # 'ema_unet_state_dict': self.ema_model.state_dict(),
                             }
-                        save_name = self.config.save_name+f"-N{self.config.num_image}-device_count{self.config.world_size}-node{int(os.environ['SLURM_NNODES'])}-epoch{ep}-{socket.gethostbyname(socket.gethostname())}"
+                        save_name = self.config.save_name+f"-N{self.config.num_image}-device_count{self.config.world_size}-node{int(os.environ['SLURM_NNODES'])}-epoch{ep}-{self.config.run_name}"
                         torch.save(model_state, save_name)
                         print(f'cuda:{torch.cuda.current_device()}/{self.config.global_rank} saved model at ' + save_name)
                         # print('saved model at ' + config.save_dir + f"model_epoch_{ep}_test_{config.run_name}.pth")
@@ -675,13 +676,15 @@ class DDPM21CM:
 
         if save:    
             # np.save(os.path.join(self.config.output_dir, f"{self.config.run_name}{'ema' if ema else ''}.npy"), x_last)
-            savetime = datetime.datetime.now().strftime("%m%d-%H%M%S")
-            savename = os.path.join(self.config.output_dir, f"Tvir{params_backup[0]}-zeta{params_backup[1]}-N{self.config.num_image}-device{self.config.global_rank}-{os.path.basename(self.config.resume)}-{savetime}{'ema' if ema else ''}.npy")
+            savetime = datetime.datetime.now().strftime("%d%H%M%S")
+            savename = os.path.join(self.config.output_dir, f"Tvir{params_backup[0]:.3f}-zeta{params_backup[1]:.3f}-N{self.config.num_image}-device{self.config.global_rank}-{os.path.basename(self.config.resume)}-{savetime}{'ema' if ema else ''}.npy")
+            if not os.path.exists(self.config.output_dir):
+                os.makedirs(self.config.output_dir)
             np.save(savename, x_last)
             print(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} saved images of shape {x_last.shape} to {savename}")
 
             if entire:
-                savename = os.path.join(self.config.output_dir, f"Tvir{params_backup[0]}-zeta{params_backup[1]}-N{self.config.num_image}-device{self.config.global_rank}-{os.path.basename(self.config.resume)}-{savetime}{'ema' if ema else ''}_entire.npy")
+                savename = os.path.join(self.config.output_dir, f"Tvir{params_backup[0]:.3f}-zeta{params_backup[1]:.3f}-N{self.config.num_image}-device{self.config.global_rank}-{os.path.basename(self.config.resume)}-{savetime}{'ema' if ema else ''}_entire.npy")
                 np.save(savename, x_entire)
                 print(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} saved images of shape {x_entire.shape} to {savename}")
         # else:
@@ -689,13 +692,13 @@ class DDPM21CM:
 # %%
 
 #num_train_image_list = [6000]#[60]#[8000]#[1000]#[100]#
-def train(rank, world_size, local_world_size, master_addr, master_port):
+def train(rank, world_size, local_world_size, master_addr, master_port, config):
     global_rank = rank + local_world_size * int(os.environ["SLURM_NODEID"])
     ddp_setup(global_rank, world_size, master_addr, master_port)
     torch.cuda.set_device(rank)
     #print(f"rank = {rank}, global_rank = {global_rank}, world_size = {world_size}, local_world_size = {local_world_size}")
 
-    config = TrainConfig()
+    #config = TrainConfig()
     config.device = f"cuda:{rank}"
     config.world_size = local_world_size
     config.global_rank = global_rank 
@@ -742,6 +745,7 @@ if __name__ == "__main__":
     parser.add_argument("--resume", type=str, required=False, help="filename of the model to resume", default=False)
     parser.add_argument("--num_new_img_per_gpu", type=int, required=False, default=4)
     parser.add_argument("--max_num_img_per_gpu", type=int, required=False, default=2)
+    parser.add_argument("--gradient_accumulation_steps", type=int, required=False, default=1) # as tested, higher value leads to slower training and higher loss in the end
 
     args = parser.parse_args()
 
@@ -751,12 +755,14 @@ if __name__ == "__main__":
     total_nodes = int(os.environ["SLURM_NNODES"])
     world_size = local_world_size * total_nodes #6#int(os.environ["SLURM_NTASKS"])
 
+    config = TrainConfig()
+    config.gradient_accumulation_steps = args.gradient_accumulation_steps
     ############################ training ################################
     if args.train == 1:
         print(f" training, ip_addr = {socket.gethostbyname(socket.gethostname())}, master_addr = {master_addr}, local_world_size = {local_world_size}, world_size = {world_size} ".center(120,'-'))
         mp.spawn(
                 train, 
-                args=(world_size, local_world_size, master_addr, master_port), 
+                args=(world_size, local_world_size, master_addr, master_port, config), 
                 nprocs=local_world_size, 
                 join=True,
                 )
@@ -764,10 +770,11 @@ if __name__ == "__main__":
     if args.train == 0:
         num_new_img_per_gpu = args.num_new_img_per_gpu#200#4#200
         max_num_img_per_gpu = args.max_num_img_per_gpu#40#2#20
-        config = TrainConfig()
+        #config = TrainConfig()
         #config.world_size = world_size
-        config.dtype = torch.float32 
+        #config.dtype = torch.float32 
         config.resume = args.resume
+        #config.gradient_accumulation_steps = args.gradient_accumulation_steps
         # config.resume = f"./outputs/model_state-N30-device_count3-epoch4-172.27.149.181"
         # config.resume = f"./outputs/model_state-N{config.num_image}-device_count{world_size}-epoch{config.n_epoch-1}"
         # config.resume = f"./outputs/model_state-N{config.num_image}-device_count1-epoch{config.n_epoch-1}"

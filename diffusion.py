@@ -429,7 +429,7 @@ class DDPM21CM:
         self.lr_scheduler = get_cosine_schedule_with_warmup(
             optimizer=self.optimizer,
             num_warmup_steps=config.lr_warmup_steps,
-            num_training_steps=int(config.num_image / config.batch_size * config.n_epoch),
+            num_training_steps=int(config.num_image / config.batch_size * config.n_epoch / config.gradient_accumulation_steps),
             #num_training_steps=int(config.num_image / config.world_size / config.batch_size * config.n_epoch),
             # num_training_steps=(len(self.dataloader) * config.n_epoch),
         )
@@ -772,7 +772,7 @@ if __name__ == "__main__":
         max_num_img_per_gpu = args.max_num_img_per_gpu#40#2#20
         #config = TrainConfig()
         #config.world_size = world_size
-        #config.dtype = torch.float32 
+        config.dtype = torch.float32 
         config.resume = args.resume
         #config.gradient_accumulation_steps = args.gradient_accumulation_steps
         # config.resume = f"./outputs/model_state-N30-device_count3-epoch4-172.27.149.181"

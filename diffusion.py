@@ -30,7 +30,7 @@
 import logging
 #logging.getLogger("torch").setLevel(logging.ERROR)
 import warnings
-#warnings.filterwarnings("ignore", message=r"^Detected kernel version")
+warnings.filterwarnings("ignore", category=FutureWarning)
 
 from dataclasses import dataclass
 #import h5py
@@ -269,11 +269,12 @@ class TrainConfig:
     # dim = 2
     dim = 3#2
     stride = (2,4) if dim == 2 else (2,2,2)
-    num_image = 2000#480#1200#120#3000#300#3000#6000#30#60#6000#1000#2000#20000#15000#7000#25600#3000#10000#1000#10000#5000#2560#800#2560
+    num_image = 3000#480#1200#120#3000#300#3000#6000#30#60#6000#1000#2000#20000#15000#7000#25600#3000#10000#1000#10000#5000#2560#800#2560
     batch_size = 1#1#10#50#10#50#20#50#1#2#50#20#2#100 # 10
-    n_epoch = 20#1#50#10#1#50#1#50#5#50#5#50#100#50#100#30#120#5#4# 10#50#20#20#2#5#25 # 120
+    n_epoch = 50#20#1#50#10#1#50#1#50#5#50#5#50#100#50#100#30#120#5#4# 10#50#20#20#2#5#25 # 120
     HII_DIM = 64
     num_redshift = 64#256#512#256#512#256#512#256#512#64#512#64#512#64#256CUDAoom#128#64#512#128#64#512#256#256#64#512#128
+    startat = 512-num_redshift
     channel = 1
     img_shape = (channel, HII_DIM, num_redshift) if dim == 2 else (channel, HII_DIM, HII_DIM, num_redshift)
 
@@ -444,6 +445,7 @@ class DDPM21CM:
             idx = "random",#'range',
             HII_DIM=self.config.HII_DIM, 
             num_redshift=self.config.num_redshift,
+            startat=self.config.startat,
             drop_prob=self.config.drop_prob, 
             dim=self.config.dim,
             ranges_dict=self.ranges_dict,
@@ -740,7 +742,7 @@ def generate_samples(rank, world_size, local_world_size, master_addr, master_por
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--train", type=int, required=False, help="whether to train the model", default=1)
+    parser.add_argument("--train", type=str, required=False, help="whether to train the model", default=False)
     #parser.add_argument("--sample", type=int, required=False, help="whether to sample", default=0)
     parser.add_argument("--resume", type=str, required=False, help="filename of the model to resume", default=False)
     parser.add_argument("--num_new_img_per_gpu", type=int, required=False, default=4)
@@ -758,7 +760,8 @@ if __name__ == "__main__":
     config = TrainConfig()
     config.gradient_accumulation_steps = args.gradient_accumulation_steps
     ############################ training ################################
-    if args.train == 1:
+    if args.train:
+        config.dataset_name = args.train
         print(f" training, ip_addr = {socket.gethostbyname(socket.gethostname())}, master_addr = {master_addr}, local_world_size = {local_world_size}, world_size = {world_size} ".center(120,'-'))
         mp.spawn(
                 train, 
@@ -767,7 +770,7 @@ if __name__ == "__main__":
                 join=True,
                 )
     ############################ sampling ################################
-    if args.train == 0:
+    if args.resume:
         num_new_img_per_gpu = args.num_new_img_per_gpu#200#4#200
         max_num_img_per_gpu = args.max_num_img_per_gpu#40#2#20
         #config = TrainConfig()

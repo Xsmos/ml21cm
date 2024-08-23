@@ -44,6 +44,7 @@ class Dataset4h5(Dataset):
         transform=True, 
         ranges_dict=None, 
         num_workers=len(os.sched_getaffinity(0))//torch.cuda.device_count(),
+        startat=0,
         # shuffle=False,
         ):
         super().__init__()
@@ -59,7 +60,7 @@ class Dataset4h5(Dataset):
         self.dim = dim
         self.transform = transform
         self.num_workers = num_workers
-        
+        self.startat = startat 
         # if ranges_dict == None:
         #     ranges_dict = dict(
         #         images = {
@@ -156,10 +157,10 @@ class Dataset4h5(Dataset):
         with h5py.File(self.dir_name, 'r') as f:
             images_start = time()
             if self.dim == 2:
-                images = f[self.field][idx,0,:self.HII_DIM,-self.num_redshift:][:,None]
+                images = f[self.field][idx, 0, :self.HII_DIM, self.startat:self.startat+self.num_redshift][:,None]
                 # images = f[self.field][idx,:self.HII_DIM,:self.HII_DIM,-3][:,None]
             elif self.dim == 3:
-                images = f[self.field][idx,:self.HII_DIM,:self.HII_DIM,-self.num_redshift:][:,None]
+                images = f[self.field][idx, :self.HII_DIM, :self.HII_DIM, self.startat:self.startat+self.num_redshift][:,None]
             images_end = time()
             # print(f"pid {pid}: images of shape {images.shape} loaded after {load_end-load_start:.3f} s")
             pid = os.getpid()

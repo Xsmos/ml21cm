@@ -6,6 +6,7 @@
 #SBATCH -t 37:30:00                                    # Duration of the job (Ex: 15 mins)
 #SBATCH -oReport-%j                         # Combined output and error messages file
 #SBATCH --mail-type=BEGIN,END,FAIL              # Mail preferences
+#SBATCH --mail-user=xiabin@gatech.edu
 
 pwd
 date

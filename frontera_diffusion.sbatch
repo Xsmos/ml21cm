@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH -J diffusion # Job name
 #SBATCH -p rtx #-dev
-#SBATCH -N2            # Number of nodes and cores per node required
+#SBATCH -N8            # Number of nodes and cores per node required
 #SBATCH --ntasks-per-node=1
-#SBATCH -t 37:30:00                                    # Duration of the job (Ex: 15 mins)
+#SBATCH -t 47:59:59                                    # Duration of the job (Ex: 15 mins)
 #SBATCH -oReport-%j                         # Combined output and error messages file
 #SBATCH --mail-type=BEGIN,END,FAIL              # Mail preferences
 #SBATCH --mail-user=xiabin@gatech.edu
@@ -25,10 +25,10 @@ export MASTER_ADDR=$MASTER_ADDR
 export MASTER_PORT=$MASTER_PORT
 
 srun python diffusion.py \
-    --train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
     --num_new_img_per_gpu 50 \
     --max_num_img_per_gpu 2 \
-    --gradient_accumulation_steps 30 \
-    #--resume outputs/model-N2000-device_count1-node8-epoch19-19004529 \
+    --gradient_accumulation_steps 5 \
+    --train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
+    #--resume outputs/model-N3000-device_count4-node2-epoch49-23040531 \
 ######################################################################################
 

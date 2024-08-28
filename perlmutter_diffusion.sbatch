@@ -17,7 +17,6 @@ date
 #module load pytorch
 #conda activate diffusers 
 conda env list
-#module load pytorch
 module list
 python -c "import torch; print(torch.cuda.is_available(), torch.__version__, torch.__path__, torch.version.cuda)"
 cat $0

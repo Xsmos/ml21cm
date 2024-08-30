@@ -35,7 +35,6 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 from dataclasses import dataclass
 #import h5py
 import torch
-#print(f"starting, torch.__path__ = {torch.__path__}, torch.cuda.device_count() = {torch.cuda.device_count()}, torch.cuda.is_available() = {torch.cuda.is_available()}")
 import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 # from datasets import Dataset
@@ -53,10 +52,9 @@ from tqdm.auto import tqdm
 # from torchvision import transforms
 # from diffusers import UNet2DModel#, UNet3DConditionModel
 # from diffusers import DDPMScheduler
-from diffusers.utils import make_image_grid
 import datetime
 from pathlib import Path
-from diffusers.optimization import get_cosine_schedule_with_warmup
+#from diffusers.optimization import get_cosine_schedule_with_warmup
 from accelerate import notebook_launcher, Accelerator
 from huggingface_hub import create_repo, upload_folder
 
@@ -93,7 +91,7 @@ def ddp_setup(rank: int, world_size: int, master_addr, master_port):
             init_method=f"tcp://{master_addr}:{master_port}", 
             rank=rank, 
             world_size=world_size,
-            timeout=timedelta(minutes=4)
+            timeout=timedelta(minutes=20)
             )
 
 # %%
@@ -269,7 +267,7 @@ class TrainConfig:
     # dim = 2
     dim = 3#2
     stride = (2,4) if dim == 2 else (2,2,2)
-    num_image = 300#6400#3000#480#1200#120#3000#300#3000#6000#30#60#6000#1000#2000#20000#15000#7000#25600#3000#10000#1000#10000#5000#2560#800#2560
+    num_image = 320#6400#3000#480#1200#120#3000#300#3000#6000#30#60#6000#1000#2000#20000#15000#7000#25600#3000#10000#1000#10000#5000#2560#800#2560
     batch_size = 1#1#10#50#10#50#20#50#1#2#50#20#2#100 # 10
     n_epoch = 30#50#20#1#50#10#1#50#1#50#5#50#5#50#100#50#100#30#120#5#4# 10#50#20#20#2#5#25 # 120
     HII_DIM = 64
@@ -427,13 +425,14 @@ class DDPM21CM:
                 self.ema_model = copy.deepcopy(self.nn_model).eval().requires_grad_(False)
 
         self.optimizer = torch.optim.AdamW(self.nn_model.parameters(), lr=config.lrate)
-        self.lr_scheduler = get_cosine_schedule_with_warmup(
-            optimizer=self.optimizer,
-            num_warmup_steps=config.lr_warmup_steps,
-            num_training_steps=int(config.num_image / config.batch_size * config.n_epoch / config.gradient_accumulation_steps),
-            #num_training_steps=int(config.num_image / config.world_size / config.batch_size * config.n_epoch),
-            # num_training_steps=(len(self.dataloader) * config.n_epoch),
-        )
+        #self.lr_scheduler = get_cosine_schedule_with_warmup(
+        #    optimizer=self.optimizer,
+        #    num_training_steps=int(config.num_image / config.batch_size * config.n_epoch / config.gradient_accumulation_steps),
+        #)
+        self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                optimizer = self.optimizer,
+                T_max = int(config.num_image / config.batch_size * config.n_epoch / config.gradient_accumulation_steps),
+                )
 
         self.ranges_dict = config.ranges_dict
 

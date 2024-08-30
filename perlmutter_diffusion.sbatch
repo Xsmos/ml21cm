@@ -2,23 +2,23 @@
 #SBATCH -A m4717 
 #SBATCH -J diffusers
 #SBATCH -C gpu
-#SBATCH -q regular
-#SBATCH -N1 
-#SBATCH --gpus-per-node=2
-#SBATCH -t 0:05:00
+#SBATCH -q debug
+#SBATCH -N2 
+#SBATCH --gpus-per-node=4
+#SBATCH -t 0:20:00
 #SBATCH --ntasks-per-node=1
 #SBATCH -oReport-%j 
 #SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH --gpu-bind=none
 
-pwd
 date
 #module load anaconda3/2022.05 # Load module dependencies
-#module load pytorch
+module load pytorch
 #conda activate diffusers 
 conda env list
 module list
-python -c "import torch; print(torch.cuda.is_available(), torch.__version__, torch.__path__, torch.version.cuda)"
+which python
+srun python -c "import torch; print(torch.cuda.is_available(), torch.cuda.device_count(), torch.__path__, torch.version.cuda)"
 cat $0
 
 MASTER_ADDR=$(scontrol show hostnames $SLURM_JOB_NODELIST | head -n 1)

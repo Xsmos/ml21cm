@@ -61,16 +61,6 @@ class Dataset4h5(Dataset):
         self.transform = transform
         self.num_workers = num_workers
         self.startat = startat 
-        # if ranges_dict == None:
-        #     ranges_dict = dict(
-        #         images = {
-        #             0: [4, 6], # ION_Tvir_MIN
-        #             1: [10, 250], # HII_EFF_FACTOR
-        #             },
-        #         params = {
-        #             0: [0, 80], # brightness_temp
-        #             }
-        #         ),
 
         self.load_h5()
         if rescale:
@@ -102,14 +92,6 @@ class Dataset4h5(Dataset):
             print(f"{max_num_image} images of shape {field_shape} can be loaded with different params.keys {self.params_keys}")
             #print(f"params keys = {self.params_keys}")
 
-        # if self.idx is None:
-        #     if self.shuffle:
-        #         self.idx = np.sort(random.sample(range(max_num_image), self.num_image))
-        #         print(f"loading {self.num_image} images randomly")
-        #         # print(self.idx)
-        #     else:
-        #         self.idx = range(self.num_image)
-        #         print(f"loading {len(self.idx)} images with idx = {self.idx}")
         if self.idx == "random":
             self.idx = np.sort(random.sample(range(max_num_image), self.num_image))
             print(f"loading {self.num_image} images randomly with idx = {self.idx[:5]}...{self.idx[-5:]}")
@@ -123,23 +105,31 @@ class Dataset4h5(Dataset):
         else:
             print(f"loading {len(self.idx)} images with idx = {self.idx}")
 
-        concurrent_start = time()
-        self.images = []
-        self.params = []
+        self.params = np.empty((self.num_image, len(self.params_keys)), dtype=np.float32) 
+        if self.dim == 2:
+            self.images = np.empty((self.num_image, 1, self.HII_DIM, self.num_redshift), dtype=np.float32)
+        elif self.dim == 3:
+            self.images = np.empty((self.num_image, 1, self.HII_DIM, self.HII_DIM, self.num_redshift), dtype=np.float32)
         # self.num_workers = len(os.sched_getaffinity(0))//torch.cuda.device_count()
+        concurrent_init_start = time()
         with concurrent.futures.ProcessPoolExecutor(max_workers=self.num_workers) as executor:
-            print(f" {socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}, concurrently loading by {self.num_workers} workers ".center(120, '-'))
-            futures = []
-            for idx in np.array_split(self.idx, self.num_workers):
-                futures.append(executor.submit(self.read_data_chunk, self.dir_name, idx, torch.cuda.current_device()))
+            concurrent_init_end = time()
+            print(f" {socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}, concurrently loading by {self.num_workers} workers, initialized after {concurrent_init_end-concurrent_init_start:.3f}s ".center(120, '-'))
+            futures = [None] * self.num_workers
+            for i, idx in enumerate(np.array_split(self.idx, self.num_workers)):
+                executor_start = time()
+                futures[i] = executor.submit(self.read_data_chunk, self.dir_name, idx, torch.cuda.current_device(), concurrent_init_end, executor_start)
+
+            concurrent_start = time()
+            start_idx = 0
             for future in concurrent.futures.as_completed(futures):
                 images, params = future.result()
-                self.images.append(images)
-                self.params.append(params)
-        self.images = np.concatenate(self.images, axis=0)
-        self.params = np.concatenate(self.params, axis=0)
-        concurrent_end = time()
-        print(f" {socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}, images {self.images.shape} & params {self.params.shape} concurrently loaded after {concurrent_end-concurrent_start:.3f}s ".center(120, '-'))
+                batch_size = params.shape[0]        
+                self.images[start_idx:start_idx+batch_size] = images
+                self.params[start_idx:start_idx+batch_size] = params
+                start_idx += batch_size
+            concurrent_end = time()
+            print(f" {socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}, {start_idx} images {self.images.shape} & params {self.params.shape} loaded after {concurrent_start-concurrent_init_start:.3f}/{concurrent_end-concurrent_start:.3f}s ".center(120, '-'))
 
         transform_start = time()
         if self.transform:
@@ -148,12 +138,14 @@ class Dataset4h5(Dataset):
         transform_end = time()
         print(f"images transformed after {transform_end-transform_start:.3f}s")
 
-    def read_data_chunk(self, f, idx, device):
+    def read_data_chunk(self, f, idx, device, concurrent_init_end, executor_start):
         # process = psutil.Process(pid)
         # cpu_affinity = process.cpu_affinity()
         # cpu_num = psutil.Process().cpu_num()
         # print(f"cpu_num = {cpu_num}")#, cpu_affinity = {cpu_affinity}")
+        set_device = time()
         torch.cuda.set_device(device)
+        open_h5py = time()
         with h5py.File(self.dir_name, 'r') as f:
             images_start = time()
             if self.dim == 2:
@@ -162,14 +154,13 @@ class Dataset4h5(Dataset):
             elif self.dim == 3:
                 images = f[self.field][idx, :self.HII_DIM, :self.HII_DIM, self.startat:self.startat+self.num_redshift][:,None]
             images_end = time()
-            # print(f"pid {pid}: images of shape {images.shape} loaded after {load_end-load_start:.3f} s")
             pid = os.getpid()
             cpu_num = psutil.Process(pid).cpu_num()
 
             param_start = time()
             params = f['params']['values'][idx]
             param_end = time()
-            print(f"{socket.gethostbyname(socket.gethostname())}, cuda:{torch.cuda.current_device()}, CPU-pid {cpu_num}-{pid}: images {images.shape} & params {params.shape} loaded after {images_end-images_start:.3f}s & {param_end-param_start:.3f}s")
+            print(f"{socket.gethostbyname(socket.gethostname())}, cuda:{torch.cuda.current_device()}, CPU-pid {cpu_num}-{pid}: images {images.shape} & params {params.shape} loaded after {executor_start-concurrent_init_end:.3f}/{set_device-executor_start:.3f}/{open_h5py-set_device:.3f}/{images_start-open_h5py:.3f}s + {images_end-images_start:.3f}s & {param_end-param_start:.3f}s")
 
         return images, params
 

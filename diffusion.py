@@ -267,7 +267,7 @@ class TrainConfig:
     # dim = 2
     dim = 3#2
     stride = (2,4) if dim == 2 else (2,2,2)
-    num_image = 320#6400#3000#480#1200#120#3000#300#3000#6000#30#60#6000#1000#2000#20000#15000#7000#25600#3000#10000#1000#10000#5000#2560#800#2560
+    num_image = 3200#640#320#6400#3000#480#1200#120#3000#300#3000#6000#30#60#6000#1000#2000#20000#15000#7000#25600#3000#10000#1000#10000#5000#2560#800#2560
     batch_size = 1#1#10#50#10#50#20#50#1#2#50#20#2#100 # 10
     n_epoch = 30#50#20#1#50#10#1#50#1#50#5#50#5#50#100#50#100#30#120#5#4# 10#50#20#20#2#5#25 # 120
     HII_DIM = 64
@@ -407,9 +407,9 @@ class DDPM21CM:
             # print(f"resumed nn_model from {config.resume}")
             self.nn_model.module.load_state_dict(torch.load(config.resume)['unet_state_dict'])
             self.nn_model.module.to(config.dtype)
-            print(f"{config.run_name} {socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} resumed nn_model from {config.resume} with {sum(x.numel() for x in self.nn_model.parameters())} parameters".center(120,'-'))
+            print(f" {config.run_name} {socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} resumed nn_model from {config.resume} with {sum(x.numel() for x in self.nn_model.parameters())} parameters ".center(120,'+'))
         else:
-            print(f"{config.run_name} {socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} initialized nn_model randomly with {sum(x.numel() for x in self.nn_model.parameters())} parameters".center(120,'-'))
+            print(f" {config.run_name} {socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} initialized nn_model randomly with {sum(x.numel() for x in self.nn_model.parameters())} parameters ".center(120,'+'))
 
         # self.number_of_params = sum(x.numel() for x in self.nn_model.parameters())
         # print(f" Number of parameters for nn_model: {self.number_of_params} ".center(120,'-'))
@@ -448,7 +448,7 @@ class DDPM21CM:
             drop_prob=self.config.drop_prob, 
             dim=self.config.dim,
             ranges_dict=self.ranges_dict,
-            num_workers=len(os.sched_getaffinity(0))//self.config.world_size,
+            num_workers=8,#len(os.sched_getaffinity(0))//self.config.world_size,
             )
         # self.shape_loaded = dataset.images.shape
         # print("shape_loaded =", self.shape_loaded)

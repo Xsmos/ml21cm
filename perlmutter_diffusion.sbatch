@@ -3,9 +3,9 @@
 #SBATCH -J diffusers
 #SBATCH -C gpu
 #SBATCH -q debug
-#SBATCH -N2 
+#SBATCH -N1 
 #SBATCH --gpus-per-node=4
-#SBATCH -t 0:20:00
+#SBATCH -t 0:10:00
 #SBATCH --ntasks-per-node=1
 #SBATCH -oReport-%j 
 #SBATCH --mail-type=BEGIN,END,FAIL

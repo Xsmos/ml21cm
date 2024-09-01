@@ -267,7 +267,7 @@ class TrainConfig:
     # dim = 2
     dim = 3#2
     stride = (2,4) if dim == 2 else (2,2,2)
-    num_image = 3200#640#320#6400#3000#480#1200#120#3000#300#3000#6000#30#60#6000#1000#2000#20000#15000#7000#25600#3000#10000#1000#10000#5000#2560#800#2560
+    num_image = 320#0#640#320#6400#3000#480#1200#120#3000#300#3000#6000#30#60#6000#1000#2000#20000#15000#7000#25600#3000#10000#1000#10000#5000#2560#800#2560
     batch_size = 1#1#10#50#10#50#20#50#1#2#50#20#2#100 # 10
     n_epoch = 30#50#20#1#50#10#1#50#1#50#5#50#5#50#100#50#100#30#120#5#4# 10#50#20#20#2#5#25 # 120
     HII_DIM = 64
@@ -318,6 +318,7 @@ class TrainConfig:
     mixed_precision = "fp16"
     gradient_accumulation_steps = 1
 
+    pbar_update_step = 20 
     # date = datetime.datetime.now().strftime("%m%d-%H%M")
     # run_name = f'{date}' # the unique name of each experiment
 
@@ -515,7 +516,7 @@ class DDPM21CM:
             self.ddpm.train()
             # self.dataloader.sampler.set_epoch(ep)
 
-            pbar_train = tqdm(total=len(self.dataloader), disable=not self.accelerator.is_local_main_process, file=sys.stderr)
+            pbar_train = tqdm(total=len(self.dataloader), file=sys.stderr, disable=self.config.global_rank!=0)#, mininterval=self.config.pbar_update_step)#, disable=True)#not self.accelerator.is_local_main_process)
             pbar_train.set_description(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} Epoch {ep}")
             for i, (x, c) in enumerate(self.dataloader):
                 # print(f"cuda:{torch.cuda.current_device()}, x[:,0,:2,0,0] =", x[:,0,:2,0,0])
@@ -547,7 +548,9 @@ class DDPM21CM:
                 if self.config.ema:
                     self.ema.step_ema(self.ema_model, self.nn_model)
 
-                pbar_train.update(1)
+                #if (i+1) % self.config.pbar_update_step == 0:
+                pbar_train.update(1)#self.config.pbar_update_step)
+
                 logs = dict(
                     loss=loss.detach().item(),
                     lr=self.optimizer.param_groups[0]['lr'],
@@ -761,7 +764,7 @@ if __name__ == "__main__":
     ############################ training ################################
     if args.train:
         config.dataset_name = args.train
-        print(f" training, ip_addr = {socket.gethostbyname(socket.gethostname())}, master_addr = {master_addr}, local_world_size = {local_world_size}, world_size = {world_size} ".center(120,'-'))
+        print(f" training, ip_addr = {socket.gethostbyname(socket.gethostname())}, master_addr = {master_addr}, local_world_size = {local_world_size}, world_size = {world_size} ".center(120,'#'))
         mp.spawn(
                 train, 
                 args=(world_size, local_world_size, master_addr, master_port, config), 

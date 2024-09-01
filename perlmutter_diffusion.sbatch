@@ -35,4 +35,4 @@ srun python diffusion.py \
     --max_num_img_per_gpu 2 \
     --gradient_accumulation_steps 30 \
     #--resume outputs/model-N2000-device_count1-node8-epoch19-19004529 \
-######################################################################################
+    

@@ -516,7 +516,7 @@ class DDPM21CM:
             self.ddpm.train()
             # self.dataloader.sampler.set_epoch(ep)
 
-            pbar_train = tqdm(total=len(self.dataloader), file=sys.stderr, disable=self.config.global_rank!=0)#, mininterval=self.config.pbar_update_step)#, disable=True)#not self.accelerator.is_local_main_process)
+            pbar_train = tqdm(total=len(self.dataloader), file=sys.stderr)#, disable=self.config.global_rank!=0)#, mininterval=self.config.pbar_update_step)#, disable=True)#not self.accelerator.is_local_main_process)
             pbar_train.set_description(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} Epoch {ep}")
             for i, (x, c) in enumerate(self.dataloader):
                 # print(f"cuda:{torch.cuda.current_device()}, x[:,0,:2,0,0] =", x[:,0,:2,0,0])

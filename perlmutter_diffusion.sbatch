@@ -3,8 +3,8 @@
 #SBATCH -J diffusers
 #SBATCH -C gpu
 #SBATCH -q debug
-#SBATCH -N1 
-#SBATCH --gpus-per-node=4
+#SBATCH -N2 
+#SBATCH --gpus-per-node=1
 #SBATCH -t 0:10:00
 #SBATCH --ntasks-per-node=1
 #SBATCH -oReport-%j 
@@ -22,7 +22,7 @@ srun python -c "import torch; print(torch.cuda.is_available(), torch.cuda.device
 cat $0
 
 MASTER_ADDR=$(scontrol show hostnames $SLURM_JOB_NODELIST | head -n 1)
-MASTER_PORT=$((10000 + RANDOM % 10000)) #12355
+MASTER_PORT=12355 #$((10000 + RANDOM % 10000)) #12355
 
 export OMP_NUM_THREADS=1
 export MASTER_ADDR=$MASTER_ADDR

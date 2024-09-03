@@ -449,7 +449,7 @@ class DDPM21CM:
             drop_prob=self.config.drop_prob, 
             dim=self.config.dim,
             ranges_dict=self.ranges_dict,
-            num_workers=8,#len(os.sched_getaffinity(0))//self.config.world_size,
+            num_workers=min(8,len(os.sched_getaffinity(0))//self.config.world_size),
             )
         # self.shape_loaded = dataset.images.shape
         # print("shape_loaded =", self.shape_loaded)

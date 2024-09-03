@@ -69,7 +69,7 @@ class Dataset4h5(Dataset):
             self.params = self.rescale(self.params, ranges=ranges_dict['params'], to=[0,1])
             rescale_end = time()
             # print(f"rescaling costs {rescale_end-rescale_start:.3f} s")
-            print(f"images & params rescaled to [{self.images.min()}, {self.images.max()}] & [{self.params.min()}, {self.params.max()}] after {rescale_end-rescale_start:.3f} s")
+            print(f"images & params rescaled to [{self.images.min()}, {self.images.max()}] & [{self.params.min()}, {self.params.max()}] after {rescale_end-rescale_start:.3f}s")
 
         # from_numpy_start = time()
         self.len = len(self.params)
@@ -114,7 +114,7 @@ class Dataset4h5(Dataset):
         concurrent_init_start = time()
         with concurrent.futures.ProcessPoolExecutor(max_workers=self.num_workers) as executor:
             concurrent_init_end = time()
-            print(f" {socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}, concurrently loading by {self.num_workers} workers, initialized after {concurrent_init_end-concurrent_init_start:.3f}s ".center(120, '-'))
+            print(f" {socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}, concurrently loading by {self.num_workers}/{len(os.sched_getaffinity(0))} workers, initialized after {concurrent_init_end-concurrent_init_start:.3f}s ".center(120, '-'))
             futures = [None] * self.num_workers
             for i, idx in enumerate(np.array_split(self.idx, self.num_workers)):
                 executor_start = time()

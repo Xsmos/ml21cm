@@ -22,9 +22,9 @@ srun python -c "import torch; print(torch.cuda.is_available(), torch.cuda.device
 cat $0
 
 MASTER_ADDR=$(scontrol show hostnames $SLURM_JOB_NODELIST | head -n 1)
-MASTER_PORT=12355 #$((10000 + RANDOM % 10000)) #12355
+MASTER_PORT=$((10000 + RANDOM % 10000)) #12355
 
-export OMP_NUM_THREADS=1
+#export OMP_NUM_THREADS=1
 export MASTER_ADDR=$MASTER_ADDR
 export MASTER_PORT=$MASTER_PORT
 #export SLURM_CPU_BIND="cores"

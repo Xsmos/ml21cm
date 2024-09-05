@@ -56,6 +56,8 @@ import datetime
 from pathlib import Path
 #from diffusers.optimization import get_cosine_schedule_with_warmup
 from accelerate import notebook_launcher, Accelerator
+import accelerate
+#print("accelerate:", accelerate.__version__, accelerate.__path__)#, accelerate.__file__)
 from huggingface_hub import create_repo, upload_folder
 
 from load_h5 import Dataset4h5
@@ -73,6 +75,7 @@ import argparse
 import socket
 import sys
 from datetime import timedelta
+from time import time
 
 # %%
 def ddp_setup(rank: int, world_size: int, master_addr, master_port):
@@ -264,10 +267,10 @@ class TrainConfig:
     world_size = 1#torch.cuda.device_count()
     # repeat = 2
 
-    # dim = 2
-    dim = 3#2
-    stride = (2,4) if dim == 2 else (2,2,2)
-    num_image = 320#0#640#320#6400#3000#480#1200#120#3000#300#3000#6000#30#60#6000#1000#2000#20000#15000#7000#25600#3000#10000#1000#10000#5000#2560#800#2560
+    dim = 2
+    #dim = 3#2
+    stride = (2,2) if dim == 2 else (2,2,2)
+    num_image = 32#0#0#640#320#6400#3000#480#1200#120#3000#300#3000#6000#30#60#6000#1000#2000#20000#15000#7000#25600#3000#10000#1000#10000#5000#2560#800#2560
     batch_size = 1#1#10#50#10#50#20#50#1#2#50#20#2#100 # 10
     n_epoch = 30#50#20#1#50#10#1#50#1#50#5#50#5#50#100#50#100#30#120#5#4# 10#50#20#20#2#5#25 # 120
     HII_DIM = 64
@@ -449,11 +452,12 @@ class DDPM21CM:
             drop_prob=self.config.drop_prob, 
             dim=self.config.dim,
             ranges_dict=self.ranges_dict,
-            num_workers=min(8,len(os.sched_getaffinity(0))//self.config.world_size),
+            num_workers=4,#min(8,len(os.sched_getaffinity(0))//self.config.world_size),
             )
         # self.shape_loaded = dataset.images.shape
         # print("shape_loaded =", self.shape_loaded)
         # print(f"load, current_device() = {torch.cuda.current_device()}")
+        dataloader_start = time()
         self.dataloader = DataLoader(
             dataset=dataset, 
             batch_size=self.config.batch_size, 
@@ -463,6 +467,8 @@ class DDPM21CM:
             persistent_workers=True,
             # sampler=DistributedSampler(dataset),
             )
+        dataloader_end = time()
+        print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} dataloader costs {dataloader_end-dataloader_start:.3f}s")
 
         del dataset
         # self.accelerate(self.config)
@@ -498,10 +504,27 @@ class DDPM21CM:
 
 
         # print("!!!!!!!!!!!!!!!!, before prepare, self.dataloader.sampler =", self.dataloader.sampler)
-        self.nn_model, self.optimizer, self.dataloader, self.lr_scheduler = \
-            self.accelerator.prepare(
-            self.nn_model, self.optimizer, self.dataloader, self.lr_scheduler
-            )
+        #model_start = time()
+        #print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} model: {self.nn_model.device}", f"{time()-model_start:.3f}s")
+        #print(f"optimizer: {self.optimizer.state_dict()}")
+        #dataloader_start = time()
+        #print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} dataloader: {next(iter(self.dataloader))[0].device}", f"{time()-dataloader_start:.3f}s")
+        #lr_start = time()
+        #print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} lr_scheduler: {self.lr_scheduler.optimizer is self.optimizer}", f"{time()-lr_start:.3f}s")
+        #print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} print costs {print_end-print_start:.3f}s")
+
+        print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank}")
+        acc_prep_start = time()
+        #self.nn_model, self.optimizer, self.dataloader, self.lr_scheduler = \
+        #    self.accelerator.prepare(
+        #    self.nn_model, self.optimizer, self.dataloader, self.lr_scheduler
+        #    )
+        self.nn_model = self.accelerator.prepare(self.nn_model)
+        self.optimizer = self.accelerator.prepare(self.optimizer)
+        self.dataloader = self.accelerator.prepare(self.dataloader)
+        self.lr_scheduler = self.accelerator.prepare(self.lr_scheduler)
+        acc_prep_end = time()
+        print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} accelerate.prepare cost {acc_prep_end-acc_prep_start:.3f}s")
         # self.nn_model, self.optimizer, self.lr_scheduler = \
         #     self.accelerator.prepare(
         #     self.nn_model, self.optimizer, self.lr_scheduler
@@ -510,15 +533,20 @@ class DDPM21CM:
         # print("!!!!!!!!!!!!!!!!, after prepare, self.dataloader.sampler =", self.dataloader.sampler)
         # print("!!!!!!!!!!!!!!!!, after prepare, self.dataloader.batch_sampler =", self.dataloader.batch_sampler)
         # print("!!!!!!!!!!!!!!!!, after prepare, self.dataloader.DistributedSampler =", self.dataloader.DistributedSampler)
-
+        #train_start = time()
         global_step = 0
         for ep in range(self.config.n_epoch):
             self.ddpm.train()
             # self.dataloader.sampler.set_epoch(ep)
-
             pbar_train = tqdm(total=len(self.dataloader), file=sys.stderr)#, disable=self.config.global_rank!=0)#, mininterval=self.config.pbar_update_step)#, disable=True)#not self.accelerator.is_local_main_process)
             pbar_train.set_description(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} Epoch {ep}")
+            #train_end = time()
+            #print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} ddpm.train costs {train_end-train_start:.3f}s")
             for i, (x, c) in enumerate(self.dataloader):
+                #if i == 0:
+                #    train_end = time()
+                #    print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} ddpm.train costs {train_end-train_start:.3f}s")
+
                 # print(f"cuda:{torch.cuda.current_device()}, x[:,0,:2,0,0] =", x[:,0,:2,0,0])
                 with self.accelerator.accumulate(self.nn_model):
                     x = x.to(self.config.device)

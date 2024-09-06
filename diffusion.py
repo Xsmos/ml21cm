@@ -317,8 +317,8 @@ class TrainConfig:
     # data_dir = './data' # data directory
 
     #use_fp16 = True 
-    dtype = torch.float16 #if use_fp16 else torch.float32
-    mixed_precision = "fp16"
+    dtype = torch.float32 #if use_fp16 else torch.float32
+    mixed_precision = "no" #"fp16"
     gradient_accumulation_steps = 1
 
     pbar_update_step = 20 
@@ -500,8 +500,8 @@ class DDPM21CM:
                 self.repo_id = create_repo(
                     repo_id=self.config.hub_model_id or Path(self.config.output_dir).name, exist_ok=True
                 ).repo_id
-            self.accelerator.init_trackers(f"{self.config.run_name}")
-
+            #self.accelerator.init_trackers(f"{self.config.run_name}")
+            
 
         # print("!!!!!!!!!!!!!!!!, before prepare, self.dataloader.sampler =", self.dataloader.sampler)
         #model_start = time()
@@ -512,17 +512,22 @@ class DDPM21CM:
         #lr_start = time()
         #print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} lr_scheduler: {self.lr_scheduler.optimizer is self.optimizer}", f"{time()-lr_start:.3f}s")
         #print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} print costs {print_end-print_start:.3f}s")
+        if torch.distributed.is_initialized():
+            print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} torch.distributed.is_initialized")
+            torch.distributed.barrier()
+        else:
+            print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} torch.distributed.is_initialized False!!!!!!!!!!!!!!!") 
 
-        print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank}")
+        print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank}; nn_model.device = {self.nn_model.device}")
         acc_prep_start = time()
         #self.nn_model, self.optimizer, self.dataloader, self.lr_scheduler = \
         #    self.accelerator.prepare(
         #    self.nn_model, self.optimizer, self.dataloader, self.lr_scheduler
         #    )
-        self.nn_model = self.accelerator.prepare(self.nn_model)
-        self.optimizer = self.accelerator.prepare(self.optimizer)
-        self.dataloader = self.accelerator.prepare(self.dataloader)
-        self.lr_scheduler = self.accelerator.prepare(self.lr_scheduler)
+        #self.nn_model = self.accelerator.prepare(self.nn_model)
+        #self.optimizer = self.accelerator.prepare(self.optimizer)
+        #self.dataloader = self.accelerator.prepare(self.dataloader)
+        #self.lr_scheduler = self.accelerator.prepare(self.lr_scheduler)
         acc_prep_end = time()
         print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} accelerate.prepare cost {acc_prep_end-acc_prep_start:.3f}s")
         # self.nn_model, self.optimizer, self.lr_scheduler = \

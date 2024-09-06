@@ -55,8 +55,8 @@ from tqdm.auto import tqdm
 import datetime
 from pathlib import Path
 #from diffusers.optimization import get_cosine_schedule_with_warmup
-from accelerate import notebook_launcher, Accelerator
-import accelerate
+#from accelerate import notebook_launcher, Accelerator
+#import accelerate
 #print("accelerate:", accelerate.__version__, accelerate.__path__)#, accelerate.__file__)
 from huggingface_hub import create_repo, upload_folder
 
@@ -467,6 +467,9 @@ class DDPM21CM:
             persistent_workers=True,
             # sampler=DistributedSampler(dataset),
             )
+        if len(self.dataloader) % self.config.gradient_accumulation_steps != 0:
+            raise ValueError(f"len(self.dataloader) % self.config.gradient_accumulation_steps = {len(self.dataloader) % self.config.gradient_accumulation_steps} instead of 0")
+
         dataloader_end = time()
         print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} dataloader costs {dataloader_end-dataloader_start:.3f}s")
 
@@ -484,13 +487,13 @@ class DDPM21CM:
         # plot_unet = True
 
         self.load()
-        self.accelerator = Accelerator(
-            mixed_precision=self.config.mixed_precision,
-            gradient_accumulation_steps=self.config.gradient_accumulation_steps,
-            log_with="tensorboard",
-            project_dir=os.path.join(self.config.output_dir, "logs"),
+        #self.accelerator = Accelerator(
+        #    mixed_precision=self.config.mixed_precision,
+        #    gradient_accumulation_steps=self.config.gradient_accumulation_steps,
+        #    log_with="tensorboard",
+        #    project_dir=os.path.join(self.config.output_dir, "logs"),
             # distributed_type="MULTI_GPU",
-        )
+        #)
         # print("!!!!!!!!!!!!!!!!!!!self.accelerator.device:", self.accelerator.device)
         # if self.accelerator.is_main_process:
         if self.config.global_rank == 0: # or torch.cuda.current_device() == 0:
@@ -501,7 +504,7 @@ class DDPM21CM:
                     repo_id=self.config.hub_model_id or Path(self.config.output_dir).name, exist_ok=True
                 ).repo_id
             #self.accelerator.init_trackers(f"{self.config.run_name}")
-            
+            self.config.logger = SummaryWriter(f"logs/{self.config.run_name}") 
 
         # print("!!!!!!!!!!!!!!!!, before prepare, self.dataloader.sampler =", self.dataloader.sampler)
         #model_start = time()
@@ -519,7 +522,7 @@ class DDPM21CM:
             print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} torch.distributed.is_initialized False!!!!!!!!!!!!!!!") 
 
         print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank}; nn_model.device = {self.nn_model.device}")
-        acc_prep_start = time()
+        #acc_prep_start = time()
         #self.nn_model, self.optimizer, self.dataloader, self.lr_scheduler = \
         #    self.accelerator.prepare(
         #    self.nn_model, self.optimizer, self.dataloader, self.lr_scheduler
@@ -528,8 +531,8 @@ class DDPM21CM:
         #self.optimizer = self.accelerator.prepare(self.optimizer)
         #self.dataloader = self.accelerator.prepare(self.dataloader)
         #self.lr_scheduler = self.accelerator.prepare(self.lr_scheduler)
-        acc_prep_end = time()
-        print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} accelerate.prepare cost {acc_prep_end-acc_prep_start:.3f}s")
+        #acc_prep_end = time()
+        #print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} accelerate.prepare cost {acc_prep_end-acc_prep_start:.3f}s")
         # self.nn_model, self.optimizer, self.lr_scheduler = \
         #     self.accelerator.prepare(
         #     self.nn_model, self.optimizer, self.lr_scheduler
@@ -553,26 +556,30 @@ class DDPM21CM:
                 #    print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} ddpm.train costs {train_end-train_start:.3f}s")
 
                 # print(f"cuda:{torch.cuda.current_device()}, x[:,0,:2,0,0] =", x[:,0,:2,0,0])
-                with self.accelerator.accumulate(self.nn_model):
-                    x = x.to(self.config.device)
-                    # print("x = x.to(self.config.device), x.dtype =", x.dtype)
-                    x = x.to(self.config.dtype)
-                    # print("x = x.to(self.dtype), x.dtype =", x.dtype)
-                    # print(f"ddpm.add_noise(x), x.dtype = {x.dtype}") 
-                    xt, noise, ts = self.ddpm.add_noise(x)
-                    # print(f"ddpm.add_noise(x), xt.dtype = {xt.dtype}") 
-                    if self.config.guide_w == -1:
-                        noise_pred = self.nn_model(xt, ts).to(x.dtype)
-                    else:
-                        c = c.to(self.config.device)
-                        noise_pred = self.nn_model(xt, ts, c).to(x.dtype)
+                #with self.accelerator.accumulate(self.nn_model):
+                x = x.to(self.config.device)
+                # print("x = x.to(self.config.device), x.dtype =", x.dtype)
+                x = x.to(self.config.dtype)
+                # print("x = x.to(self.dtype), x.dtype =", x.dtype)
+                # print(f"ddpm.add_noise(x), x.dtype = {x.dtype}") 
+                xt, noise, ts = self.ddpm.add_noise(x)
+                # print(f"ddpm.add_noise(x), xt.dtype = {xt.dtype}") 
+                if self.config.guide_w == -1:
+                    noise_pred = self.nn_model(xt, ts).to(x.dtype)
+                else:
+                    c = c.to(self.config.device)
+                    noise_pred = self.nn_model(xt, ts, c).to(x.dtype)
 
                     # print("noise_pred = self.nn_model(xt, ts, c), noise_pred.dtype =", noise_pred.dtype, noise.dtype)
                     
-                    loss = F.mse_loss(noise, noise_pred)
-                    #print(f"loss.dtype =", loss.dtype)
-                    self.accelerator.backward(loss)
-                    #self.accelerator.clip_grad_norm_(self.nn_model.parameters(), 1)
+                loss = F.mse_loss(noise, noise_pred)
+                loss = loss / self.config.gradient_accumulation_steps
+                loss.backward()
+                #print(f"loss.dtype =", loss.dtype)
+                #self.accelerator.backward(loss)
+                #self.accelerator.clip_grad_norm_(self.nn_model.parameters(), 1)
+                if (i+i) % self.config.gradient_accumulation_steps == 0:
+                    torch.nn.utils.clip_grad_norm_(self.nn_model.parameters(), max_norm=1.0)
                     self.optimizer.step()
                     self.lr_scheduler.step()
                     self.optimizer.zero_grad()
@@ -591,8 +598,19 @@ class DDPM21CM:
                 )
                 pbar_train.set_postfix(**logs)
 
-                self.accelerator.log(logs, step=global_step)
+                #self.accelerator.log(logs, step=global_step)
+                if self.config.global_rank == 0:
+                    self.config.logger.add_scalar("MSE", logs["loss"], global_step = global_step)
+                    self.config.logger.add_scalar("learning_rate", logs["lr"], global_step = global_step)
                 global_step += 1
+
+            if (i+1) % self.config.gradient_accumulation_steps != 0:
+                print(f"(i+1)%self.config.gradient_accumulation_steps = {(i+1)%self.config.gradient_accumulation_steps}, i = {i}, scg = {self.config.gradient_accumulation_steps}".center(120,'-'))
+                torch.nn.utils.clip_grad_norm_(self.nn_model.parameters(), max_norm=1.0)
+                self.optimizer.step()
+                self.lr_scheduler.step()
+                self.optimizer.zero_grad()
+
 
             # if ep == config.n_epoch-1 or (ep+1)*config.save_period==1:
             self.save(ep)

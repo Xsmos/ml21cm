@@ -38,6 +38,6 @@ srun python diffusion.py \
     --train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
     --num_new_img_per_gpu 50 \
     --max_num_img_per_gpu 2 \
-    --gradient_accumulation_steps 30 \
+    --gradient_accumulation_steps 8 \
     #--resume outputs/model-N2000-device_count1-node8-epoch19-19004529 \
     

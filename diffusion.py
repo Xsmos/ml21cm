@@ -452,7 +452,7 @@ class DDPM21CM:
             drop_prob=self.config.drop_prob, 
             dim=self.config.dim,
             ranges_dict=self.ranges_dict,
-            num_workers=4,#min(8,len(os.sched_getaffinity(0))//self.config.world_size),
+            num_workers=min(8,len(os.sched_getaffinity(0))//self.config.world_size),
             )
         # self.shape_loaded = dataset.images.shape
         # print("shape_loaded =", self.shape_loaded)
@@ -516,12 +516,12 @@ class DDPM21CM:
         #print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} lr_scheduler: {self.lr_scheduler.optimizer is self.optimizer}", f"{time()-lr_start:.3f}s")
         #print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} print costs {print_end-print_start:.3f}s")
         if torch.distributed.is_initialized():
-            print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} torch.distributed.is_initialized")
+            #print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} torch.distributed.is_initialized")
             torch.distributed.barrier()
         else:
             print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} torch.distributed.is_initialized False!!!!!!!!!!!!!!!") 
 
-        print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank}; nn_model.device = {self.nn_model.device}")
+        #print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank}; nn_model.device = {self.nn_model.device}")
         #acc_prep_start = time()
         #self.nn_model, self.optimizer, self.dataloader, self.lr_scheduler = \
         #    self.accelerator.prepare(
@@ -702,18 +702,18 @@ class DDPM21CM:
         # nn_model.train()
         # self.nn_model.to(self.ddpm.device)
 
-        self.accelerator = Accelerator(
-            mixed_precision=self.config.mixed_precision,
-            gradient_accumulation_steps=self.config.gradient_accumulation_steps,
-            log_with="tensorboard",
-            project_dir=os.path.join(self.config.output_dir, "logs"),
-            # distributed_type="MULTI_GPU",
-        )
+        #self.accelerator = Accelerator(
+        #    mixed_precision=self.config.mixed_precision,
+        #    gradient_accumulation_steps=self.config.gradient_accumulation_steps,
+        #    log_with="tensorboard",
+        #    project_dir=os.path.join(self.config.output_dir, "logs"),
+        #    # distributed_type="MULTI_GPU",
+        #)
 
-        self.nn_model, self.optimizer, self.lr_scheduler = \
-            self.accelerator.prepare(
-                self.nn_model, self.optimizer, self.lr_scheduler
-                )
+        #self.nn_model, self.optimizer, self.lr_scheduler = \
+        #    self.accelerator.prepare(
+        #        self.nn_model, self.optimizer, self.lr_scheduler
+        #        )
 
         self.nn_model.eval()
 
@@ -801,6 +801,8 @@ if __name__ == "__main__":
     parser.add_argument("--num_new_img_per_gpu", type=int, required=False, default=4)
     parser.add_argument("--max_num_img_per_gpu", type=int, required=False, default=2)
     parser.add_argument("--gradient_accumulation_steps", type=int, required=False, default=1) # as tested, higher value leads to slower training and higher loss in the end
+    parser.add_argument("--num_image", type=int, required=False, default=32)
+    parser.add_argument("--batch_size", type=int, required=False, default=2)
 
     args = parser.parse_args()
 
@@ -812,6 +814,8 @@ if __name__ == "__main__":
 
     config = TrainConfig()
     config.gradient_accumulation_steps = args.gradient_accumulation_steps
+    config.num_image = args.num_image
+    config.batch_size = args.batch_size
     ############################ training ################################
     if args.train:
         config.dataset_name = args.train

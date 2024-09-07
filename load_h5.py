@@ -43,7 +43,7 @@ class Dataset4h5(Dataset):
         dim=2, 
         transform=True, 
         ranges_dict=None, 
-        num_workers=len(os.sched_getaffinity(0))//torch.cuda.device_count(),
+        num_workers=1,#len(os.sched_getaffinity(0))//torch.cuda.device_count(),
         startat=0,
         # shuffle=False,
         ):

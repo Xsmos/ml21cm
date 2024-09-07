@@ -272,7 +272,7 @@ class TrainConfig:
     stride = (2,2) if dim == 2 else (2,2,2)
     num_image = 32#0#0#640#320#6400#3000#480#1200#120#3000#300#3000#6000#30#60#6000#1000#2000#20000#15000#7000#25600#3000#10000#1000#10000#5000#2560#800#2560
     batch_size = 1#1#10#50#10#50#20#50#1#2#50#20#2#100 # 10
-    n_epoch = 30#50#20#1#50#10#1#50#1#50#5#50#5#50#100#50#100#30#120#5#4# 10#50#20#20#2#5#25 # 120
+    n_epoch = 100#30#50#20#1#50#10#1#50#1#50#5#50#5#50#100#50#100#30#120#5#4# 10#50#20#20#2#5#25 # 120
     HII_DIM = 64
     num_redshift = 64#256#512#256#512#256#512#256#512#64#512#64#512#64#256CUDAoom#128#64#512#128#64#512#256#256#64#512#128
     startat = 512-num_redshift
@@ -802,6 +802,7 @@ if __name__ == "__main__":
     parser.add_argument("--max_num_img_per_gpu", type=int, required=False, default=2)
     parser.add_argument("--gradient_accumulation_steps", type=int, required=False, default=1) # as tested, higher value leads to slower training and higher loss in the end
     parser.add_argument("--num_image", type=int, required=False, default=32)
+    parser.add_argument("--n_epoch", type=int, required=False, default=50)
     parser.add_argument("--batch_size", type=int, required=False, default=2)
 
     args = parser.parse_args()
@@ -815,6 +816,7 @@ if __name__ == "__main__":
     config = TrainConfig()
     config.gradient_accumulation_steps = args.gradient_accumulation_steps
     config.num_image = args.num_image
+    config.n_epoch = args.n_epoch
     config.batch_size = args.batch_size
     ############################ training ################################
     if args.train:
@@ -844,8 +846,8 @@ if __name__ == "__main__":
             (4.4, 131.341),
             (5.6, 19.037),
             (4.699, 30),
-            (5.477, 200),
-            (4.8, 131.341),
+            #(5.477, 200),
+            #(4.8, 131.341),
         ]
 
         for params in params_pairs:

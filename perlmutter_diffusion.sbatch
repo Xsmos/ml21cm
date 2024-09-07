@@ -2,9 +2,9 @@
 #SBATCH -A m4717 
 #SBATCH -J diffusion
 #SBATCH -C gpu
-#SBATCH -q shared #regular
-#SBATCH -N1 
-#SBATCH --gpus-per-node=1
+#SBATCH -q regular #shared 
+#SBATCH -N4 
+#SBATCH --gpus-per-node=4
 #SBATCH -t 0:50:00
 #SBATCH --ntasks-per-node=1
 #SBATCH -oReport-%j 
@@ -35,13 +35,13 @@ export MASTER_PORT=$MASTER_PORT
 cat $0
 
 srun python diffusion.py \
-    --resume outputs/model-N3200-device_count1-node1-epoch99-06161732 \
+    --train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
     --num_image 3200 \
     --batch_size 32 \
     --n_epoch 100 \
     --gradient_accumulation_steps 1 \
     --num_new_img_per_gpu 320 \
     --max_num_img_per_gpu 32 \
-    #--train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
+    #--resume outputs/model-N3200-device_count4-node1-epoch99-06224158 \
 
 date

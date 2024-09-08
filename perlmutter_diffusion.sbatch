@@ -2,9 +2,9 @@
 #SBATCH -A m4717 
 #SBATCH -J diffusion
 #SBATCH -C gpu
-#SBATCH -q regular #shared 
-#SBATCH -N4 
-#SBATCH --gpus-per-node=4
+#SBATCH -q shared #regular 
+#SBATCH -N1 
+#SBATCH --gpus-per-node=1
 #SBATCH -t 0:50:00
 #SBATCH --ntasks-per-node=1
 #SBATCH -oReport-%j 
@@ -39,9 +39,9 @@ srun python diffusion.py \
     --num_image 3200 \
     --batch_size 32 \
     --n_epoch 100 \
-    --gradient_accumulation_steps 1 \
-    --num_new_img_per_gpu 320 \
-    --max_num_img_per_gpu 32 \
-    #--resume outputs/model-N3200-device_count4-node1-epoch99-06224158 \
+    --gradient_accumulation_steps 10 \
+    --num_new_img_per_gpu 800 \
+    --max_num_img_per_gpu 80 \
+    #--resume outputs/model-N3200-device_count4-node4-epoch99-07140940 \
 
 date

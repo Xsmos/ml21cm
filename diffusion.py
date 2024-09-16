@@ -429,10 +429,6 @@ class DDPM21CM:
                 self.ema_model = copy.deepcopy(self.nn_model).eval().requires_grad_(False)
 
         self.optimizer = torch.optim.AdamW(self.nn_model.parameters(), lr=config.lrate)
-        #self.lr_scheduler = get_cosine_schedule_with_warmup(
-        #    optimizer=self.optimizer,
-        #    num_training_steps=int(config.num_image / config.batch_size * config.n_epoch / config.gradient_accumulation_steps),
-        #)
         self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
                 optimizer = self.optimizer,
                 T_max = int(config.num_image / config.batch_size * config.n_epoch / config.gradient_accumulation_steps),
@@ -569,16 +565,12 @@ class DDPM21CM:
                 else:
                     c = c.to(self.config.device)
                     noise_pred = self.nn_model(xt, ts, c).to(x.dtype)
-
-                    # print("noise_pred = self.nn_model(xt, ts, c), noise_pred.dtype =", noise_pred.dtype, noise.dtype)
                     
                 loss = F.mse_loss(noise, noise_pred)
                 loss = loss / self.config.gradient_accumulation_steps
                 loss.backward()
-                #print(f"loss.dtype =", loss.dtype)
-                #self.accelerator.backward(loss)
-                #self.accelerator.clip_grad_norm_(self.nn_model.parameters(), 1)
-                if (i+i) % self.config.gradient_accumulation_steps == 0:
+
+                if (i+1) % self.config.gradient_accumulation_steps == 0:
                     torch.nn.utils.clip_grad_norm_(self.nn_model.parameters(), max_norm=1.0)
                     self.optimizer.step()
                     self.lr_scheduler.step()

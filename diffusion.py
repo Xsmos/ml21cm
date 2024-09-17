@@ -77,6 +77,8 @@ import sys
 from datetime import timedelta
 from time import time
 
+from torch.cuda.amp import autocast, GradScaler
+
 # %%
 def ddp_setup(rank: int, world_size: int, master_addr, master_port):
     """
@@ -318,7 +320,7 @@ class TrainConfig:
 
     #use_fp16 = True 
     dtype = torch.float32 #if use_fp16 else torch.float32
-    mixed_precision = "no" #"fp16"
+    #mixed_precision = "no" #"fp16"
     gradient_accumulation_steps = 1
 
     pbar_update_step = 20 
@@ -435,6 +437,7 @@ class DDPM21CM:
                 )
 
         self.ranges_dict = config.ranges_dict
+        self.scaler = GradScaler()
 
     def load(self):
         # rank = torch.cuda.current_device()
@@ -553,27 +556,36 @@ class DDPM21CM:
 
                 # print(f"cuda:{torch.cuda.current_device()}, x[:,0,:2,0,0] =", x[:,0,:2,0,0])
                 #with self.accelerator.accumulate(self.nn_model):
-                x = x.to(self.config.device)
+                x = x.to(self.config.device).to(self.config.dtype)
                 # print("x = x.to(self.config.device), x.dtype =", x.dtype)
-                x = x.to(self.config.dtype)
                 # print("x = x.to(self.dtype), x.dtype =", x.dtype)
                 # print(f"ddpm.add_noise(x), x.dtype = {x.dtype}") 
-                xt, noise, ts = self.ddpm.add_noise(x)
                 # print(f"ddpm.add_noise(x), xt.dtype = {xt.dtype}") 
-                if self.config.guide_w == -1:
-                    noise_pred = self.nn_model(xt, ts).to(x.dtype)
-                else:
-                    c = c.to(self.config.device)
-                    noise_pred = self.nn_model(xt, ts, c).to(x.dtype)
+                
+                # autocast forward propogation
+                with autocast():
+                    xt, noise, ts = self.ddpm.add_noise(x)
+
+                    if self.config.guide_w == -1:
+                        noise_pred = self.nn_model(xt, ts).to(x.dtype)
+                    else:
+                        c = c.to(self.config.device)
+                        noise_pred = self.nn_model(xt, ts, c).to(x.dtype)
                     
-                loss = F.mse_loss(noise, noise_pred)
-                loss = loss / self.config.gradient_accumulation_steps
-                loss.backward()
+                    loss = F.mse_loss(noise, noise_pred)
+                    loss = loss / self.config.gradient_accumulation_steps
+                
+                # scaler backward propogation
+                self.scaler.scale(loss).backward()
+                #loss.backward()
 
                 if (i+1) % self.config.gradient_accumulation_steps == 0:
+                    self.scaler.unscale_(self.optimizer)
                     torch.nn.utils.clip_grad_norm_(self.nn_model.parameters(), max_norm=1.0)
-                    self.optimizer.step()
+                    #self.optimizer.step()
+                    self.scaler.step(self.optimizer)
                     self.lr_scheduler.step()
+                    self.scaler.update()
                     self.optimizer.zero_grad()
 
                 # ema update
@@ -826,7 +838,7 @@ if __name__ == "__main__":
         max_num_img_per_gpu = args.max_num_img_per_gpu#40#2#20
         #config = TrainConfig()
         #config.world_size = world_size
-        config.dtype = torch.float32 
+        #config.dtype = torch.float32 
         config.resume = args.resume
         #config.gradient_accumulation_steps = args.gradient_accumulation_steps
         # config.resume = f"./outputs/model_state-N30-device_count3-epoch4-172.27.149.181"

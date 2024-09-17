@@ -119,9 +119,9 @@ def ddp_setup(rank: int, world_size: int, master_addr, master_port):
 
 # %%
 class DDPMScheduler(nn.Module):
-    def __init__(self, betas: tuple, num_timesteps: int, img_shape: list, device='cpu', dtype=torch.float16, config=None):
+    def __init__(self, betas: tuple, num_timesteps: int, img_shape: list, device='cpu', config=None):#, dtype=torch.float16,
         super().__init__()
-        self.dtype = dtype#torch.float16 if self.use_fp16 else torch.float32
+        #self.dtype = dtype#torch.float16 if self.use_fp16 else torch.float32
         
         beta_1, beta_T = betas
         assert 0 < beta_1 <= beta_T <= 1, "ensure 0 < beta_1 <= beta_T <= 1"
@@ -129,7 +129,7 @@ class DDPMScheduler(nn.Module):
         self.num_timesteps = num_timesteps
         self.img_shape = img_shape
         self.beta_t = torch.linspace(beta_1, beta_T, self.num_timesteps) #* (beta_T-beta_1) + beta_1
-        self.beta_t = self.beta_t.to(self.dtype)
+        #self.beta_t = self.beta_t.to(self.dtype)
         self.beta_t = self.beta_t.to(self.device)
 
         # self.drop_prob = drop_prob
@@ -162,7 +162,7 @@ class DDPMScheduler(nn.Module):
     def sample(self, nn_model, params, device, guide_w = 0):
         n_sample = len(params) #params.shape[0]
         # print("params.shape[0], len(params)", params.shape[0], len(params))
-        x_i = torch.randn(n_sample, *self.img_shape).to(self.dtype)
+        x_i = torch.randn(n_sample, *self.img_shape)#.to(self.dtype)
         x_i = x_i.to(device)
         #print(f"#1 x_i.device = {x_i.device}")
         # print("x_i.shape =", x_i.shape)
@@ -173,7 +173,7 @@ class DDPMScheduler(nn.Module):
             # uncond_tokens = torch.tensor(np.float32(np.array([0,0]))).to(device)
             # uncond_tokens = uncond_tokens.repeat(int(n_sample),1)
             #c_i = torch.cat((c_i, uncond_tokens), 0)
-            c_i = c_i.to(self.dtype)
+            #c_i = c_i.to(self.dtype)
 
         x_i_entire = [] # keep track of generated steps in case want to plot something
         # print("self.num_timesteps =", self.num_timesteps)
@@ -185,14 +185,14 @@ class DDPMScheduler(nn.Module):
             # print(f'sampling timestep {i:4d}',end='\r')
             t_is = torch.tensor([i]).to(device)
             t_is = t_is.repeat(n_sample)
-            t_is = t_is.to(self.dtype)
+            #t_is = t_is.to(self.dtype)
 
             z = torch.randn(n_sample, *self.img_shape).to(device) if i > 0 else torch.tensor(0.)
-            z = z.to(self.dtype)
+            #z = z.to(self.dtype)
 
             if guide_w == -1:
                 # eps = nn_model(x_i, t_is, return_dict=False)[0]
-                eps = nn_model(x_i, t_is).to(self.dtype)
+                eps = nn_model(x_i, t_is)#.to(self.dtype)
                 # x_i = 1/torch.sqrt(self.alpha_t[i])*(x_i-eps*self.beta_t[i]/torch.sqrt(1-self.bar_alpha_t[i])) + torch.sqrt(self.beta_t[i])*z
             else:
                 # double batch
@@ -203,7 +203,7 @@ class DDPMScheduler(nn.Module):
                 # split predictions and compute weighting
                 # print("nn_model input shape", x_i.shape, t_is.shape, c_i.shape)
                 #print(f"sample, i = {i}, x_i.dtype = {x_i.dtype}, c_i.dtype = {c_i.dtype}")
-                eps = nn_model(x_i, t_is, c_i).to(self.dtype)
+                eps = nn_model(x_i, t_is, c_i)#.to(self.dtype)
                 #eps1 = eps[:n_sample]
                 #eps2 = eps[n_sample:]
                 #eps = eps1 + guide_w*(eps1 - eps2)
@@ -319,7 +319,7 @@ class TrainConfig:
     # data_dir = './data' # data directory
 
     #use_fp16 = True 
-    dtype = torch.float32 #if use_fp16 else torch.float32
+    #dtype = torch.float32 #if use_fp16 else torch.float32
     #mixed_precision = "no" #"fp16"
     gradient_accumulation_steps = 1
 
@@ -391,11 +391,11 @@ class DDPM21CM:
         # self.dataloader = DataLoader(dataset, batch_size=config.batch_size, shuffle=True)
         # del dataset
         # print("self.ddpm = DDPMScheduler")
-        self.ddpm = DDPMScheduler(betas=(1e-4, 0.02), num_timesteps=config.num_timesteps, img_shape=config.img_shape, device=config.device, dtype=config.dtype, config=config,)
+        self.ddpm = DDPMScheduler(betas=(1e-4, 0.02), num_timesteps=config.num_timesteps, img_shape=config.img_shape, device=config.device, config=config,)#, dtype=config.dtype
 
         # print("self.nn_model = ContextUnet")
         # initialize the unet
-        self.nn_model = ContextUnet(n_param=config.n_param, image_size=config.HII_DIM, dim=config.dim, stride=config.stride, dtype=config.dtype)
+        self.nn_model = ContextUnet(n_param=config.n_param, image_size=config.HII_DIM, dim=config.dim, stride=config.stride)#, dtype=config.dtype)
 
         # print("self.nn_model.train()")
         # nn_model = ContextUnet(n_param=1, image_size=28)
@@ -412,7 +412,7 @@ class DDPM21CM:
             # self.nn_model.load_state_dict(torch.load(config.resume)['unet_state_dict'])
             # print(f"resumed nn_model from {config.resume}")
             self.nn_model.module.load_state_dict(torch.load(config.resume)['unet_state_dict'])
-            self.nn_model.module.to(config.dtype)
+            #self.nn_model.module.to(config.dtype)
             print(f" {config.run_name} {socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} resumed nn_model from {config.resume} with {sum(x.numel() for x in self.nn_model.parameters())} parameters ".center(120,'+'))
         else:
             print(f" {config.run_name} {socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} initialized nn_model randomly with {sum(x.numel() for x in self.nn_model.parameters())} parameters ".center(120,'+'))
@@ -424,7 +424,7 @@ class DDPM21CM:
         if config.ema:
             self.ema = EMA(config.ema_rate)
             if config.resume and os.path.exists(config.resume):
-                self.ema_model = ContextUnet(n_param=config.n_param, image_size=config.HII_DIM, dim=config.dim, stride=config.stride, dtype=config.dtype).to(config.device)
+                self.ema_model = ContextUnet(n_param=config.n_param, image_size=config.HII_DIM, dim=config.dim, stride=config.stride).to(config.device)#, dtype=config.dtype
                 self.ema_model.load_state_dict(torch.load(config.resume)['ema_unet_state_dict'])
                 print(f"resumed ema_model from {config.resume}")
             else:
@@ -556,7 +556,7 @@ class DDPM21CM:
 
                 # print(f"cuda:{torch.cuda.current_device()}, x[:,0,:2,0,0] =", x[:,0,:2,0,0])
                 #with self.accelerator.accumulate(self.nn_model):
-                x = x.to(self.config.device).to(self.config.dtype)
+                x = x.to(self.config.device)#.to(self.config.dtype)
                 # print("x = x.to(self.config.device), x.dtype =", x.dtype)
                 # print("x = x.to(self.dtype), x.dtype =", x.dtype)
                 # print(f"ddpm.add_noise(x), x.dtype = {x.dtype}") 
@@ -567,10 +567,10 @@ class DDPM21CM:
                     xt, noise, ts = self.ddpm.add_noise(x)
 
                     if self.config.guide_w == -1:
-                        noise_pred = self.nn_model(xt, ts).to(x.dtype)
+                        noise_pred = self.nn_model(xt, ts)#.to(x.dtype)
                     else:
                         c = c.to(self.config.device)
-                        noise_pred = self.nn_model(xt, ts, c).to(x.dtype)
+                        noise_pred = self.nn_model(xt, ts, c)#.to(x.dtype)
                     
                     loss = F.mse_loss(noise, noise_pred)
                     loss = loss / self.config.gradient_accumulation_steps
@@ -584,9 +584,9 @@ class DDPM21CM:
                     torch.nn.utils.clip_grad_norm_(self.nn_model.parameters(), max_norm=1.0)
                     #self.optimizer.step()
                     self.scaler.step(self.optimizer)
+                    self.optimizer.zero_grad()
                     self.lr_scheduler.step()
                     self.scaler.update()
-                    self.optimizer.zero_grad()
 
                 # ema update
                 if self.config.ema:

@@ -32,15 +32,11 @@ class GroupNorm32(nn.GroupNorm):
         self.swish = swish
 
     def forward(self, x):
-        #print(f"GroupNorm32, x.dtype = {x.dtype}, x.float().dtype = {x.float().dtype}, swish = {self.swish}")
-        #y = super().forward(x.float()).to(x.dtype)
         y = super().forward(x)
-        #print(f"swish == {self.swish}, {y.dtype}")
         if self.swish == 1.0:
             y = F.silu(y)
         elif self.swish:
             y = y * F.sigmoid(y * float(self.swish))
-        #print(f"swish == {self.swish}, {y.dtype}")
         return y
 
 def normalization(channels, swish=0.0):
@@ -191,7 +187,6 @@ class ResBlock(TimestepBlock):
             h = in_conv(h)
         else:
             h = self.in_layers(x)
-        # print("forward, h.dtype =", h.dtype)
         emb_out = self.emb_layers(emb).type(h.dtype)
 
         while len(emb_out.shape) < len(h.shape):

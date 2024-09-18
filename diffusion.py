@@ -582,11 +582,12 @@ class DDPM21CM:
                 if (i+1) % self.config.gradient_accumulation_steps == 0:
                     self.scaler.unscale_(self.optimizer)
                     torch.nn.utils.clip_grad_norm_(self.nn_model.parameters(), max_norm=1.0)
-                    #self.optimizer.step()
+
                     self.scaler.step(self.optimizer)
-                    self.optimizer.zero_grad()
                     self.lr_scheduler.step()
+
                     self.scaler.update()
+                    self.optimizer.zero_grad()
 
                 # ema update
                 if self.config.ema:
@@ -719,20 +720,20 @@ class DDPM21CM:
         #        self.nn_model, self.optimizer, self.lr_scheduler
         #        )
 
-        self.nn_model.eval()
-
         # self.ema_model = ContextUnet(n_param=config.n_param, image_size=config.HII_DIM, dim=config.dim, stride=config.stride).to(config.device)
         # self.ema_model.load_state_dict(torch.load(os.path.join(config.output_dir, f"{config.resume}"))['ema_unet_state_dict'])
         # print(f"resumed ema_model from {config.resume}")
 
+        self.nn_model.eval()
         with torch.no_grad():
-            x_last, x_entire = self.ddpm.sample(
-                nn_model=self.nn_model, 
-                params=params_normalized.to(self.config.device), 
-                device=self.config.device, 
-                guide_w=self.config.guide_w
-                )
-
+            with autocast():
+                x_last, x_entire = self.ddpm.sample(
+                    nn_model=self.nn_model, 
+                    params=params_normalized.to(self.config.device), 
+                    device=self.config.device, 
+                    guide_w=self.config.guide_w
+                    )
+        #print(f"x_last.dtype = {x_last.dtype}")
         if save:    
             # np.save(os.path.join(self.config.output_dir, f"{self.config.run_name}{'ema' if ema else ''}.npy"), x_last)
             savetime = datetime.datetime.now().strftime("%d%H%M%S")

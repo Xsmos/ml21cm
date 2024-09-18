@@ -187,7 +187,7 @@ class ResBlock(TimestepBlock):
             h = in_conv(h)
         else:
             h = self.in_layers(x)
-        emb_out = self.emb_layers(emb).type(h.dtype)
+        emb_out = self.emb_layers(emb)#.type(h.dtype)
 
         while len(emb_out.shape) < len(h.shape):
             emb_out = emb_out[..., None]
@@ -225,7 +225,7 @@ class QKVAttention(nn.Module):
         scale = 1 / math.sqrt(math.sqrt(ch))
         weight = torch.einsum("bct,bcs->bts", q*scale, k*scale)
         # print("forward, weight.dtype =", weight.dtype)
-        weight = torch.softmax(weight.float(), dim=-1).type(weight.dtype)
+        weight = torch.softmax(weight.float(), dim=-1)#.type(weight.dtype)
 
         a = torch.einsum("bts,bcs->bct", weight, v)
         return a.reshape(bs, -1, length)
@@ -285,7 +285,7 @@ def timestep_embedding(timesteps, dim, max_period=10000):
     #print(f"timestep_embedding is running")
     half = dim // 2
     freqs = torch.exp(
-        -math.log(max_period) * torch.arange(start=0, end=half, dtype=torch.float32) / half
+        -math.log(max_period) * torch.arange(start=0, end=half) / half #, dtype=torch.float32) / half
     ).to(device=timesteps.device)
     #print (timesteps[:, None].float().shape,freqs[None].shape)
     args = timesteps[:, None].float() * freqs[None]
@@ -317,7 +317,7 @@ class ContextUnet(nn.Module):
         encoder_channels = None,
         dim = 2,
         stride = (2,2),
-        dtype = torch.float32,
+        #dtype = torch.float32,
         ):
         super().__init__()
 
@@ -351,7 +351,7 @@ class ContextUnet(nn.Module):
         # self.n_param = n_param
         self.model_channels = model_channels
         # self.use_fp16 = use_fp16
-        self.dtype = dtype#torch.float16 if self.use_fp16 else torch.float32
+        #self.dtype = dtype#torch.float16 if self.use_fp16 else torch.float32
 
         self.token_embedding = nn.Linear(n_param, model_channels * 4)
 
@@ -521,15 +521,15 @@ class ContextUnet(nn.Module):
     def forward(self, x, timesteps, y=None):
         hs = []
         # print("device of timesteps, self.model_channels:", timesteps.device, self.model_channels)
-        emb = self.time_embed(timestep_embedding(timesteps, self.model_channels).to(self.dtype))
+        emb = self.time_embed(timestep_embedding(timesteps, self.model_channels))#.to(self.dtype))
         #print(f"forward after emb")
         if y != None:
             #text_outputs = self.token_embedding(y.float())
-            text_outputs = self.token_embedding(y.to(self.dtype))
+            text_outputs = self.token_embedding(y)#.to(self.dtype))
             emb = emb + text_outputs.to(emb)
 
         #print("forward, h = x.type(self.dtype), self.dtype =", self.dtype)
-        h = x.type(self.dtype)
+        h = x.clone()#.type(self.dtype)
         #print("0,h.shape =", h.shape)
         for module in self.input_blocks:
             h = module(h, emb)
@@ -547,7 +547,7 @@ class ContextUnet(nn.Module):
             # print("module decoder, h.shape =", h.shape)
 
         #print("h = h.type(x.dtype), x.dtype =", x.dtype, h.dtype)
-        h = h.type(x.dtype)
+        #h = h.type(x.dtype)
         h = self.out(h)
         #print("self.out(h)", "h.dtype =", h.dtype)
 

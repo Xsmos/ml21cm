@@ -269,15 +269,17 @@ class TrainConfig:
     world_size = 1#torch.cuda.device_count()
     # repeat = 2
 
-    dim = 2
-    #dim = 3#2
-    stride = (2,2) if dim == 2 else (2,2,2)
+    #dim = 2
+    dim = 3#2
+    stride = (2,4) if dim == 2 else (2,2,4)
     num_image = 32#0#0#640#320#6400#3000#480#1200#120#3000#300#3000#6000#30#60#6000#1000#2000#20000#15000#7000#25600#3000#10000#1000#10000#5000#2560#800#2560
     batch_size = 1#1#10#50#10#50#20#50#1#2#50#20#2#100 # 10
     n_epoch = 100#30#50#20#1#50#10#1#50#1#50#5#50#5#50#100#50#100#30#120#5#4# 10#50#20#20#2#5#25 # 120
     HII_DIM = 64
-    num_redshift = 64#256#512#256#512#256#512#256#512#64#512#64#512#64#256CUDAoom#128#64#512#128#64#512#256#256#64#512#128
-    startat = 512-num_redshift
+
+    num_redshift = 256#1024#64#256#512#256#512#256#512#256#512#64#512#64#512#64#256CUDAoom#128#64#512#128#64#512#256#256#64#512#128
+    startat = 0#512-num_redshift
+
     channel = 1
     img_shape = (channel, HII_DIM, num_redshift) if dim == 2 else (channel, HII_DIM, HII_DIM, num_redshift)
 
@@ -324,6 +326,8 @@ class TrainConfig:
     gradient_accumulation_steps = 1
 
     pbar_update_step = 20 
+
+    channel_mult = (1,2,2,2,4)
     # date = datetime.datetime.now().strftime("%m%d-%H%M")
     # run_name = f'{date}' # the unique name of each experiment
 
@@ -372,53 +376,40 @@ class TrainConfig:
 #     if rank == 0 and all_gradients_consistent:
 #         print("All model gradients are consistent across GPUs.")
 #     return all_gradients_consistent
+def get_gpu_info(device):
+    total_memory = torch.cuda.get_device_properties(device).total_memory
+    reserved_memory = torch.cuda.memory_reserved(device)
+    allocated_memory = torch.cuda.memory_allocated(device)
+    free_memory = reserved_memory - allocated_memory
+    return {
+        'total': int(total_memory / 1024**2),
+        'used': int(allocated_memory / 1024**2),
+        'free': int(free_memory / 1024**2),
+    }
 
 class DDPM21CM:
     def __init__(self, config):
-        # print(
-        #     "torch.cuda.is_available() =", torch.cuda.is_available(), 
-        #     "torch.cuda.device_count() =", torch.cuda.device_count(),
-        #     "torch.cuda.is_initialized() =", torch.cuda.is_initialized(),
-        #     "torch.cuda.current_device() =", torch.cuda.current_device()
-        # )
-        # config = TrainConfig()
-        # date = datetime.datetime.now().strftime("%m%d-%H%M")
         config.run_name = datetime.datetime.now().strftime("%d%H%M%S") # the unique name of each experiment
         self.config = config
-        # dataset = Dataset4h5(config.dataset_name, num_image=config.num_image, HII_DIM=config.HII_DIM, num_redshift=config.num_redshift, drop_prob=config.drop_prob, dim=config.dim)
-        # # self.shape_loaded = dataset.images.shape
-        # # print("shape_loaded =", self.shape_loaded)
-        # self.dataloader = DataLoader(dataset, batch_size=config.batch_size, shuffle=True)
-        # del dataset
-        # print("self.ddpm = DDPMScheduler")
         self.ddpm = DDPMScheduler(betas=(1e-4, 0.02), num_timesteps=config.num_timesteps, img_shape=config.img_shape, device=config.device, config=config,)#, dtype=config.dtype
 
-        # print("self.nn_model = ContextUnet")
         # initialize the unet
-        self.nn_model = ContextUnet(n_param=config.n_param, image_size=config.HII_DIM, dim=config.dim, stride=config.stride)#, dtype=config.dtype)
+        self.nn_model = ContextUnet(n_param=config.n_param, image_size=config.HII_DIM, dim=config.dim, stride=config.stride, channel_mult=config.channel_mult)#, dtype=config.dtype)
 
-        # print("self.nn_model.train()")
-        # nn_model = ContextUnet(n_param=1, image_size=28)
         self.nn_model.train()
-        # print("self.ddpm.device =", self.ddpm.device)
         self.nn_model.to(self.ddpm.device)
-        # print("before, nn_model.device =", self.ddpm.device)
         self.nn_model = DDP(self.nn_model, device_ids=[self.ddpm.device])
-        # print("after, nn_model.device =", self.ddpm.device)
-        # number of parameters to be trained
 
+        gpu_info = get_gpu_info(config.device)
         if config.resume and os.path.exists(config.resume):
             # resume_file = os.path.join(config.output_dir, f"{config.resume}")
             # self.nn_model.load_state_dict(torch.load(config.resume)['unet_state_dict'])
             # print(f"resumed nn_model from {config.resume}")
             self.nn_model.module.load_state_dict(torch.load(config.resume)['unet_state_dict'])
             #self.nn_model.module.to(config.dtype)
-            print(f" {config.run_name} {socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} resumed nn_model from {config.resume} with {sum(x.numel() for x in self.nn_model.parameters())} parameters ".center(120,'+'))
+            print(f"{config.run_name} cuda:{torch.cuda.current_device()}/{self.config.global_rank} resumed nn_model from {config.resume} with {sum(x.numel() for x in self.nn_model.parameters())} parameters, gpu:{gpu_info} MB".center(120,'+'))
         else:
-            print(f" {config.run_name} {socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} initialized nn_model randomly with {sum(x.numel() for x in self.nn_model.parameters())} parameters ".center(120,'+'))
-
-        # self.number_of_params = sum(x.numel() for x in self.nn_model.parameters())
-        # print(f" Number of parameters for nn_model: {self.number_of_params} ".center(120,'-'))
+            print(f"{config.run_name} cuda:{torch.cuda.current_device()}/{self.config.global_rank} initialized nn_model randomly with {sum(x.numel() for x in self.nn_model.parameters())} parameters, gpu:{gpu_info} MB".center(120,'+'))
 
         # whether to use ema
         if config.ema:
@@ -520,29 +511,10 @@ class DDPM21CM:
         else:
             print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} torch.distributed.is_initialized False!!!!!!!!!!!!!!!") 
 
-        #print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank}; nn_model.device = {self.nn_model.device}")
-        #acc_prep_start = time()
-        #self.nn_model, self.optimizer, self.dataloader, self.lr_scheduler = \
-        #    self.accelerator.prepare(
-        #    self.nn_model, self.optimizer, self.dataloader, self.lr_scheduler
-        #    )
-        #self.nn_model = self.accelerator.prepare(self.nn_model)
-        #self.optimizer = self.accelerator.prepare(self.optimizer)
-        #self.dataloader = self.accelerator.prepare(self.dataloader)
-        #self.lr_scheduler = self.accelerator.prepare(self.lr_scheduler)
-        #acc_prep_end = time()
-        #print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} accelerate.prepare cost {acc_prep_end-acc_prep_start:.3f}s")
-        # self.nn_model, self.optimizer, self.lr_scheduler = \
-        #     self.accelerator.prepare(
-        #     self.nn_model, self.optimizer, self.lr_scheduler
-        #     )
-
-        # print("!!!!!!!!!!!!!!!!, after prepare, self.dataloader.sampler =", self.dataloader.sampler)
-        # print("!!!!!!!!!!!!!!!!, after prepare, self.dataloader.batch_sampler =", self.dataloader.batch_sampler)
-        # print("!!!!!!!!!!!!!!!!, after prepare, self.dataloader.DistributedSampler =", self.dataloader.DistributedSampler)
-        #train_start = time()
         global_step = 0
         for ep in range(self.config.n_epoch):
+            print(torch.cuda.memory_summary())#abbreviated=True))
+            #print(f"before for loop device{self.config.device} {get_gpu_info(self.config.device)}")
             self.ddpm.train()
             # self.dataloader.sampler.set_epoch(ep)
             pbar_train = tqdm(total=len(self.dataloader), file=sys.stderr)#, disable=self.config.global_rank!=0)#, mininterval=self.config.pbar_update_step)#, disable=True)#not self.accelerator.is_local_main_process)
@@ -550,20 +522,11 @@ class DDPM21CM:
             #train_end = time()
             #print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} ddpm.train costs {train_end-train_start:.3f}s")
             for i, (x, c) in enumerate(self.dataloader):
-                #if i == 0:
-                #    train_end = time()
-                #    print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} ddpm.train costs {train_end-train_start:.3f}s")
-
                 # print(f"cuda:{torch.cuda.current_device()}, x[:,0,:2,0,0] =", x[:,0,:2,0,0])
                 #with self.accelerator.accumulate(self.nn_model):
                 x = x.to(self.config.device)#.to(self.config.dtype)
-                # print("x = x.to(self.config.device), x.dtype =", x.dtype)
-                # print("x = x.to(self.dtype), x.dtype =", x.dtype)
-                # print(f"ddpm.add_noise(x), x.dtype = {x.dtype}") 
-                # print(f"ddpm.add_noise(x), xt.dtype = {xt.dtype}") 
-                
                 # autocast forward propogation
-                with autocast():
+                with autocast(enabled=False):
                     xt, noise, ts = self.ddpm.add_noise(x)
 
                     if self.config.guide_w == -1:
@@ -574,7 +537,9 @@ class DDPM21CM:
                     
                     loss = F.mse_loss(noise, noise_pred)
                     loss = loss / self.config.gradient_accumulation_steps
-                
+                    #print(f"within autocast #{i}-device{self.config.device} {get_gpu_info(self.config.device)}")
+                    #print(f"within autocast #{i}-device{self.config.device} t-r-a: {torch.cuda.get_device_properties(self.config.device).total_memory/1024**2}-{torch.cuda.memory_reserved(self.config.device)/1024**2}-{torch.cuda.memory_allocated(self.config.device)/1024**2}") 
+
                 # scaler backward propogation
                 self.scaler.scale(loss).backward()
                 #loss.backward()
@@ -611,10 +576,12 @@ class DDPM21CM:
 
             if (i+1) % self.config.gradient_accumulation_steps != 0:
                 print(f"(i+1)%self.config.gradient_accumulation_steps = {(i+1)%self.config.gradient_accumulation_steps}, i = {i}, scg = {self.config.gradient_accumulation_steps}".center(120,'-'))
-                torch.nn.utils.clip_grad_norm_(self.nn_model.parameters(), max_norm=1.0)
-                self.optimizer.step()
-                self.lr_scheduler.step()
-                self.optimizer.zero_grad()
+                #torch.nn.utils.clip_grad_norm_(self.nn_model.parameters(), max_norm=1.0)
+                #self.optimizer.step()
+                #self.lr_scheduler.step()
+                #self.optimizer.zero_grad()
+            #print(f"after autocast #{i}-device{self.config.device} {get_gpu_info(self.config.device)}")
+            #print(f"after autocast #{i}-device{self.config.device} t-r-a: {torch.cuda.get_device_properties(self.config.device).total_memory/1024**2}-{torch.cuda.memory_reserved(self.config.device)/1024**2}-{torch.cuda.memory_allocated(self.config.device)/1024**2}") 
 
 
             # if ep == config.n_epoch-1 or (ep+1)*config.save_period==1:
@@ -809,6 +776,7 @@ if __name__ == "__main__":
     parser.add_argument("--num_image", type=int, required=False, default=32)
     parser.add_argument("--n_epoch", type=int, required=False, default=50)
     parser.add_argument("--batch_size", type=int, required=False, default=2)
+    parser.add_argument("--channel_mult", type=int, nargs="+", required=False, default=(1,2,2,2,4))
 
     args = parser.parse_args()
 
@@ -823,6 +791,7 @@ if __name__ == "__main__":
     config.num_image = args.num_image
     config.n_epoch = args.n_epoch
     config.batch_size = args.batch_size
+    config.channel_mult = args.channel_mult
     ############################ training ################################
     if args.train:
         config.dataset_name = args.train

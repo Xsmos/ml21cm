@@ -1,11 +1,11 @@
 #!/bin/bash
 #SBATCH -A m4717 
 #SBATCH -J diffusion
-#SBATCH -C gpu
+#SBATCH -C gpu&hbm80g
 #SBATCH -q shared #regular 
 #SBATCH -N1 
 #SBATCH --gpus-per-node=1
-#SBATCH -t 0:80:00
+#SBATCH -t 0:20:00
 #SBATCH --ntasks-per-node=1
 #SBATCH -oReport-%j 
 #SBATCH --mail-type=BEGIN,END,FAIL
@@ -33,15 +33,17 @@ export MASTER_PORT=$MASTER_PORT
 #export NCCL_DEBUG=INFO
 #export NCCL_DEBUG_SUBSYS=ALL
 cat $0
+#nvidia-smi
 
 srun python diffusion.py \
-    --resume outputs/model-N3200-device_count1-node1-epoch99-17160118 \
-    --num_image 3200 \
-    --batch_size 32 \
-    --n_epoch 100 \
+    --num_image 80 \
+    --batch_size 1 \
+    --n_epoch 1000 \
     --gradient_accumulation_steps 1 \
-    --num_new_img_per_gpu 800 \
-    --max_num_img_per_gpu 80 \
-    #--train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
+    --num_new_img_per_gpu 200 \
+    --max_num_img_per_gpu 20 \
+    --channel_mult 1 1 2 2 4 \
+    --train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
+    #--resume outputs/model-N3200-device_count1-node1-epoch99-17160118 \
 
 date

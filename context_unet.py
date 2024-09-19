@@ -533,11 +533,12 @@ class ContextUnet(nn.Module):
         #print("0,h.shape =", h.shape)
         for module in self.input_blocks:
             h = module(h, emb)
+            #print(f"in for loop, h.shape = {h.shape}")
             hs.append(h)
             #print("module encoder, h.shape =", h.shape)
-        # print("2,h.shape =", h.shape)
+        #print("before middle block, h.shape =", h.shape)
         h = self.middle_block(h, emb)
-        #print("middle block, h.shape =", h.shape)
+        #print("after middle block, h.shape =", h.shape)
         #print("2, h.dtype =", h.dtype)
         for module in self.output_blocks:
             #print("for module in self.output_blocks, h.shape =", h.shape)

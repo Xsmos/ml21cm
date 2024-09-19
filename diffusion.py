@@ -277,7 +277,7 @@ class TrainConfig:
     n_epoch = 100#30#50#20#1#50#10#1#50#1#50#5#50#5#50#100#50#100#30#120#5#4# 10#50#20#20#2#5#25 # 120
     HII_DIM = 64
 
-    num_redshift = 256#1024#64#256#512#256#512#256#512#256#512#64#512#64#512#64#256CUDAoom#128#64#512#128#64#512#256#256#64#512#128
+    num_redshift = 512#256#1024#64#256#512#256#512#256#512#256#512#64#512#64#512#64#256CUDAoom#128#64#512#128#64#512#256#256#64#512#128
     startat = 0#512-num_redshift
 
     channel = 1
@@ -330,7 +330,7 @@ class TrainConfig:
     channel_mult = (1,2,2,2,4)
     # date = datetime.datetime.now().strftime("%m%d-%H%M")
     # run_name = f'{date}' # the unique name of each experiment
-
+    str_len = 140
 # config = TrainConfig()
 # print("device =", config.device)
 
@@ -407,9 +407,9 @@ class DDPM21CM:
             # print(f"resumed nn_model from {config.resume}")
             self.nn_model.module.load_state_dict(torch.load(config.resume)['unet_state_dict'])
             #self.nn_model.module.to(config.dtype)
-            print(f"{config.run_name} cuda:{torch.cuda.current_device()}/{self.config.global_rank} resumed nn_model from {config.resume} with {sum(x.numel() for x in self.nn_model.parameters())} parameters, gpu:{gpu_info} MB".center(120,'+'))
+            print(f"{config.run_name} cuda:{torch.cuda.current_device()}/{self.config.global_rank} resumed nn_model from {config.resume} with {sum(x.numel() for x in self.nn_model.parameters())} parameters, gpu:{gpu_info} MB".center(self.config.str_len,'+'))
         else:
-            print(f"{config.run_name} cuda:{torch.cuda.current_device()}/{self.config.global_rank} initialized nn_model randomly with {sum(x.numel() for x in self.nn_model.parameters())} parameters, gpu:{gpu_info} MB".center(120,'+'))
+            print(f"{config.run_name} cuda:{torch.cuda.current_device()}/{self.config.global_rank} initialized nn_model randomly with {sum(x.numel() for x in self.nn_model.parameters())} parameters, gpu:{gpu_info} MB".center(self.config.str_len,'+'))
 
         # whether to use ema
         if config.ema:
@@ -443,6 +443,7 @@ class DDPM21CM:
             dim=self.config.dim,
             ranges_dict=self.ranges_dict,
             num_workers=min(8,len(os.sched_getaffinity(0))//self.config.world_size),
+            str_len = self.config.str_len,
             )
         # self.shape_loaded = dataset.images.shape
         # print("shape_loaded =", self.shape_loaded)
@@ -513,7 +514,8 @@ class DDPM21CM:
 
         global_step = 0
         for ep in range(self.config.n_epoch):
-            print(torch.cuda.memory_summary())#abbreviated=True))
+            #torch.cuda.empty_cache()
+            #print(torch.cuda.memory_summary())#abbreviated=True))
             #print(f"before for loop device{self.config.device} {get_gpu_info(self.config.device)}")
             self.ddpm.train()
             # self.dataloader.sampler.set_epoch(ep)
@@ -526,7 +528,7 @@ class DDPM21CM:
                 #with self.accelerator.accumulate(self.nn_model):
                 x = x.to(self.config.device)#.to(self.config.dtype)
                 # autocast forward propogation
-                with autocast(enabled=False):
+                with autocast():#enabled=False):
                     xt, noise, ts = self.ddpm.add_noise(x)
 
                     if self.config.guide_w == -1:
@@ -575,7 +577,7 @@ class DDPM21CM:
                 global_step += 1
 
             if (i+1) % self.config.gradient_accumulation_steps != 0:
-                print(f"(i+1)%self.config.gradient_accumulation_steps = {(i+1)%self.config.gradient_accumulation_steps}, i = {i}, scg = {self.config.gradient_accumulation_steps}".center(120,'-'))
+                print(f"(i+1)%self.config.gradient_accumulation_steps = {(i+1)%self.config.gradient_accumulation_steps}, i = {i}, scg = {self.config.gradient_accumulation_steps}".center(self.config.str_len,'-'))
                 #torch.nn.utils.clip_grad_norm_(self.nn_model.parameters(), max_norm=1.0)
                 #self.optimizer.step()
                 #self.lr_scheduler.step()
@@ -795,7 +797,7 @@ if __name__ == "__main__":
     ############################ training ################################
     if args.train:
         config.dataset_name = args.train
-        print(f" training, ip_addr = {socket.gethostbyname(socket.gethostname())}, master_addr = {master_addr}, local_world_size = {local_world_size}, world_size = {world_size} ".center(120,'#'))
+        print(f" training, ip_addr = {socket.gethostbyname(socket.gethostname())}, master_addr = {master_addr}, local_world_size = {local_world_size}, world_size = {world_size} ".center(config.str_len,'#'))
         mp.spawn(
                 train, 
                 args=(world_size, local_world_size, master_addr, master_port, config), 
@@ -825,7 +827,7 @@ if __name__ == "__main__":
         ]
 
         for params in params_pairs:
-            print(f"sampling for {params}, ip_addr = {socket.gethostbyname(socket.gethostname())}, master_addr = {master_addr}, local_world_size = {local_world_size}, world_size = {world_size}".center(120,'-'))
+            print(f"sampling for {params}, ip_addr = {socket.gethostbyname(socket.gethostname())}, master_addr = {master_addr}, local_world_size = {local_world_size}, world_size = {world_size}".center(config.str_len,'-'))
             mp.spawn(
                     generate_samples, 
                     args=(world_size, local_world_size, master_addr, master_port, config, num_new_img_per_gpu, max_num_img_per_gpu, torch.tensor(params)), 

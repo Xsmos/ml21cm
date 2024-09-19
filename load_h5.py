@@ -46,6 +46,7 @@ class Dataset4h5(Dataset):
         num_workers=1,#len(os.sched_getaffinity(0))//torch.cuda.device_count(),
         startat=0,
         # shuffle=False,
+        str_len = 120,
         ):
         super().__init__()
         
@@ -61,6 +62,7 @@ class Dataset4h5(Dataset):
         self.transform = transform
         self.num_workers = num_workers
         self.startat = startat 
+        self.str_len = str_len
 
         self.load_h5()
         if rescale:
@@ -114,7 +116,7 @@ class Dataset4h5(Dataset):
         concurrent_init_start = time()
         with concurrent.futures.ProcessPoolExecutor(max_workers=self.num_workers) as executor:
             concurrent_init_end = time()
-            print(f" {socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}, concurrently loading by {self.num_workers}/{len(os.sched_getaffinity(0))} workers, initialized after {concurrent_init_end-concurrent_init_start:.3f}s ".center(120, '-'))
+            print(f" {socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}, concurrently loading by {self.num_workers}/{len(os.sched_getaffinity(0))} workers, initialized after {concurrent_init_end-concurrent_init_start:.3f}s ".center(self.str_len, '-'))
             futures = [None] * self.num_workers
             for i, idx in enumerate(np.array_split(self.idx, self.num_workers)):
                 executor_start = time()
@@ -129,7 +131,7 @@ class Dataset4h5(Dataset):
                 self.params[start_idx:start_idx+batch_size] = params
                 start_idx += batch_size
             concurrent_end = time()
-            print(f" {socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}, {start_idx} images {self.images.shape} & params {self.params.shape} loaded after {concurrent_start-concurrent_init_start:.3f}/{concurrent_end-concurrent_start:.3f}s ".center(120, '-'))
+            print(f" {socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}, {start_idx} images {self.images.shape} & params {self.params.shape} loaded after {concurrent_start-concurrent_init_start:.3f}/{concurrent_end-concurrent_start:.3f}s ".center(self.str_len, '-'))
 
         transform_start = time()
         if self.transform:

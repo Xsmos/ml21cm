@@ -20,6 +20,7 @@ import copy
 # from diffusers import DDPMScheduler
 # from diffusers.utils import make_image_grid
 import datetime
+import torch.utils.checkpoint as checkpoint
 # from pathlib import Path
 # from diffusers.optimization import get_cosine_schedule_with_warmup
 # from accelerate import notebook_launcher, Accelerator
@@ -132,10 +133,12 @@ class ResBlock(TimestepBlock):
     def __init__(
         self, channels, emb_channels, dropout, out_channels=None, use_conv=False, use_checkpoint=False, use_scale_shift_norm=False, up=False, down=False, dim=2, stride=(2,2),
         ):
+        #print(f"Resblock, use_checkpoint = {use_checkpoint}")
         super().__init__()
         self.out_channels = out_channels or channels
         self.use_scale_shift_norm = use_scale_shift_norm
         self.stride = stride
+        self.use_checkpoint = use_checkpoint
 
         self.in_layers = nn.Sequential(
             # nn.BatchNorm2d(channels), # normalize to standard gaussian
@@ -177,8 +180,13 @@ class ResBlock(TimestepBlock):
         else:
             self.skip_connection = Conv[dim](channels, self.out_channels, 1)
         
-
     def forward(self, x, emb):
+        if self.use_checkpoint:
+            return checkpoint.checkpoint(self._forward_impl, x, emb, use_reentrant=False)
+        else:
+            return self._forward_impl(x, emb)
+
+    def _forward_impl(self, x, emb):
         if self.updown:
             in_rest, in_conv = self.in_layers[:-1], self.in_layers[-1]
             h = in_rest(x)
@@ -239,6 +247,7 @@ class AttentionBlock(nn.Module):
         use_checkpoint=False,
         encoder_channels=None,
     ):
+        #print(f"AttentionBlock, use_checkpoint = {use_checkpoint}")
         super().__init__()
         self.channels = channels
         if num_head_channels == -1:
@@ -260,6 +269,12 @@ class AttentionBlock(nn.Module):
         self.proj_out = zero_module(nn.Conv1d(channels, channels, 1))
 
     def forward(self, x, encoder_out=None):
+        if self.use_checkpoint:
+            return checkpoint.checkpoint(self._forward_impl, x, encoder_out, use_reentrant=False)
+        else:
+            return self._forward_impl(x, encoder_out)
+
+    def _forward_impl(self, x, encoder_out=None):
         b, c, *spatial = x.shape
         qkv = self.qkv(self.norm(x).view(b, c, -1))
         if encoder_out is not None:

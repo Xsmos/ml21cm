@@ -365,7 +365,7 @@ class DDPM21CM:
         self.ddpm = DDPMScheduler(betas=(1e-4, 0.02), num_timesteps=config.num_timesteps, img_shape=config.img_shape, device=config.device, config=config,)#, dtype=config.dtype
 
         # initialize the unet
-        self.nn_model = ContextUnet(n_param=config.n_param, image_size=config.HII_DIM, dim=config.dim, stride=config.stride, channel_mult=config.channel_mult)#, dtype=config.dtype)
+        self.nn_model = ContextUnet(n_param=config.n_param, image_size=config.HII_DIM, dim=config.dim, stride=config.stride, channel_mult=config.channel_mult, use_checkpoint=config.use_checkpoint)#, dtype=config.dtype)
 
         self.nn_model.train()
         self.nn_model.to(self.ddpm.device)
@@ -752,6 +752,7 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", type=int, required=False, default=2)
     parser.add_argument("--channel_mult", type=float, nargs="+", required=False, default=(1,2,2,2,4))
     parser.add_argument("--autocast", type=int, required=False, default=False)
+    parser.add_argument("--use_checkpoint", type=int, required=False, default=False)
 
     args = parser.parse_args()
 
@@ -768,6 +769,8 @@ if __name__ == "__main__":
     config.batch_size = args.batch_size
     config.channel_mult = args.channel_mult
     config.autocast = bool(args.autocast)
+    config.use_checkpoint = bool(args.use_checkpoint)
+
     ############################ training ################################
     if args.train:
         config.dataset_name = args.train

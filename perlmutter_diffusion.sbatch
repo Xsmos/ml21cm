@@ -43,7 +43,7 @@ srun python diffusion.py \
     --num_new_img_per_gpu 200 \
     --max_num_img_per_gpu 20 \
     --channel_mult 0.5 1 1 2 4 \
-    --autocast 1 \
+    --autocast 0 \
     --train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
     #--resume outputs/model-N3200-device_count1-node1-epoch99-17160118 \
 

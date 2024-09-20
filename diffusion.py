@@ -276,8 +276,7 @@ class TrainConfig:
     batch_size = 1#1#10#50#10#50#20#50#1#2#50#20#2#100 # 10
     n_epoch = 100#30#50#20#1#50#10#1#50#1#50#5#50#5#50#100#50#100#30#120#5#4# 10#50#20#20#2#5#25 # 120
     HII_DIM = 64
-
-    num_redshift = 512#256#1024#64#256#512#256#512#256#512#256#512#64#512#64#512#64#256CUDAoom#128#64#512#128#64#512#256#256#64#512#128
+    num_redshift = 1024#512#256#1024#64#256#512#256#512#256#512#256#512#64#512#64#512#64#256CUDAoom#128#64#512#128#64#512#256#256#64#512#128
     startat = 0#512-num_redshift
 
     channel = 1
@@ -442,7 +441,7 @@ class DDPM21CM:
             drop_prob=self.config.drop_prob, 
             dim=self.config.dim,
             ranges_dict=self.ranges_dict,
-            num_workers=min(8,len(os.sched_getaffinity(0))//self.config.world_size),
+            num_workers=min(4,len(os.sched_getaffinity(0))//self.config.world_size),
             str_len = self.config.str_len,
             )
         # self.shape_loaded = dataset.images.shape
@@ -528,7 +527,7 @@ class DDPM21CM:
                 #with self.accelerator.accumulate(self.nn_model):
                 x = x.to(self.config.device)#.to(self.config.dtype)
                 # autocast forward propogation
-                with autocast():#enabled=False):
+                with autocast(enabled=self.config.autocast):
                     xt, noise, ts = self.ddpm.add_noise(x)
 
                     if self.config.guide_w == -1:
@@ -600,7 +599,7 @@ class DDPM21CM:
         del self.nn_model
         if self.config.ema:
             del self.ema_model
-        torch.cuda.empty_cache()
+        #torch.cuda.empty_cache()
 
     def save(self, ep):
         # save model
@@ -695,7 +694,8 @@ class DDPM21CM:
 
         self.nn_model.eval()
         with torch.no_grad():
-            with autocast():
+            with autocast(enabled=self.config.autocast):
+            #with autocast():
                 x_last, x_entire = self.ddpm.sample(
                     nn_model=self.nn_model, 
                     params=params_normalized.to(self.config.device), 
@@ -778,7 +778,8 @@ if __name__ == "__main__":
     parser.add_argument("--num_image", type=int, required=False, default=32)
     parser.add_argument("--n_epoch", type=int, required=False, default=50)
     parser.add_argument("--batch_size", type=int, required=False, default=2)
-    parser.add_argument("--channel_mult", type=int, nargs="+", required=False, default=(1,2,2,2,4))
+    parser.add_argument("--channel_mult", type=float, nargs="+", required=False, default=(1,2,2,2,4))
+    parser.add_argument("--autocast", type=int, required=False, default=False)
 
     args = parser.parse_args()
 
@@ -794,6 +795,7 @@ if __name__ == "__main__":
     config.n_epoch = args.n_epoch
     config.batch_size = args.batch_size
     config.channel_mult = args.channel_mult
+    config.autocast = bool(args.autocast)
     ############################ training ################################
     if args.train:
         config.dataset_name = args.train

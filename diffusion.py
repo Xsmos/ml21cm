@@ -241,8 +241,8 @@ class TrainConfig:
     world_size = 1#torch.cuda.device_count()
     # repeat = 2
 
-    #dim = 2
-    dim = 3#2
+    dim = 2
+    #dim = 3#2
     stride = (2,4) if dim == 2 else (2,2,4)
     num_image = 32#0#0#640#320#6400#3000#480#1200#120#3000#300#3000#6000#30#60#6000#1000#2000#20000#15000#7000#25600#3000#10000#1000#10000#5000#2560#800#2560
     batch_size = 1#1#10#50#10#50#20#50#1#2#50#20#2#100 # 10
@@ -413,7 +413,7 @@ class DDPM21CM:
             drop_prob=self.config.drop_prob, 
             dim=self.config.dim,
             ranges_dict=self.ranges_dict,
-            num_workers=min(4,len(os.sched_getaffinity(0))//self.config.world_size),
+            num_workers=min(8,len(os.sched_getaffinity(0))//self.config.world_size),
             str_len = self.config.str_len,
             )
         # self.shape_loaded = dataset.images.shape

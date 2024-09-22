@@ -402,7 +402,6 @@ class DDPM21CM:
         self.scaler = GradScaler()
 
     def load(self):
-        # rank = torch.cuda.current_device()
         dataset = Dataset4h5(
             self.config.dataset_name, 
             num_image=self.config.num_image,
@@ -416,9 +415,7 @@ class DDPM21CM:
             num_workers=min(8,len(os.sched_getaffinity(0))//self.config.world_size),
             str_len = self.config.str_len,
             )
-        # self.shape_loaded = dataset.images.shape
-        # print("shape_loaded =", self.shape_loaded)
-        # print(f"load, current_device() = {torch.cuda.current_device()}")
+
         dataloader_start = time()
         self.dataloader = DataLoader(
             dataset=dataset, 
@@ -436,11 +433,6 @@ class DDPM21CM:
         print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} dataloader costs {dataloader_end-dataloader_start:.3f}s")
 
         del dataset
-        # self.accelerate(self.config)
-        # print("!!!!!!!!!!!!!!!!, self.dataloader.sampler =", self.dataloader.sampler)
-        # del dataset
-
-    # def accelerate(self):
 
     def train(self):
         ###################      

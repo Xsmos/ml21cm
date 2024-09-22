@@ -40,8 +40,8 @@ srun python diffusion.py \
     --batch_size 64 \
     --n_epoch 50 \
     --gradient_accumulation_steps 1 \
-    --num_new_img_per_gpu 400 \
-    --max_num_img_per_gpu 100 \
+    --num_new_img_per_gpu 120 \
+    --max_num_img_per_gpu 60 \
     --channel_mult 1 1 2 2 4 4 \
     --autocast 1 \
     --use_checkpoint 1 \

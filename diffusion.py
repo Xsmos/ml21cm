@@ -21,7 +21,6 @@ import os
 from torch.utils.tensorboard import SummaryWriter
 import copy
 from tqdm.auto import tqdm
-# from torchvision import transforms
 # from diffusers import UNet2DModel#, UNet3DConditionModel
 # from diffusers import DDPMScheduler
 import datetime
@@ -50,6 +49,7 @@ from datetime import timedelta
 from time import time
 
 from torch.cuda.amp import autocast, GradScaler
+from random import getrandbits
 
 # %%
 def ddp_setup(rank: int, world_size: int, master_addr, master_port):
@@ -412,7 +412,7 @@ class DDPM21CM:
             drop_prob=self.config.drop_prob, 
             dim=self.config.dim,
             ranges_dict=self.ranges_dict,
-            num_workers=min(8,len(os.sched_getaffinity(0))//self.config.world_size),
+            num_workers=min(2,len(os.sched_getaffinity(0))//self.config.world_size),
             str_len = self.config.str_len,
             )
 
@@ -433,6 +433,16 @@ class DDPM21CM:
         print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} dataloader costs {dataloader_end-dataloader_start:.3f}s")
 
         del dataset
+
+    def transform(self, img):
+        if self.config.dim == 3:
+            #flip along x or y or both
+            flip_xy = [i+2 for i in range(2) if getrandbits(1)]
+            img = torch.flip(img, dims=flip_xy) 
+            # flip diagonally 
+            if getrandbits(1):
+                img = img.transpose(2,3)  
+        return img
 
     def train(self):
         ###################      
@@ -489,6 +499,7 @@ class DDPM21CM:
             for i, (x, c) in enumerate(self.dataloader):
                 # print(f"cuda:{torch.cuda.current_device()}, x[:,0,:2,0,0] =", x[:,0,:2,0,0])
                 #with self.accelerator.accumulate(self.nn_model):
+                x = self.transform(x)
                 x = x.to(self.config.device)#.to(self.config.dtype)
                 # autocast forward propogation
                 with autocast(enabled=self.config.autocast):

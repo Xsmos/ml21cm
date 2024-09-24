@@ -487,18 +487,11 @@ class DDPM21CM:
 
         global_step = 0
         for ep in range(self.config.n_epoch):
-            #torch.cuda.empty_cache()
-            #print(torch.cuda.memory_summary())#abbreviated=True))
-            #print(f"before for loop device{self.config.device} {get_gpu_info(self.config.device)}")
             self.ddpm.train()
-            # self.dataloader.sampler.set_epoch(ep)
             pbar_train = tqdm(total=len(self.dataloader), file=sys.stderr, disable=True)#, mininterval=self.config.pbar_update_step)#, disable=True)#not self.accelerator.is_local_main_process)
             pbar_train.set_description(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} Epoch {ep}")
             epoch_start = time()
-            #print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} ddpm.train costs {train_end-train_start:.3f}s")
             for i, (x, c) in enumerate(self.dataloader):
-                # print(f"cuda:{torch.cuda.current_device()}, x[:,0,:2,0,0] =", x[:,0,:2,0,0])
-                #with self.accelerator.accumulate(self.nn_model):
                 x = self.transform(x)
                 x = x.to(self.config.device)#.to(self.config.dtype)
                 # autocast forward propogation
@@ -513,8 +506,6 @@ class DDPM21CM:
                     
                     loss = F.mse_loss(noise, noise_pred)
                     loss = loss / self.config.gradient_accumulation_steps
-                    #print(f"within autocast #{i}-device{self.config.device} {get_gpu_info(self.config.device)}")
-                    #print(f"within autocast #{i}-device{self.config.device} t-r-a: {torch.cuda.get_device_properties(self.config.device).total_memory/1024**2}-{torch.cuda.memory_reserved(self.config.device)/1024**2}-{torch.cuda.memory_allocated(self.config.device)/1024**2}") 
 
                 # scaler backward propogation
                 self.scaler.scale(loss).backward()
@@ -552,26 +543,13 @@ class DDPM21CM:
 
             if (i+1) % self.config.gradient_accumulation_steps != 0:
                 print(f"(i+1)%self.config.gradient_accumulation_steps = {(i+1)%self.config.gradient_accumulation_steps}, i = {i}, scg = {self.config.gradient_accumulation_steps}".center(self.config.str_len,'-'))
-                #torch.nn.utils.clip_grad_norm_(self.nn_model.parameters(), max_norm=1.0)
-                #self.optimizer.step()
-                #self.lr_scheduler.step()
-                #self.optimizer.zero_grad()
-            #print(f"after autocast #{i}-device{self.config.device} {get_gpu_info(self.config.device)}")
-            #print(f"after autocast #{i}-device{self.config.device} t-r-a: {torch.cuda.get_device_properties(self.config.device).total_memory/1024**2}-{torch.cuda.memory_reserved(self.config.device)/1024**2}-{torch.cuda.memory_allocated(self.config.device)/1024**2}") 
-
             # if ep == config.n_epoch-1 or (ep+1)*config.save_period==1:
             self.save(ep)
             print(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} Epoch{ep}:{i+1}/{len(self.dataloader)} costs {(time()-epoch_start)/60:.2f} min", flush=True)
-            # rank = torch.cuda.current_device()
-            # params_consistent = check_params_consistency(self.ddpm, rank, self.config.world_size)
-            # gradients_consistent = check_gradients_consistency(self.ddpm, rank, self.config.world_size)
-            # if not (params_consistent and gradients_consistent):
-            #     print(f"Rank {rank}: Parameter or gradient inconsistency detected.")
 
         del self.nn_model
         if self.config.ema:
             del self.ema_model
-        #torch.cuda.empty_cache()
 
     def save(self, ep):
         # save model

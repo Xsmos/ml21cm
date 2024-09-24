@@ -2,10 +2,10 @@
 #SBATCH -A m4717 
 #SBATCH -J diffusion
 #SBATCH -C gpu&hbm80g
-#SBATCH -q shared #regular 
-#SBATCH -N1 
-#SBATCH --gpus-per-node=1
-#SBATCH -t 3:30:00
+#SBATCH -q regular #shared 
+#SBATCH -N10
+#SBATCH --gpus-per-node=4
+#SBATCH -t 48:00:00
 #SBATCH --ntasks-per-node=1
 #SBATCH -oReport-%j 
 #SBATCH --mail-type=BEGIN,END,FAIL
@@ -36,10 +36,10 @@ cat $0
 #nvidia-smi
 
 srun python diffusion.py \
-    --num_image 64 \
+    --num_image 640 \
     --batch_size 1 \
     --n_epoch 50 \
-    --gradient_accumulation_steps 1 \
+    --gradient_accumulation_steps 4 \
     --num_new_img_per_gpu 2 \
     --max_num_img_per_gpu 1 \
     --channel_mult 1 1 2 2 4 4 \

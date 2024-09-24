@@ -492,9 +492,9 @@ class DDPM21CM:
             #print(f"before for loop device{self.config.device} {get_gpu_info(self.config.device)}")
             self.ddpm.train()
             # self.dataloader.sampler.set_epoch(ep)
-            pbar_train = tqdm(total=len(self.dataloader), file=sys.stderr)#, disable=self.config.global_rank!=0)#, mininterval=self.config.pbar_update_step)#, disable=True)#not self.accelerator.is_local_main_process)
+            pbar_train = tqdm(total=len(self.dataloader), file=sys.stderr, disable=True)#, mininterval=self.config.pbar_update_step)#, disable=True)#not self.accelerator.is_local_main_process)
             pbar_train.set_description(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} Epoch {ep}")
-            #train_end = time()
+            epoch_start = time()
             #print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} ddpm.train costs {train_end-train_start:.3f}s")
             for i, (x, c) in enumerate(self.dataloader):
                 # print(f"cuda:{torch.cuda.current_device()}, x[:,0,:2,0,0] =", x[:,0,:2,0,0])
@@ -559,17 +559,14 @@ class DDPM21CM:
             #print(f"after autocast #{i}-device{self.config.device} {get_gpu_info(self.config.device)}")
             #print(f"after autocast #{i}-device{self.config.device} t-r-a: {torch.cuda.get_device_properties(self.config.device).total_memory/1024**2}-{torch.cuda.memory_reserved(self.config.device)/1024**2}-{torch.cuda.memory_allocated(self.config.device)/1024**2}") 
 
-
             # if ep == config.n_epoch-1 or (ep+1)*config.save_period==1:
             self.save(ep)
-            # # 检查参数和梯度的一致性
+            print(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} Epoch{ep}:{i+1}/{len(self.dataloader)} costs {(time()-epoch_start)/60:.2f} min", flush=True)
             # rank = torch.cuda.current_device()
             # params_consistent = check_params_consistency(self.ddpm, rank, self.config.world_size)
             # gradients_consistent = check_gradients_consistency(self.ddpm, rank, self.config.world_size)
-            # # 如果任何一致性检查失败，在所有rank上打印警告
             # if not (params_consistent and gradients_consistent):
             #     print(f"Rank {rank}: Parameter or gradient inconsistency detected.")
-
 
         del self.nn_model
         if self.config.ema:

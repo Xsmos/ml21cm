@@ -5,7 +5,7 @@
 #SBATCH -q shared #regular 
 #SBATCH -N1 
 #SBATCH --gpus-per-node=1
-#SBATCH -t 2:30:00
+#SBATCH -t 3:30:00
 #SBATCH --ntasks-per-node=1
 #SBATCH -oReport-%j 
 #SBATCH --mail-type=BEGIN,END,FAIL
@@ -36,7 +36,7 @@ cat $0
 #nvidia-smi
 
 srun python diffusion.py \
-    --num_image 800 \
+    --num_image 64 \
     --batch_size 1 \
     --n_epoch 50 \
     --gradient_accumulation_steps 1 \

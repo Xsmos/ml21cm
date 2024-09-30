@@ -1,11 +1,11 @@
 #!/bin/bash
 #SBATCH -A m4717 
 #SBATCH -J diffusion
-#SBATCH -C gpu&hbm80g
+#SBATCH -C gpu&hbm40g
 #SBATCH -q regular #shared 
-#SBATCH -N10
+#SBATCH -N1
 #SBATCH --gpus-per-node=4
-#SBATCH -t 48:00:00
+#SBATCH -t 06:00:00
 #SBATCH --ntasks-per-node=1
 #SBATCH -oReport-%j 
 #SBATCH --mail-type=BEGIN,END,FAIL
@@ -36,16 +36,16 @@ cat $0
 #nvidia-smi
 
 srun python diffusion.py \
-    --num_image 640 \
-    --batch_size 1 \
+    --num_image 6400 \
+    --batch_size 5 \
     --n_epoch 50 \
-    --gradient_accumulation_steps 4 \
-    --num_new_img_per_gpu 2 \
-    --max_num_img_per_gpu 1 \
+    --gradient_accumulation_steps 10 \
+    --num_new_img_per_gpu 200 \
+    --max_num_img_per_gpu 100 \
     --channel_mult 1 1 2 2 4 4 \
     --autocast 1 \
     --use_checkpoint 1 \
     --train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
-    #--resume outputs/model-N12800-device_count4-node1-epoch49-22134057 \
+    #--resume outputs/model-N6400-device_count4-node2-epoch49-29150501 \
 
 date

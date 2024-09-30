@@ -151,7 +151,7 @@ class DDPMScheduler(nn.Module):
         # print("self.num_timesteps =", self.num_timesteps)
         # for i in range(self.num_timesteps, 0, -1):
         # print(f'sampling!!!')
-        pbar_sample = tqdm(total=self.num_timesteps, file=sys.stderr)
+        pbar_sample = tqdm(total=self.num_timesteps, file=sys.stderr, disable=True)
         pbar_sample.set_description(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} sampling")
         for i in reversed(range(0, self.num_timesteps)):
             # print(f'sampling timestep {i:4d}',end='\r')
@@ -241,8 +241,8 @@ class TrainConfig:
     world_size = 1#torch.cuda.device_count()
     # repeat = 2
 
-    #dim = 2
-    dim = 3#2
+    dim = 2
+    #dim = 3#2
     stride = (2,4) if dim == 2 else (2,2,4)
     num_image = 32#0#0#640#320#6400#3000#480#1200#120#3000#300#3000#6000#30#60#6000#1000#2000#20000#15000#7000#25600#3000#10000#1000#10000#5000#2560#800#2560
     batch_size = 1#1#10#50#10#50#20#50#1#2#50#20#2#100 # 10
@@ -371,16 +371,16 @@ class DDPM21CM:
         self.nn_model.to(self.ddpm.device)
         self.nn_model = DDP(self.nn_model, device_ids=[self.ddpm.device])
 
-        gpu_info = get_gpu_info(config.device)
+        #gpu_info = get_gpu_info(config.device)
         if config.resume and os.path.exists(config.resume):
             # resume_file = os.path.join(config.output_dir, f"{config.resume}")
             # self.nn_model.load_state_dict(torch.load(config.resume)['unet_state_dict'])
             # print(f"resumed nn_model from {config.resume}")
             self.nn_model.module.load_state_dict(torch.load(config.resume)['unet_state_dict'])
             #self.nn_model.module.to(config.dtype)
-            print(f"{config.run_name} cuda:{torch.cuda.current_device()}/{self.config.global_rank} resumed nn_model from {config.resume} with {sum(x.numel() for x in self.nn_model.parameters())} parameters, gpu:{gpu_info} MB".center(self.config.str_len,'+'))
+            print(f"{config.run_name} cuda:{torch.cuda.current_device()}/{self.config.global_rank} resumed nn_model from {config.resume} with {sum(x.numel() for x in self.nn_model.parameters())} parameters".center(self.config.str_len,'+'))
         else:
-            print(f"{config.run_name} cuda:{torch.cuda.current_device()}/{self.config.global_rank} initialized nn_model randomly with {sum(x.numel() for x in self.nn_model.parameters())} parameters, gpu:{gpu_info} MB".center(self.config.str_len,'+'))
+            print(f"{config.run_name} cuda:{torch.cuda.current_device()}/{self.config.global_rank} initialized nn_model randomly with {sum(x.numel() for x in self.nn_model.parameters())} parameters".center(self.config.str_len,'+'))
 
         # whether to use ema
         if config.ema:
@@ -609,40 +609,9 @@ class DDPM21CM:
         params_normalized = params_normalized.repeat(num_new_img_per_gpu,1)
         assert params_normalized.dim() == 2, "params_normalized must be a 2D torch.tensor"
         # print("params =", params)
-        # print("params =", params)
-        # print("len(params) =", len(params))
-        # model = self.ema_model if ema else self.nn_model
-        # del self.ema_model, self.nn
-        # params = torch.tile(params, (n_sample,1)).to(device)
-
-        # nn_model = ContextUnet(n_param=self.config.n_param, image_size=self.config.HII_DIM, dim=self.config.dim, stride=self.config.stride).to(self.config.device)
-        # if ema:
-        #     self.nn_model.module.load_state_dict(torch.load(file)['ema_unet_state_dict'])
-        # else:
-        #     self.nn_model.module.load_state_dict(torch.load(file)['unet_state_dict'])
-        # print(f"cuda:{torch.cuda.current_device()} resumed nn_model from {file}")
-        # nn_model = ContextUnet(n_param=1, image_size=28)
-        # nn_model.train()
-        # self.nn_model.to(self.ddpm.device)
-
-        #self.accelerator = Accelerator(
-        #    mixed_precision=self.config.mixed_precision,
-        #    gradient_accumulation_steps=self.config.gradient_accumulation_steps,
-        #    log_with="tensorboard",
-        #    project_dir=os.path.join(self.config.output_dir, "logs"),
-        #    # distributed_type="MULTI_GPU",
-        #)
-
-        #self.nn_model, self.optimizer, self.lr_scheduler = \
-        #    self.accelerator.prepare(
-        #        self.nn_model, self.optimizer, self.lr_scheduler
-        #        )
-
-        # self.ema_model = ContextUnet(n_param=config.n_param, image_size=config.HII_DIM, dim=config.dim, stride=config.stride).to(config.device)
-        # self.ema_model.load_state_dict(torch.load(os.path.join(config.output_dir, f"{config.resume}"))['ema_unet_state_dict'])
-        # print(f"resumed ema_model from {config.resume}")
 
         self.nn_model.eval()
+        sample_start = time()
         with torch.no_grad():
             with autocast(enabled=self.config.autocast):
             #with autocast():
@@ -660,12 +629,12 @@ class DDPM21CM:
             if not os.path.exists(self.config.output_dir):
                 os.makedirs(self.config.output_dir)
             np.save(savename, x_last)
-            print(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} saved images of shape {x_last.shape} to {savename}")
+            print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} saved {x_last.shape} to {savename} with {(time()-sample_start)/60:.2f} min", flush=True)
 
             if entire:
                 savename = os.path.join(self.config.output_dir, f"Tvir{params_backup[0]:.3f}-zeta{params_backup[1]:.3f}-N{self.config.num_image}-device{self.config.global_rank}-{os.path.basename(self.config.resume)}-{savetime}{'ema' if ema else ''}_entire.npy")
                 np.save(savename, x_entire)
-                print(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} saved images of shape {x_entire.shape} to {savename}")
+                print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} saved images of shape {x_entire.shape} to {savename}")
         # else:
         return x_last
 # %%

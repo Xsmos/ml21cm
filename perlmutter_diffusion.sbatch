@@ -39,13 +39,13 @@ srun python diffusion.py \
     --num_image 6400 \
     --batch_size 5 \
     --n_epoch 50 \
-    --gradient_accumulation_steps 10 \
+    --gradient_accumulation_steps 1 \
     --num_new_img_per_gpu 200 \
     --max_num_img_per_gpu 100 \
     --channel_mult 1 1 2 2 4 4 \
     --autocast 1 \
     --use_checkpoint 1 \
-    --train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
-    #--resume outputs/model-N6400-device_count4-node2-epoch49-29150501 \
+    --resume ./outputs/model-N6400-device_count4-node1-epoch49-30143433 \
+    #--train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
 
 date

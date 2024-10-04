@@ -415,6 +415,7 @@ class DDPM21CM:
             num_workers=min(1,len(os.sched_getaffinity(0))//self.config.world_size),
             str_len = self.config.str_len,
             )
+        print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank}: Dataset4h5 done")
 
         dataloader_start = time()
         self.dataloader = DataLoader(
@@ -506,6 +507,10 @@ class DDPM21CM:
                     
                     loss = F.mse_loss(noise, noise_pred)
                     loss = loss / self.config.gradient_accumulation_steps
+
+                    print(f"loss = {loss}")
+                    if np.isnan(loss).any():
+                        raise ValueError(f"loss: {loss}")
 
                 # scaler backward propogation
                 self.scaler.scale(loss).backward()

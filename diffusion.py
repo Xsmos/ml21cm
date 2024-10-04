@@ -241,8 +241,8 @@ class TrainConfig:
     world_size = 1#torch.cuda.device_count()
     # repeat = 2
 
-    dim = 2
-    #dim = 3#2
+    #dim = 2
+    dim = 3#2
     stride = (2,4) if dim == 2 else (2,2,4)
     num_image = 32#0#0#640#320#6400#3000#480#1200#120#3000#300#3000#6000#30#60#6000#1000#2000#20000#15000#7000#25600#3000#10000#1000#10000#5000#2560#800#2560
     batch_size = 1#1#10#50#10#50#20#50#1#2#50#20#2#100 # 10
@@ -275,7 +275,7 @@ class TrainConfig:
     # seed = 0
     # save_dir = './outputs/'
 
-    save_period = np.infty #n_epoch // 2 #np.infty#.1 # the period of sampling
+    save_period = 5 #np.infty #n_epoch // 2 #np.infty#.1 # the period of sampling
     # general parameters for the name and logger    
     # device = "cuda" if torch.cuda.is_available() else "cpu"
     lrate = 1e-4
@@ -405,14 +405,14 @@ class DDPM21CM:
         dataset = Dataset4h5(
             self.config.dataset_name, 
             num_image=self.config.num_image,
-            idx = "random",#'range',
+            idx = 'range',#"random",#
             HII_DIM=self.config.HII_DIM, 
             num_redshift=self.config.num_redshift,
             startat=self.config.startat,
             drop_prob=self.config.drop_prob, 
             dim=self.config.dim,
             ranges_dict=self.ranges_dict,
-            num_workers=min(2,len(os.sched_getaffinity(0))//self.config.world_size),
+            num_workers=min(1,len(os.sched_getaffinity(0))//self.config.world_size),
             str_len = self.config.str_len,
             )
 

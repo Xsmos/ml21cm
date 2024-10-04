@@ -550,7 +550,7 @@ class ContextUnet(nn.Module):
             h = module(h, emb)
             #print(f"in for loop, h.shape = {h.shape}")
             hs.append(h)
-            #print("module encoder, h.shape =", h.shape)
+            print("module encoder, h.shape =", h.shape)
         #print("before middle block, h.shape =", h.shape)
         h = self.middle_block(h, emb)
         #print("after middle block, h.shape =", h.shape)

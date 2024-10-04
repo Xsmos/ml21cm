@@ -100,8 +100,10 @@ class Dataset4h5(Dataset):
             # print(self.idx)
         elif self.idx == "range":
             rank = torch.cuda.current_device()
+            local_world_size = torch.cuda.device_count()
+            self.global_rank = rank + local_world_size * int(os.environ["SLURM_NODEID"])
             self.idx = range(
-                rank*self.num_image, (rank+1)*self.num_image
+                self.global_rank*self.num_image, (self.global_rank+1)*self.num_image
                 )
             print(f"loading {len(self.idx)} images with idx = {self.idx}")
         else:
@@ -116,7 +118,7 @@ class Dataset4h5(Dataset):
         concurrent_init_start = time()
         with concurrent.futures.ProcessPoolExecutor(max_workers=self.num_workers) as executor:
             concurrent_init_end = time()
-            print(f" {socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}, concurrently loading by {self.num_workers}/{len(os.sched_getaffinity(0))} workers, initialized after {concurrent_init_end-concurrent_init_start:.3f}s ".center(self.str_len, '-'))
+            print(f" {socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.global_rank}, concurrently loading by {self.num_workers}/{len(os.sched_getaffinity(0))} workers, initialized after {concurrent_init_end-concurrent_init_start:.3f}s ".center(self.str_len, '-'))
             futures = [None] * self.num_workers
             for i, idx in enumerate(np.array_split(self.idx, self.num_workers)):
                 executor_start = time()
@@ -131,7 +133,7 @@ class Dataset4h5(Dataset):
                 self.params[start_idx:start_idx+batch_size] = params
                 start_idx += batch_size
             concurrent_end = time()
-            print(f" {socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}, {start_idx} images {self.images.shape} & params {self.params.shape} loaded after {concurrent_start-concurrent_init_start:.3f}/{concurrent_end-concurrent_start:.3f}s ".center(self.str_len, '-'))
+            print(f" {socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.global_rank}, {start_idx} images {self.images.shape} & params {self.params.shape} loaded after {concurrent_start-concurrent_init_start:.3f}/{concurrent_end-concurrent_start:.3f}s ".center(self.str_len, '-'))
 
         transform_start = time()
         if self.transform:
@@ -162,7 +164,7 @@ class Dataset4h5(Dataset):
             param_start = time()
             params = f['params']['values'][idx]
             param_end = time()
-            print(f"{socket.gethostbyname(socket.gethostname())}, cuda:{torch.cuda.current_device()}, CPU-pid {cpu_num}-{pid}: images {images.shape} & params {params.shape} loaded after {executor_start-concurrent_init_end:.3f}/{set_device-executor_start:.3f}/{open_h5py-set_device:.3f}/{images_start-open_h5py:.3f}s + {images_end-images_start:.3f}s & {param_end-param_start:.3f}s")
+            print(f"{socket.gethostbyname(socket.gethostname())}, cuda:{torch.cuda.current_device()}/{self.global_rank}, CPU-pid {cpu_num}-{pid}: images {images.shape} & params {params.shape} loaded after {executor_start-concurrent_init_end:.3f}/{set_device-executor_start:.3f}/{open_h5py-set_device:.3f}/{images_start-open_h5py:.3f}s + {images_end-images_start:.3f}s & {param_end-param_start:.3f}s")
 
         return images, params
 

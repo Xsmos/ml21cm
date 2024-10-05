@@ -23,7 +23,7 @@ import copy
 from tqdm.auto import tqdm
 # from diffusers import UNet2DModel#, UNet3DConditionModel
 # from diffusers import DDPMScheduler
-import datetime
+from datetime import datetime
 from pathlib import Path
 #from diffusers.optimization import get_cosine_schedule_with_warmup
 #from accelerate import notebook_launcher, Accelerator
@@ -241,8 +241,8 @@ class TrainConfig:
     world_size = 1#torch.cuda.device_count()
     # repeat = 2
 
-    #dim = 2
-    dim = 3#2
+    dim = 2
+    #dim = 3#2
     stride = (2,4) if dim == 2 else (2,2,4)
     num_image = 32#0#0#640#320#6400#3000#480#1200#120#3000#300#3000#6000#30#60#6000#1000#2000#20000#15000#7000#25600#3000#10000#1000#10000#5000#2560#800#2560
     batch_size = 1#1#10#50#10#50#20#50#1#2#50#20#2#100 # 10
@@ -360,7 +360,7 @@ def get_gpu_info(device):
 
 class DDPM21CM:
     def __init__(self, config):
-        config.run_name = datetime.datetime.now().strftime("%d%H%M%S") # the unique name of each experiment
+        config.run_name = datetime.now().strftime("%d%H%M%S") # the unique name of each experiment
         self.config = config
         self.ddpm = DDPMScheduler(betas=(1e-4, 0.02), num_timesteps=config.num_timesteps, img_shape=config.img_shape, device=config.device, config=config,)#, dtype=config.dtype
 
@@ -380,7 +380,7 @@ class DDPM21CM:
             #self.nn_model.module.to(config.dtype)
             print(f"{config.run_name} cuda:{torch.cuda.current_device()}/{self.config.global_rank} resumed nn_model from {config.resume} with {sum(x.numel() for x in self.nn_model.parameters())} parameters".center(self.config.str_len,'+'))
         else:
-            print(f"{config.run_name} cuda:{torch.cuda.current_device()}/{self.config.global_rank} initialized nn_model randomly with {sum(x.numel() for x in self.nn_model.parameters())} parameters".center(self.config.str_len,'+'))
+            print(f"{config.run_name} cuda:{torch.cuda.current_device()}/{self.config.global_rank} initialized nn_model randomly with {sum(x.numel() for x in self.nn_model.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')}".center(self.config.str_len,'+'))
 
         # whether to use ema
         if config.ema:
@@ -415,7 +415,7 @@ class DDPM21CM:
             num_workers=min(1,len(os.sched_getaffinity(0))//self.config.world_size),
             str_len = self.config.str_len,
             )
-        print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank}: Dataset4h5 done")
+        #print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank}: Dataset4h5 done")
 
         dataloader_start = time()
         self.dataloader = DataLoader(
@@ -629,7 +629,7 @@ class DDPM21CM:
         #print(f"x_last.dtype = {x_last.dtype}")
         if save:    
             # np.save(os.path.join(self.config.output_dir, f"{self.config.run_name}{'ema' if ema else ''}.npy"), x_last)
-            savetime = datetime.datetime.now().strftime("%d%H%M%S")
+            savetime = datetime.now().strftime("%d%H%M%S")
             savename = os.path.join(self.config.output_dir, f"Tvir{params_backup[0]:.3f}-zeta{params_backup[1]:.3f}-N{self.config.num_image}-device{self.config.global_rank}-{os.path.basename(self.config.resume)}-{savetime}{'ema' if ema else ''}.npy")
             if not os.path.exists(self.config.output_dir):
                 os.makedirs(self.config.output_dir)
@@ -726,7 +726,7 @@ if __name__ == "__main__":
     ############################ training ################################
     if args.train:
         config.dataset_name = args.train
-        print(f" training, ip_addr = {socket.gethostbyname(socket.gethostname())}, master_addr = {master_addr}, local_world_size = {local_world_size}, world_size = {world_size} ".center(config.str_len,'#'))
+        print(f" training, ip = {socket.gethostbyname(socket.gethostname())}, local_world_size = {local_world_size}, world_size = {world_size}, {datetime.now().strftime('%d-%H:%M:%S.%f')} ".center(config.str_len,'#'))
         mp.spawn(
                 train, 
                 args=(world_size, local_world_size, master_addr, master_port, config), 

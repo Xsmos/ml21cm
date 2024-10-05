@@ -20,7 +20,7 @@ import os
 # from diffusers import DDPMScheduler
 # from diffusers.utils import make_image_grid
 from time import time
-import datetime
+from datetime import datetime
 import concurrent.futures
 import psutil
 # from pathlib import Path
@@ -118,11 +118,11 @@ class Dataset4h5(Dataset):
 
         concurrent_init_start = time()
         if self.num_workers == 1:
-            print(f" {socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.global_rank}, loading by {self.num_workers} workers ".center(self.str_len, '-'))
+            print(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.global_rank}, loading by {self.num_workers} workers, {datetime.now().strftime('%d-%H:%M:%S.%f')}".center(self.str_len, '-'))
             self.images, self.params = self.read_data_chunk(self.dir_name, self.idx, torch.cuda.current_device(), concurrent_init_start, concurrent_init_start)
             self.params = self.params.astype(self.images.dtype)
             concurrent_start = time()
-            print(f" {socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.global_rank}, images {self.images.shape}({self.images.dtype}) & params {self.params.shape}({self.params.dtype}) loaded after {concurrent_start-concurrent_init_start:.3f}s ".center(self.str_len, '-'))
+            print(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.global_rank}, images {self.images.shape} & params {self.params.shape} loaded after {concurrent_start-concurrent_init_start:.3f}s, {datetime.now().strftime('%d-%H:%M:%S.%f')}".center(self.str_len, '-'))
         else:
             with concurrent.futures.ProcessPoolExecutor(max_workers=self.num_workers) as executor:
                 concurrent_init_end = time()
@@ -172,7 +172,7 @@ class Dataset4h5(Dataset):
             param_start = time()
             params = f['params']['values'][idx]
             param_end = time()
-            print(f"{socket.gethostbyname(socket.gethostname())}, cuda:{torch.cuda.current_device()}/{self.global_rank}, CPU-pid {cpu_num}-{pid}: images {images.shape} & params {params.shape} loaded after {executor_start-concurrent_init_end:.3f}/{set_device-executor_start:.3f}/{open_h5py-set_device:.3f}/{images_start-open_h5py:.3f}s + {images_end-images_start:.3f}s & {param_end-param_start:.3f}s")
+            print(f"cuda:{torch.cuda.current_device()}/{self.global_rank}, CPU:{cpu_num}, images {images.shape} & params {params.shape} loaded after {executor_start-concurrent_init_end:.3f}/{set_device-executor_start:.3f}/{open_h5py-set_device:.3f}/{images_start-open_h5py:.3f}s + {images_end-images_start:.3f}s & {param_end-param_start:.3f}s")
 
         return images, params
 

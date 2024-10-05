@@ -63,44 +63,52 @@ AvgPool = {
 }
 
 class Downsample(nn.Module):
-    def __init__(self, channels, use_conv, out_channels=None, dim=2, stride=(2,2)):
+    def __init__(self, channels, use_conv, out_channels=None, dim=2, stride=(2,2), use_checkpoint=False):
         super().__init__()
         self.channels = channels
         self.out_channels = out_channels or channels
-        # stride = config.stride
+        self.use_checkpoint = use_checkpoint
+        self.dim = dim
         if use_conv:
-            # print("conv")
             self.op = Conv[dim](channels, self.out_channels, 3, stride=stride, padding=1)
         else:
-            # print("pool")
             assert channels == self.out_channels
             self.op = AvgPool[dim](kernel_size=stride, stride=stride)
 
     def forward(self, x):
         assert x.shape[1] == self.channels
-        return self.op(x)
+        if self.use_checkpoint and isinstance(self.op, Conv[self.dim]):
+            print(f"checkpoint working in Downsample")
+            return checkpoint.checkpoint(self.op, x)
+        else:
+            return self.op(x)
 
 class Upsample(nn.Module):
-    def __init__(self, channels, use_conv, out_channels=None, dim=2, stride=(2,2)):
+    def __init__(self, channels, use_conv, out_channels=None, dim=2, stride=(2,2), use_checkpoint=False):
         super().__init__()
         self.channels = channels
         self.out_channels = out_channels
         self.use_conv = use_conv
         self.stride = stride
+        self.use_checkpoint = use_checkpoint
+
         if self.use_conv:
             self.conv = Conv[dim](self.channels, self.out_channels, 3, padding=1)
 
     def forward(self, x):
         assert x.shape[1] == self.channels
-        # stride = config.stride
-        # print(torch.tensor(x.shape[2:]))
-        # print(torch.tensor(stride))
         shape = torch.tensor(x.shape[2:]) * torch.tensor(self.stride)
         shape = tuple(shape.detach().numpy())
         # print(shape)
         x = F.interpolate(x, shape, mode='nearest')
+
         if self.use_conv:
-            x = self.conv(x)
+            if self.use_checkpoint:
+                print(f"checkpoint working in upsample")
+                return checkpoint.checkpoint(self.conv, x)
+            else:
+                x = self.conv(x)
+
         return x
 
 def zero_module(module):
@@ -335,6 +343,7 @@ class ContextUnet(nn.Module):
         #dtype = torch.float32,
         ):
         super().__init__()
+        #self.use_checkpoint = use_checkpoint
 
         if channel_mult == None:
             if image_size == 512:
@@ -433,7 +442,13 @@ class ContextUnet(nn.Module):
                             stride = stride,
                         )
                         if resblock_updown
-                        else Downsample(ch, conv_resample, out_channels=out_ch, dim=dim, stride=stride)
+                        else Downsample(ch, 
+                                        conv_resample, 
+                                        out_channels=out_ch, 
+                                        dim=dim, 
+                                        stride=stride, 
+                                        #use_checkpoint=use_checkpoint,
+                                        )
                     )
                 )
                 ch = out_ch
@@ -519,7 +534,13 @@ class ContextUnet(nn.Module):
                             stride = stride,
                         )
                         if resblock_updown
-                        else Upsample(ch, conv_resample, out_channels=out_ch, dim=dim, stride=stride)
+                        else Upsample(ch, 
+                                      conv_resample, 
+                                      out_channels=out_ch, 
+                                      dim=dim, 
+                                      stride=stride,
+                                      #use_checkpoint=use_checkpoint,
+                                      )
                     )
                     ds //= 2
                 self.output_blocks.append(TimestepEmbedSequential(*layers))
@@ -550,7 +571,7 @@ class ContextUnet(nn.Module):
             h = module(h, emb)
             #print(f"in for loop, h.shape = {h.shape}")
             hs.append(h)
-            print("module encoder, h.shape =", h.shape)
+            #print("module encoder, h.shape =", h.shape)
         #print("before middle block, h.shape =", h.shape)
         h = self.middle_block(h, emb)
         #print("after middle block, h.shape =", h.shape)

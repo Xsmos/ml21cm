@@ -489,7 +489,7 @@ class DDPM21CM:
         global_step = 0
         for ep in range(self.config.n_epoch):
             self.ddpm.train()
-            pbar_train = tqdm(total=len(self.dataloader), file=sys.stderr, disable=True)#, mininterval=self.config.pbar_update_step)#, disable=True)#not self.accelerator.is_local_main_process)
+            pbar_train = tqdm(total=len(self.dataloader), file=sys.stderr)#, disable=True)#, mininterval=self.config.pbar_update_step)#, disable=True)#not self.accelerator.is_local_main_process)
             pbar_train.set_description(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} Epoch {ep}")
             epoch_start = time()
             for i, (x, c) in enumerate(self.dataloader):
@@ -508,9 +508,9 @@ class DDPM21CM:
                     loss = F.mse_loss(noise, noise_pred)
                     loss = loss / self.config.gradient_accumulation_steps
 
-                    print(f"loss = {loss}")
-                    if np.isnan(loss).any():
-                        raise ValueError(f"loss: {loss}")
+                    #print(f"loss = {loss}")
+                    if torch.isnan(loss).any():
+                        raise ValueError(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} Epoch {ep}, loss: {loss}")
 
                 # scaler backward propogation
                 self.scaler.scale(loss).backward()

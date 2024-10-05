@@ -115,25 +115,33 @@ class Dataset4h5(Dataset):
         elif self.dim == 3:
             self.images = np.empty((self.num_image, 1, self.HII_DIM, self.HII_DIM, self.num_redshift), dtype=np.float32)
         # self.num_workers = len(os.sched_getaffinity(0))//torch.cuda.device_count()
-        concurrent_init_start = time()
-        with concurrent.futures.ProcessPoolExecutor(max_workers=self.num_workers) as executor:
-            concurrent_init_end = time()
-            print(f" {socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.global_rank}, concurrently loading by {self.num_workers}/{len(os.sched_getaffinity(0))} workers, initialized after {concurrent_init_end-concurrent_init_start:.3f}s ".center(self.str_len, '-'))
-            futures = [None] * self.num_workers
-            for i, idx in enumerate(np.array_split(self.idx, self.num_workers)):
-                executor_start = time()
-                futures[i] = executor.submit(self.read_data_chunk, self.dir_name, idx, torch.cuda.current_device(), concurrent_init_end, executor_start)
 
+        concurrent_init_start = time()
+        if self.num_workers == 1:
+            print(f" {socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.global_rank}, loading by {self.num_workers} workers ".center(self.str_len, '-'))
+            self.images, self.params = self.read_data_chunk(self.dir_name, self.idx, torch.cuda.current_device(), concurrent_init_start, concurrent_init_start)
+            self.params = self.params.astype(self.images.dtype)
             concurrent_start = time()
-            start_idx = 0
-            for future in concurrent.futures.as_completed(futures):
-                images, params = future.result()
-                batch_size = params.shape[0]        
-                self.images[start_idx:start_idx+batch_size] = images
-                self.params[start_idx:start_idx+batch_size] = params
-                start_idx += batch_size
-            concurrent_end = time()
-            print(f" {socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.global_rank}, {start_idx} images {self.images.shape} & params {self.params.shape} loaded after {concurrent_start-concurrent_init_start:.3f}/{concurrent_end-concurrent_start:.3f}s ".center(self.str_len, '-'))
+            print(f" {socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.global_rank}, images {self.images.shape}({self.images.dtype}) & params {self.params.shape}({self.params.dtype}) loaded after {concurrent_start-concurrent_init_start:.3f}s ".center(self.str_len, '-'))
+        else:
+            with concurrent.futures.ProcessPoolExecutor(max_workers=self.num_workers) as executor:
+                concurrent_init_end = time()
+                print(f" {socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.global_rank}, concurrently loading by {self.num_workers}/{len(os.sched_getaffinity(0))} workers, initialized after {concurrent_init_end-concurrent_init_start:.3f}s ".center(self.str_len, '-'))
+                futures = [None] * self.num_workers
+                for i, idx in enumerate(np.array_split(self.idx, self.num_workers)):
+                    executor_start = time()
+                    futures[i] = executor.submit(self.read_data_chunk, self.dir_name, idx, torch.cuda.current_device(), concurrent_init_end, executor_start)
+    
+                concurrent_start = time()
+                start_idx = 0
+                for future in concurrent.futures.as_completed(futures):
+                    images, params = future.result()
+                    batch_size = params.shape[0]        
+                    self.images[start_idx:start_idx+batch_size] = images
+                    self.params[start_idx:start_idx+batch_size] = params
+                    start_idx += batch_size
+                concurrent_end = time()
+                print(f" {socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.global_rank}, {start_idx} images {self.images.shape} & params {self.params.shape} loaded after {concurrent_start-concurrent_init_start:.3f}/{concurrent_end-concurrent_start:.3f}s ".center(self.str_len, '-'))
 
         transform_start = time()
         if self.transform:

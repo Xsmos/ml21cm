@@ -5,7 +5,7 @@
 #SBATCH -q shared #regular 
 #SBATCH -N1
 #SBATCH --gpus-per-node=1
-#SBATCH -t 00:20:00
+#SBATCH -t 00:10:00
 #SBATCH --ntasks-per-node=1
 #SBATCH -oReport-%j 
 #SBATCH --mail-type=BEGIN,END,FAIL
@@ -37,11 +37,11 @@ cat $0
 
 srun python diffusion.py \
     --num_image 1280 \
-    --batch_size 1 \
+    --batch_size 2 \
     --n_epoch 50 \
     --num_new_img_per_gpu 20 \
     --max_num_img_per_gpu 4 \
-    --channel_mult 1 1 2 2 4 4 \
+    --channel_mult 0.5 1 2 2 4 8 \
     --gradient_accumulation_steps 1 \
     --autocast 1 \
     --use_checkpoint 1 \

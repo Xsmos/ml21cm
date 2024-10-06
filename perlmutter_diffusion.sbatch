@@ -2,10 +2,10 @@
 #SBATCH -A m4717 
 #SBATCH -J diffusion
 #SBATCH -C gpu&hbm80g
-#SBATCH -q regular #shared 
+#SBATCH -q shared #regular
 #SBATCH -N1
-#SBATCH --gpus-per-node=4
-#SBATCH -t 08:30:00
+#SBATCH --gpus-per-node=1
+#SBATCH -t 10:30:00
 #SBATCH --ntasks-per-node=1
 #SBATCH -oReport-%j 
 #SBATCH --mail-type=BEGIN,END,FAIL
@@ -39,13 +39,13 @@ srun python diffusion.py \
     --num_image 6400 \
     --batch_size 128 \
     --n_epoch 200 \
-    --num_new_img_per_gpu 20 \
-    --max_num_img_per_gpu 4 \
     --channel_mult 0.5 1 2 2 4 8 \
+    --num_new_img_per_gpu 800 \
+    --max_num_img_per_gpu 100 \
     --gradient_accumulation_steps 1 \
     --autocast 1 \
     --use_checkpoint 1 \
-    --train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
-    #--resume ./outputs/model-N6400-device_count4-node1-epoch49-30143433 \
+    --resume ./outputs/model-N6400-device_count4-node1-epoch199-05185634 \
+    #--train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
 
 date

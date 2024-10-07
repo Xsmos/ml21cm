@@ -127,12 +127,19 @@ class TimestepBlock(ABC, nn.Module):
         """
 
 class TimestepEmbedSequential(nn.Sequential, TimestepBlock):
+    def __init__(self, *args, use_checkpoint=False):
+        super().__init__(*args)
+        self.use_checkpoint = use_checkpoint
+
     def forward(self, x, emb, encoder_out=None):
         for layer in self:
             if isinstance(layer, TimestepBlock):
                 x = layer(x, emb)
             elif isinstance(layer, AttentionBlock):
                 x = layer(x, encoder_out)
+            elif self.use_checkpoint and isinstance(layer, tuple(Conv.values())):
+                print(f"TimestepEmbedSequential checkpoint working for layer {type(layer)}")
+                x = checkpoint.checkpoint(layer, x)
             else:
                 x = layer(x)
         return x

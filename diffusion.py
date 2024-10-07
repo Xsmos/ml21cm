@@ -241,8 +241,8 @@ class TrainConfig:
     world_size = 1#torch.cuda.device_count()
     # repeat = 2
 
-    dim = 2
-    #dim = 3#2
+    #dim = 2
+    dim = 3#2
     stride = (2,4) if dim == 2 else (2,2,4)
     num_image = 32#0#0#640#320#6400#3000#480#1200#120#3000#300#3000#6000#30#60#6000#1000#2000#20000#15000#7000#25600#3000#10000#1000#10000#5000#2560#800#2560
     batch_size = 1#1#10#50#10#50#20#50#1#2#50#20#2#100 # 10
@@ -296,7 +296,7 @@ class TrainConfig:
     #mixed_precision = "no" #"fp16"
     gradient_accumulation_steps = 1
 
-    pbar_update_step = 20 
+    #pbar_update_step = 20 
 
     channel_mult = (1,2,2,2,4)
     # date = datetime.datetime.now().strftime("%m%d-%H%M")

@@ -431,7 +431,7 @@ class DDPM21CM:
             raise ValueError(f"len(self.dataloader) % self.config.gradient_accumulation_steps = {len(self.dataloader) % self.config.gradient_accumulation_steps} instead of 0. Make sure len(dataloader)={len(self.dataloader)} is dividable by gradient_accumulation_steps={self.config.gradient_accumulation_steps}.")
 
         dataloader_end = time()
-        print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} dataloader costs {dataloader_end-dataloader_start:.3f}s")
+        #print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} dataloader costs {dataloader_end-dataloader_start:.3f}s")
 
         del dataset
 
@@ -489,7 +489,7 @@ class DDPM21CM:
         global_step = 0
         for ep in range(self.config.n_epoch):
             self.ddpm.train()
-            pbar_train = tqdm(total=len(self.dataloader), file=sys.stderr)#, disable=True)#, mininterval=self.config.pbar_update_step)#, disable=True)#not self.accelerator.is_local_main_process)
+            pbar_train = tqdm(total=len(self.dataloader), file=sys.stderr, disable=True)#, mininterval=self.config.pbar_update_step)#, disable=True)#not self.accelerator.is_local_main_process)
             pbar_train.set_description(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} Epoch {ep}")
             epoch_start = time()
             for i, (x, c) in enumerate(self.dataloader):

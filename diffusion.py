@@ -51,6 +51,8 @@ from time import time
 from torch.cuda.amp import autocast, GradScaler
 from random import getrandbits
 
+import subprocess
+
 # %%
 def ddp_setup(rank: int, world_size: int, master_addr, master_port):
     """
@@ -268,7 +270,7 @@ class TrainConfig:
     # n_sample = 24 # 64, the number of samples in sampling process
     n_param = 2
     guide_w = 0#-1#0#-1#0#-1#0.1#[0,0.1] #[0,0.5,2] strength of generative guidance
-    drop_prob = 0#0.28 # only takes effect when guide_w != -1
+    drop_prob = 0.1 #0.28 # only takes effect when guide_w != -1
     ema=False # whether to use ema
     ema_rate=0.995
 
@@ -365,7 +367,7 @@ class DDPM21CM:
         self.ddpm = DDPMScheduler(betas=(1e-4, 0.02), num_timesteps=config.num_timesteps, img_shape=config.img_shape, device=config.device, config=config,)#, dtype=config.dtype
 
         # initialize the unet
-        self.nn_model = ContextUnet(n_param=config.n_param, image_size=config.HII_DIM, dim=config.dim, stride=config.stride, channel_mult=config.channel_mult, use_checkpoint=config.use_checkpoint)#, dtype=config.dtype)
+        self.nn_model = ContextUnet(n_param=config.n_param, image_size=config.HII_DIM, dim=config.dim, stride=config.stride, channel_mult=config.channel_mult, use_checkpoint=config.use_checkpoint, dropout=config.drop_prob)#, dtype=config.dtype)
 
         self.nn_model.train()
         self.nn_model.to(self.ddpm.device)
@@ -386,7 +388,7 @@ class DDPM21CM:
         if config.ema:
             self.ema = EMA(config.ema_rate)
             if config.resume and os.path.exists(config.resume):
-                self.ema_model = ContextUnet(n_param=config.n_param, image_size=config.HII_DIM, dim=config.dim, stride=config.stride).to(config.device)#, dtype=config.dtype
+                self.ema_model = ContextUnet(n_param=config.n_param, image_size=config.HII_DIM, dim=config.dim, stride=config.stride).to(config.device, dropout=config.drop_prob)#, dtype=config.dtype
                 self.ema_model.load_state_dict(torch.load(config.resume)['ema_unet_state_dict'])
                 print(f"resumed ema_model from {config.resume}")
             else:
@@ -409,7 +411,7 @@ class DDPM21CM:
             HII_DIM=self.config.HII_DIM, 
             num_redshift=self.config.num_redshift,
             startat=self.config.startat,
-            drop_prob=self.config.drop_prob, 
+            #drop_prob=self.config.drop_prob, 
             dim=self.config.dim,
             ranges_dict=self.ranges_dict,
             num_workers=min(1,len(os.sched_getaffinity(0))//self.config.world_size),
@@ -489,7 +491,7 @@ class DDPM21CM:
         global_step = 0
         for ep in range(self.config.n_epoch):
             self.ddpm.train()
-            pbar_train = tqdm(total=len(self.dataloader), file=sys.stderr, disable=True)#, mininterval=self.config.pbar_update_step)#, disable=True)#not self.accelerator.is_local_main_process)
+            pbar_train = tqdm(total=len(self.dataloader), file=sys.stderr)#, disable=True)#, mininterval=self.config.pbar_update_step)#, disable=True)#not self.accelerator.is_local_main_process)
             pbar_train.set_description(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} Epoch {ep}")
             epoch_start = time()
             for i, (x, c) in enumerate(self.dataloader):
@@ -505,6 +507,10 @@ class DDPM21CM:
                         c = c.to(self.config.device)
                         noise_pred = self.nn_model(xt, ts, c)#.to(x.dtype)
                     
+                    #if ep == 0 and i == 0 and self.config.global_rank == 0:
+                    #    result = subprocess.run(['nvidia-smi'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                    #    print(result.stdout, flush=True)
+
                     loss = F.mse_loss(noise, noise_pred)
                     loss = loss / self.config.gradient_accumulation_steps
 
@@ -610,7 +616,7 @@ class DDPM21CM:
         params_backup = params.numpy().copy()
         params_normalized = self.rescale(params, self.ranges_dict['params'], to=[0,1])
 
-        print(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} sampling {num_new_img_per_gpu} images with normalized params = {params_normalized}")
+        print(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} sampling {num_new_img_per_gpu} images with normalized params = {params_normalized}, {datetime.now().strftime('%d-%H:%M:%S.%f')}")
         params_normalized = params_normalized.repeat(num_new_img_per_gpu,1)
         assert params_normalized.dim() == 2, "params_normalized must be a 2D torch.tensor"
         # print("params =", params)
@@ -756,7 +762,7 @@ if __name__ == "__main__":
         ]
 
         for params in params_pairs:
-            print(f"sampling for {params}, ip_addr = {socket.gethostbyname(socket.gethostname())}, master_addr = {master_addr}, local_world_size = {local_world_size}, world_size = {world_size}".center(config.str_len,'-'))
+            print(f"sampling, {params}, ip = {socket.gethostbyname(socket.gethostname())}, local_world_size = {local_world_size}, world_size = {world_size}, {datetime.now().strftime('%d-%H:%M:%S.%f')}".center(config.str_len,'#'))
             mp.spawn(
                     generate_samples, 
                     args=(world_size, local_world_size, master_addr, master_port, config, num_new_img_per_gpu, max_num_img_per_gpu, torch.tensor(params)), 

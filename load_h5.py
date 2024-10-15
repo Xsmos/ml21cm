@@ -91,7 +91,7 @@ class Dataset4h5(Dataset):
             field_shape = f['brightness_temp'].shape[1:]
             #print(f"field.shape = {field_shape}")
             self.params_keys = list(f['params']['keys'])
-            print(f"{max_num_image} images of shape {field_shape} can be loaded with different params.keys {self.params_keys}")
+            print(f"{max_num_image} {f['brightness_temp'].dtype} images of shape {field_shape} can be loaded with params.keys {self.params_keys}")
             #print(f"params keys = {self.params_keys}")
 
         if self.idx == "random":

@@ -5,7 +5,7 @@
 #SBATCH -q regular #shared 
 #SBATCH -N1
 #SBATCH --gpus-per-node=4
-#SBATCH -t 2:00:00
+#SBATCH -t 60:00
 #SBATCH --ntasks-per-node=1
 #SBATCH -oReport-%j 
 #SBATCH --mail-type=BEGIN,END,FAIL
@@ -25,6 +25,7 @@ MASTER_PORT=$((10000 + RANDOM % 10000)) #12355
 #export OMP_NUM_THREADS=1
 export MASTER_ADDR=$MASTER_ADDR
 export MASTER_PORT=$MASTER_PORT
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 #export SLURM_CPU_BIND="cores"
 #echo $MASTER_ADDR
 #echo $MASTER_PORT
@@ -36,16 +37,16 @@ cat $0
 #nvidia-smi
 
 srun python diffusion.py \
-    --num_image 1280 \
+    --num_image 1600 \
     --batch_size 2 \
-    --n_epoch 40 \
+    --n_epoch 20 \
     --channel_mult 0.5 1 2 4 4 8 \
-    --num_new_img_per_gpu 6 \
-    --max_num_img_per_gpu 3 \
+    --num_new_img_per_gpu 4 \
+    --max_num_img_per_gpu 2 \
     --gradient_accumulation_steps 1 \
     --autocast 1 \
     --use_checkpoint 1 \
-    --resume ./outputs/model-N1280-device_count4-node5-epoch19-13133235 \
-    #--train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
+    --train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
+    #--resume ./outputs/model-N1280-device_count4-node5-epoch24-13133235 \
 
 date

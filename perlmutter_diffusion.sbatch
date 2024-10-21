@@ -18,7 +18,6 @@ module load pytorch #/2.0.1
 which python
 conda env list
 module list
-#srun python -c "import torch; print('device_count', torch.cuda.device_count(), 'torch.__path__', torch.__path__, 'cuda version', torch.version.cuda); import accelerate; print('accelerate.__version', accelerate.__version__, 'accelerate.__path__', accelerate.__path__)"
 
 MASTER_ADDR=$(scontrol show hostnames $SLURM_JOB_NODELIST | head -n 1)
 MASTER_PORT=$((10000 + RANDOM % 10000)) #12355

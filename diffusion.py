@@ -270,7 +270,8 @@ class TrainConfig:
     # n_sample = 24 # 64, the number of samples in sampling process
     n_param = 2
     guide_w = 0#-1#0#-1#0#-1#0.1#[0,0.1] #[0,0.5,2] strength of generative guidance
-    drop_prob = 0.1 #0.28 # only takes effect when guide_w != -1
+    dropout = 0
+    #drop_prob = 0.1 #0.28 # only takes effect when guide_w != -1
     ema=False # whether to use ema
     ema_rate=0.995
 
@@ -367,7 +368,7 @@ class DDPM21CM:
         self.ddpm = DDPMScheduler(betas=(1e-4, 0.02), num_timesteps=config.num_timesteps, img_shape=config.img_shape, device=config.device, config=config,)#, dtype=config.dtype
 
         # initialize the unet
-        self.nn_model = ContextUnet(n_param=config.n_param, image_size=config.HII_DIM, dim=config.dim, stride=config.stride, channel_mult=config.channel_mult, use_checkpoint=config.use_checkpoint, dropout=config.drop_prob)#, dtype=config.dtype)
+        self.nn_model = ContextUnet(n_param=config.n_param, image_size=config.HII_DIM, dim=config.dim, stride=config.stride, channel_mult=config.channel_mult, use_checkpoint=config.use_checkpoint, dropout=config.dropout)#, dtype=config.dtype)
 
         self.nn_model.train()
         self.nn_model.to(self.ddpm.device)
@@ -388,7 +389,7 @@ class DDPM21CM:
         if config.ema:
             self.ema = EMA(config.ema_rate)
             if config.resume and os.path.exists(config.resume):
-                self.ema_model = ContextUnet(n_param=config.n_param, image_size=config.HII_DIM, dim=config.dim, stride=config.stride).to(config.device, dropout=config.drop_prob)#, dtype=config.dtype
+                self.ema_model = ContextUnet(n_param=config.n_param, image_size=config.HII_DIM, dim=config.dim, stride=config.stride).to(config.device, dropout=config.dropout)#, dtype=config.dtype
                 self.ema_model.load_state_dict(torch.load(config.resume)['ema_unet_state_dict'])
                 print(f"resumed ema_model from {config.resume}")
             else:
@@ -491,7 +492,7 @@ class DDPM21CM:
         global_step = 0
         for ep in range(self.config.n_epoch):
             self.ddpm.train()
-            pbar_train = tqdm(total=len(self.dataloader), file=sys.stderr)#, disable=True)#, mininterval=self.config.pbar_update_step)#, disable=True)#not self.accelerator.is_local_main_process)
+            pbar_train = tqdm(total=len(self.dataloader), file=sys.stderr, disable=True)#, mininterval=self.config.pbar_update_step)#, disable=True)#not self.accelerator.is_local_main_process)
             pbar_train.set_description(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} Epoch {ep}")
             epoch_start = time()
             for i, (x, c) in enumerate(self.dataloader):
@@ -711,6 +712,7 @@ if __name__ == "__main__":
     parser.add_argument("--channel_mult", type=float, nargs="+", required=False, default=(1,2,2,2,4))
     parser.add_argument("--autocast", type=int, required=False, default=False)
     parser.add_argument("--use_checkpoint", type=int, required=False, default=False)
+    parser.add_argument("--dropout", type=float, required=False, default=0)
 
     args = parser.parse_args()
 
@@ -728,6 +730,7 @@ if __name__ == "__main__":
     config.channel_mult = args.channel_mult
     config.autocast = bool(args.autocast)
     config.use_checkpoint = bool(args.use_checkpoint)
+    config.dropout = args.dropout
 
     ############################ training ################################
     if args.train:

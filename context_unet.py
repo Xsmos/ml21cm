@@ -179,7 +179,7 @@ class ResBlock(TimestepBlock):
                 2 * self.out_channels if use_scale_shift_norm else self.out_channels,
                 ),
         )
-        #print(f"resnet: dropout = {dropout}")
+        print(f"resnet: dropout = {dropout}")
         self.out_layers = nn.Sequential(
             # nn.BatchNorm2d(self.out_channels),
             normalization(self.out_channels, swish=0.0 if use_scale_shift_norm else 1.0),

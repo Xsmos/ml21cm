@@ -363,7 +363,7 @@ def get_gpu_info(device):
 
 class DDPM21CM:
     def __init__(self, config):
-        config.run_name = datetime.now().strftime("%d%H%M%S") # the unique name of each experiment
+        config.run_name = os.environ.get("SLURM_JOB_ID", datetime.now().strftime("%d%H%M%S")) # the unique name of each experiment
         self.config = config
         self.ddpm = DDPMScheduler(betas=(1e-4, 0.02), num_timesteps=config.num_timesteps, img_shape=config.img_shape, device=config.device, config=config,)#, dtype=config.dtype
 
@@ -381,7 +381,7 @@ class DDPM21CM:
             # print(f"resumed nn_model from {config.resume}")
             self.nn_model.module.load_state_dict(torch.load(config.resume)['unet_state_dict'])
             #self.nn_model.module.to(config.dtype)
-            print(f"{config.run_name} cuda:{torch.cuda.current_device()}/{self.config.global_rank} resumed nn_model from {config.resume} with {sum(x.numel() for x in self.nn_model.parameters())} parameters".center(self.config.str_len,'+'))
+            print(f"{config.run_name} cuda:{torch.cuda.current_device()}/{self.config.global_rank} resumed nn_model from {config.resume} with {sum(x.numel() for x in self.nn_model.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')}".center(self.config.str_len,'+'))
         else:
             print(f"{config.run_name} cuda:{torch.cuda.current_device()}/{self.config.global_rank} initialized nn_model randomly with {sum(x.numel() for x in self.nn_model.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')}".center(self.config.str_len,'+'))
 
@@ -713,6 +713,7 @@ if __name__ == "__main__":
     parser.add_argument("--autocast", type=int, required=False, default=False)
     parser.add_argument("--use_checkpoint", type=int, required=False, default=False)
     parser.add_argument("--dropout", type=float, required=False, default=0)
+    parser.add_argument("--lrate", type=float, required=False, default=1e-4)
 
     args = parser.parse_args()
 
@@ -731,6 +732,7 @@ if __name__ == "__main__":
     config.autocast = bool(args.autocast)
     config.use_checkpoint = bool(args.use_checkpoint)
     config.dropout = args.dropout
+    config.lrate = args.lrate
 
     ############################ training ################################
     if args.train:

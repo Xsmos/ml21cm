@@ -5,7 +5,7 @@
 #SBATCH -q regular #shared 
 #SBATCH -N1
 #SBATCH --gpus-per-node=4
-#SBATCH -t 30:00
+#SBATCH -t 3:30:00
 #SBATCH --ntasks-per-node=1
 #SBATCH -oReport-%j 
 #SBATCH --mail-type=BEGIN,END,FAIL
@@ -31,15 +31,15 @@ srun python diffusion.py \
     --num_image 1600 \
     --batch_size 2 \
     --n_epoch 20 \
-    --channel_mult 1 1 2 2 4 4 \
+    --channel_mult 0.5 1 2 4 4 8 \
     --num_new_img_per_gpu 4 \
     --max_num_img_per_gpu 2 \
-    --gradient_accumulation_steps 5 \
+    --gradient_accumulation_steps 10 \
     --autocast 1 \
     --use_checkpoint 1 \
     --dropout 0.2 \
     --lrate 5e-5 \
-    --train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
-    #--resume ./outputs/model-N1600-device_count4-node4-epoch39-20051216 \
+    --resume ./outputs/model-N1600-device_count4-node4-epoch19-32096001 \
+    #--train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
 
 date

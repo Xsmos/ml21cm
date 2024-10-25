@@ -38,8 +38,8 @@ srun python diffusion.py \
     --autocast 1 \
     --use_checkpoint 1 \
     --dropout 0.2 \
-    --lrate 5e-5 \
-    --resume ./outputs/model-N1600-device_count4-node4-epoch19-32096001 \
+    --lrate 2e-5 \
+    --resume ./outputs/model-N1600-device_count4-node4-epoch19-32096018 \
     #--train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
 
 date

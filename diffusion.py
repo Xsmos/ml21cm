@@ -438,14 +438,13 @@ class DDPM21CM:
 
         del dataset
 
-    def transform(self, img):
-        if self.config.dim == 3:
-            #flip along x or y or both
-            flip_xy = [i+2 for i in range(2) if getrandbits(1)]
-            img = torch.flip(img, dims=flip_xy) 
-            # flip diagonally 
-            if getrandbits(1):
-                img = img.transpose(2,3)  
+    def transform(self, img, idx):
+        #flip along x or y or both
+        flip_xy = [i+1 for i in range(2) if getrandbits(1)]
+        img[idx] = torch.flip(img[idx], dims=flip_xy) 
+        # flip diagonally 
+        if getrandbits(1):
+            img[idx] = img[idx].transpose(1,2)  
         return img
 
     def train(self):
@@ -496,7 +495,10 @@ class DDPM21CM:
             pbar_train.set_description(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} Epoch {ep}")
             epoch_start = time()
             for i, (x, c) in enumerate(self.dataloader):
-                x = self.transform(x)
+                if self.config.dim == 3:
+                    for idx in range(len(x)):
+                        x = self.transform(x, idx)
+
                 x = x.to(self.config.device)#.to(self.config.dtype)
                 # autocast forward propogation
                 with autocast(enabled=self.config.autocast):

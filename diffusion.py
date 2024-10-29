@@ -444,7 +444,7 @@ class DDPM21CM:
         img[idx] = torch.flip(img[idx], dims=flip_xy) 
         # flip diagonally 
         if getrandbits(1):
-            img[idx] = img[idx].transpose(1,2)  
+            img[idx] = img[idx].clone().transpose(1,2)
         return img
 
     def train(self):

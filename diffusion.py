@@ -445,6 +445,9 @@ class DDPM21CM:
         # flip diagonally 
         if getrandbits(1):
             img[idx] = img[idx].clone().transpose(1,2)
+            #print(f"transform: img.shape={img.shape}, idx={idx}, flip_xy={flip_xy}, w/ transpose")
+        #else:
+            #print(f"transform: img.shape={img.shape}, idx={idx}, flip_xy={flip_xy}, w/o tranpose")
         return img
 
     def train(self):

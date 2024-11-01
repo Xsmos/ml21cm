@@ -26,6 +26,7 @@ export MASTER_ADDR=$MASTER_ADDR
 export MASTER_PORT=$MASTER_PORT
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 cat $0
+git diff diffusion.py
 
 srun python diffusion.py \
     --num_image 1600 \
@@ -40,6 +41,9 @@ srun python diffusion.py \
     --dropout 0.2 \
     --lrate 2e-5 \
     --train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
-    #--resume ./outputs/model-N1600-device_count4-node4-epoch19-32257242 \
+    #--resume ./outputs/model-N1600-device_count4-node4-epoch14-32353789 \
 
 date
+
+# SHORT NOTES:
+# transform(self, img, idx)

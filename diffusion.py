@@ -234,7 +234,7 @@ class TrainConfig:
     ###########################
     ## hardcoding these here ##
     ###########################
-    push_to_hub = True 
+    push_to_hub = False #True
     hub_model_id = "Xsmos/ml21cm"
     hub_private_repo = False
     dataset_name = "/storage/home/hcoda1/3/bxia34/scratch/LEN128-DIM64-CUB8.h5"
@@ -278,7 +278,7 @@ class TrainConfig:
     # seed = 0
     # save_dir = './outputs/'
 
-    save_period = 5 #np.infty #n_epoch // 2 #np.infty#.1 # the period of sampling
+    save_period = 10 #np.infty #n_epoch // 2 #np.infty#.1 # the period of sampling
     # general parameters for the name and logger    
     # device = "cuda" if torch.cuda.is_available() else "cpu"
     lrate = 1e-4
@@ -444,6 +444,7 @@ class DDPM21CM:
         img[idx] = torch.flip(img[idx], dims=flip_xy) 
         # flip diagonally 
         if getrandbits(1):
+            #img = img.transpose(2,3)
             img[idx] = img[idx].clone().transpose(1,2)
             #print(f"transform: img.shape={img.shape}, idx={idx}, flip_xy={flip_xy}, w/ transpose")
         #else:
@@ -499,6 +500,7 @@ class DDPM21CM:
             epoch_start = time()
             for i, (x, c) in enumerate(self.dataloader):
                 if self.config.dim == 3:
+                    #x = self.transform(x)
                     for idx in range(len(x)):
                         x = self.transform(x, idx)
 

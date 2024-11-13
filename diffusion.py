@@ -740,6 +740,7 @@ if __name__ == "__main__":
     config.use_checkpoint = bool(args.use_checkpoint)
     config.dropout = args.dropout
     config.lrate = args.lrate
+    config.resume = args.resume
 
     ############################ training ################################
     if args.train:
@@ -758,7 +759,7 @@ if __name__ == "__main__":
         #config = TrainConfig()
         #config.world_size = world_size
         #config.dtype = torch.float32 
-        config.resume = args.resume
+        #config.resume = args.resume
         #config.gradient_accumulation_steps = args.gradient_accumulation_steps
         # config.resume = f"./outputs/model_state-N30-device_count3-epoch4-172.27.149.181"
         # config.resume = f"./outputs/model_state-N{config.num_image}-device_count{world_size}-epoch{config.n_epoch-1}"

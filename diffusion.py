@@ -753,7 +753,7 @@ if __name__ == "__main__":
                 join=True,
                 )
     ############################ sampling ################################
-    if args.resume:
+    if args.resume and not args.train:
         num_new_img_per_gpu = args.num_new_img_per_gpu#200#4#200
         max_num_img_per_gpu = args.max_num_img_per_gpu#40#2#20
         #config = TrainConfig()

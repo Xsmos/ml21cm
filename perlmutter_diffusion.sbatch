@@ -38,10 +38,10 @@ srun python diffusion.py \
     --dropout 0 \
     --channel_mult 0.5 1 2 4 4 8 \
     --n_epoch 60 \
-    --gradient_accumulation_steps 10 \
+    --gradient_accumulation_steps 20 \
     --lrate 2e-5 \
     --train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
-    #--resume ./outputs/model-N1600-device_count4-node4-epoch19-32862395 \
+    #--resume ./outputs/model-N1600-device_count4-node4-epoch19-32970197 \
 
 date
 

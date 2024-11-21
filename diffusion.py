@@ -721,6 +721,7 @@ if __name__ == "__main__":
     parser.add_argument("--use_checkpoint", type=int, required=False, default=False)
     parser.add_argument("--dropout", type=float, required=False, default=0)
     parser.add_argument("--lrate", type=float, required=False, default=1e-4)
+    parser.add_argument("--dim", type=int, required=False, default=3)
 
     args = parser.parse_args()
 
@@ -741,6 +742,8 @@ if __name__ == "__main__":
     config.dropout = args.dropout
     config.lrate = args.lrate
     config.resume = args.resume
+    config.dim = args.dim
+    config.stride = (2,4) if config.dim == 2 else (2,2,4)
 
     ############################ training ################################
     if args.train:

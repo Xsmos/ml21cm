@@ -742,8 +742,10 @@ if __name__ == "__main__":
     config.dropout = args.dropout
     config.lrate = args.lrate
     config.resume = args.resume
+
     config.dim = args.dim
     config.stride = (2,4) if config.dim == 2 else (2,2,4)
+    config.img_shape = (config.channel, config.HII_DIM, config.num_redshift) if config.dim == 2 else (config.channel, config.HII_DIM, config.HII_DIM, config.num_redshift)
 
     ############################ training ################################
     if args.train:

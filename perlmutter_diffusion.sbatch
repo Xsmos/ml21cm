@@ -40,7 +40,7 @@ srun python diffusion.py \
     --n_epoch 120 \
     --gradient_accumulation_steps 20 \
     --lrate 2e-5 \
-    --resume ./outputs/model-N1600-device_count4-node4-epoch119-33176282 \
+    --resume ./outputs/model-N1600-device_count4-node4-epoch59-33176282 \
     #--train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
 
 date

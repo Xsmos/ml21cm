@@ -644,14 +644,14 @@ class DDPM21CM:
         if save:    
             # np.save(os.path.join(self.config.output_dir, f"{self.config.run_name}{'ema' if ema else ''}.npy"), x_last)
             savetime = datetime.now().strftime("%d%H%M%S")
-            savename = os.path.join(self.config.output_dir, f"Tvir{params_backup[0]:.3f}-zeta{params_backup[1]:.3f}-N{self.config.num_image}-device{self.config.global_rank}-{os.path.basename(self.config.resume)}-{self.config.run_name}-{savetime}{'ema' if ema else ''}.npy")
+            savename = os.path.join(self.config.output_dir, f"Tvir{params_backup[0]:.3f}-zeta{params_backup[1]:.3f}-device{self.config.global_rank}-{os.path.basename(self.config.resume)}-{self.config.run_name}-{savetime}{'ema' if ema else ''}.npy")
             if not os.path.exists(self.config.output_dir):
                 os.makedirs(self.config.output_dir)
             np.save(savename, x_last)
-            print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} saved {x_last.shape} to {savename} with {(time()-sample_start)/60:.2f} min", flush=True)
+            print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} saved {x_last.shape} to {os.path.basename(savename)} with {(time()-sample_start)/60:.2f} min", flush=True)
 
             if entire:
-                savename = os.path.join(self.config.output_dir, f"Tvir{params_backup[0]:.3f}-zeta{params_backup[1]:.3f}-N{self.config.num_image}-device{self.config.global_rank}-{os.path.basename(self.config.resume)}-{self.config.run_name}-{savetime}{'ema' if ema else ''}_entire.npy")
+                savename = os.path.join(self.config.output_dir, f"Tvir{params_backup[0]:.3f}-zeta{params_backup[1]:.3f}-device{self.config.global_rank}-{os.path.basename(self.config.resume)}-{self.config.run_name}-{savetime}{'ema' if ema else ''}_entire.npy")
                 np.save(savename, x_entire)
                 print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} saved images of shape {x_entire.shape} to {savename}")
         # else:

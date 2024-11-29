@@ -4,7 +4,7 @@
 #SBATCH -q regular #shared 
 #SBATCH --gpus-per-node=4
 #SBATCH -N1
-#SBATCH -t 1:48:00
+#SBATCH -t 3:00:00
 #SBATCH --ntasks-per-node=1
 #SBATCH -oReport-%j 
 #SBATCH --mail-type=BEGIN,END,FAIL
@@ -34,13 +34,13 @@ srun python diffusion.py \
     --autocast 1 \
     --use_checkpoint 1 \
     --dropout 0 \
-    --channel_mult 0.5 1 2 4 4 8 \
+    --channel_mult 1 1 2 2 4 4 \
     --dim 3 \
     --batch_size 2 \
-    --n_epoch 120 \
+    --n_epoch 80 \
     --gradient_accumulation_steps 10 \
     --lrate 2e-5 \
-    --resume ./outputs/model-N800-device_count4-node8-epoch119-33233233 \
+    --resume ./outputs/model-N800-device_count4-node8-epoch79-33233441 \
     #--train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
 
 date

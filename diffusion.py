@@ -262,7 +262,8 @@ class TrainConfig:
             1: [10, 250], # HII_EFF_FACTOR
             },
         images = {
-            0: [-338, 54],#[0, 80], # brightness_temp
+            # 0: [-338, 54],#[0, 80], # brightness_temp
+            0: [-387, 86],
             }
         )
 

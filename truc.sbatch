@@ -1,10 +1,10 @@
 #!/bin/bash
 #SBATCH -A m4717 
 #SBATCH -C gpu&hbm80g
-#SBATCH -q regular #shared 
-#SBATCH --gpus-per-node=4
-#SBATCH -N2
-#SBATCH -t 6:00:00
+#SBATCH -q shared #regular 
+#SBATCH --gpus-per-node=1
+#SBATCH -N1
+#SBATCH -t 3:00:00
 #SBATCH --ntasks-per-node=1
 #SBATCH -oReport-%j 
 #SBATCH --mail-type=BEGIN,END,FAIL
@@ -29,8 +29,8 @@ git diff truc.py
 
 srun python truc.py \
     --num_image 3200 \
-    --num_new_img_per_gpu 2 \
-    --max_num_img_per_gpu 2 \
+    --num_new_img_per_gpu 64 \
+    --max_num_img_per_gpu 64 \
     --autocast 1 \
     --use_checkpoint 1 \
     --dropout 0 \
@@ -40,8 +40,8 @@ srun python truc.py \
     --n_epoch 60 \
     --gradient_accumulation_steps 1 \
     --lrate 1e-4 \
-    --train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
-    #--resume ./outputs/model-N800-device_count4-node8-epoch79-33233441 \
+    --resume ./outputs/model-N3200-device_count1-node1-epoch59-33453798 \
+    #--train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
 
 date
 

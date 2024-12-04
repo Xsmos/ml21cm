@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH -A m4717 
 #SBATCH -C gpu&hbm80g
-#SBATCH -q regular #shared 
+#SBATCH -q regular #shared
 #SBATCH --gpus-per-node=4
 #SBATCH -N8
 #SBATCH -t 48:00:00
@@ -24,6 +24,12 @@ MASTER_PORT=$((10000 + RANDOM % 10000)) #12355
 export MASTER_ADDR=$MASTER_ADDR
 export MASTER_PORT=$MASTER_PORT
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+#
+export NCCL_BLOCKING_WAIT=1
+export NCCL_ASYNC_ERROR_HANDLING=1
+export NCCL_DEBUG=INFO
+export NCCL_TIMEOUT=3600
+#
 cat $0
 git diff diffusion.py
 

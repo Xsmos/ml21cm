@@ -39,9 +39,9 @@ srun python truc.py \
     --batch_size 32 \
     --n_epoch 120 \
     --gradient_accumulation_steps 1 \
-    --lrate 1e-4 \
+    --lrate 2e-5 \
     --train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
-    #--resume ./outputs/model-N3200-device_count4-node1-epoch59-33453889 \
+    #--resume ./outputs/model-N3200-device_count4-node2-epoch119-33497109 \
 
 date
 

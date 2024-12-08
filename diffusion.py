@@ -250,8 +250,8 @@ class TrainConfig:
     batch_size = 1#1#10#50#10#50#20#50#1#2#50#20#2#100 # 10
     n_epoch = 100#30#50#20#1#50#10#1#50#1#50#5#50#5#50#100#50#100#30#120#5#4# 10#50#20#20#2#5#25 # 120
     HII_DIM = 64
-    num_redshift = 1024#512#256#1024#64#256#512#256#512#256#512#256#512#64#512#64#512#64#256CUDAoom#128#64#512#128#64#512#256#256#64#512#128
-    startat = 0#512-num_redshift
+    num_redshift = HII_DIM #1024
+    startat = 512 #-num_redshift
 
     channel = 1
     img_shape = (channel, HII_DIM, num_redshift) if dim == 2 else (channel, HII_DIM, HII_DIM, num_redshift)
@@ -745,7 +745,7 @@ if __name__ == "__main__":
     config.resume = args.resume
 
     config.dim = args.dim
-    config.stride = (2,4) if config.dim == 2 else (2,2,4)
+    config.stride = (2,4) if config.dim == 2 else (2,2,2)
     config.img_shape = (config.channel, config.HII_DIM, config.num_redshift) if config.dim == 2 else (config.channel, config.HII_DIM, config.HII_DIM, config.num_redshift)
 
     ############################ training ################################

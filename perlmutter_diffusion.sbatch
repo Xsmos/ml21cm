@@ -29,19 +29,19 @@ git diff diffusion.py
 
 srun python diffusion.py \
     --num_image 3200 \
-    --num_new_img_per_gpu 16 \
-    --max_num_img_per_gpu 16 \
+    --num_new_img_per_gpu 32 \
+    --max_num_img_per_gpu 32 \
     --autocast 1 \
     --use_checkpoint 1 \
     --dropout 0 \
-    --channel_mult 0.5 1 2 4 4 8 \
-    --dim 2 \
+    --channel_mult 1 1 2 2 4 4 \
+    --dim 3 \
     --batch_size 32 \
     --n_epoch 120 \
     --gradient_accumulation_steps 1 \
     --lrate 2e-5 \
-    --resume ./outputs/model-N3200-device_count4-node2-epoch119-33660961 \
-    #--train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
+    --train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
+    #--resume ./outputs/model-N3200-device_count4-node2-epoch119-33660961 \
 
 date
 

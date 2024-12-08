@@ -25,9 +25,9 @@ export MASTER_ADDR=$MASTER_ADDR
 export MASTER_PORT=$MASTER_PORT
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 cat $0
-git diff truc.py
+git diff diffusion.py
 
-srun python truc.py \
+srun python diffusion.py \
     --num_image 3200 \
     --num_new_img_per_gpu 32 \
     --max_num_img_per_gpu 32 \

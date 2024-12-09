@@ -3,8 +3,8 @@
 #SBATCH -C gpu&hbm80g
 #SBATCH -q regular #shared
 #SBATCH --gpus-per-node=4
-#SBATCH -N1
-#SBATCH -t 15:00
+#SBATCH -N2
+#SBATCH -t 24:00:00
 #SBATCH --ntasks-per-node=1
 #SBATCH -oReport-%j 
 #SBATCH --mail-type=BEGIN,END,FAIL

@@ -161,7 +161,8 @@ class Dataset4h5(Dataset):
         with h5py.File(self.dir_name, 'r') as f:
             images_start = time()
             if self.dim == 2:
-                images = f[self.field][idx, 0, :self.HII_DIM, self.startat:self.startat+self.num_redshift][:,None]
+                images = f[self.field][idx, :self.HII_DIM, :self.HII_DIM, self.startat][:,None]
+                #images = f[self.field][idx, 0, :self.HII_DIM, self.startat:self.startat+self.num_redshift][:,None]
                 # images = f[self.field][idx,:self.HII_DIM,:self.HII_DIM,-3][:,None]
             elif self.dim == 3:
                 images = f[self.field][idx, :self.HII_DIM, :self.HII_DIM, self.startat:self.startat+self.num_redshift][:,None]

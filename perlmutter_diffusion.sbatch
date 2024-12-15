@@ -1,10 +1,10 @@
 #!/bin/bash
 #SBATCH -A m4717 
-#SBATCH -C gpu&hbm80g
+#SBATCH -C gpu #&hbm80g
 #SBATCH -q regular #shared
 #SBATCH --gpus-per-node=4
 #SBATCH -N1
-#SBATCH -t 10:00
+#SBATCH -t 5:40:00
 #SBATCH --ntasks-per-node=1
 #SBATCH -oReport-%j 
 #SBATCH --mail-type=BEGIN,END,FAIL
@@ -29,20 +29,20 @@ git diff diffusion.py
 
 srun python diffusion.py \
     --num_image 3200 \
-    --num_new_img_per_gpu 16 \
-    --max_num_img_per_gpu 16 \
+    --num_new_img_per_gpu 64 \
+    --max_num_img_per_gpu 32 \
     --autocast 1 \
     --use_checkpoint 1 \
     --dropout 0 \
     --channel_mult 1 2 3 4 \
-    --num_redshift 1 \
-    --dim 2 \
+    --num_redshift 8 \
+    --dim 3 \
     --batch_size 16 \
     --n_epoch 120 \
     --gradient_accumulation_steps 1 \
     --lrate 1e-5 \
     --train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
-    #--resume ./outputs/model-N3200-device_count4-node2-epoch119-33678194 \
+    #--resume ./outputs/model-N3200-device_count4-node2-epoch119-33892215 \
 
 date
 

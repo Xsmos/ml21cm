@@ -724,6 +724,7 @@ if __name__ == "__main__":
     parser.add_argument("--lrate", type=float, required=False, default=1e-4)
     parser.add_argument("--dim", type=int, required=False, default=3)
     parser.add_argument("--num_redshift", type=int, required=False, default=64)
+    parser.add_argument("--stride", type=int, nargs="+", required=False, default=(2,2,1))
 
     args = parser.parse_args()
 
@@ -745,8 +746,9 @@ if __name__ == "__main__":
     config.lrate = args.lrate
     config.resume = args.resume
 
-    config.dim = args.dim
-    config.stride = (2,2) if config.dim == 2 else (2,2,1)
+    config.stride = args.stride #(2,2) if config.dim == 2 else (2,2,1)
+    config.dim = len(config.stride) #args.dim
+    #print(config.stride, config.dim)
     config.num_redshift = args.num_redshift
     config.img_shape = (config.channel, config.HII_DIM, config.HII_DIM) if config.dim == 2 else (config.channel, config.HII_DIM, config.HII_DIM, config.num_redshift)
 

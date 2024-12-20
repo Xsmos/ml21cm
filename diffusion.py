@@ -303,6 +303,7 @@ class TrainConfig:
     #pbar_update_step = 20 
 
     channel_mult = (1,2,2,2,4)
+    num_res_blocks = 2
     # date = datetime.datetime.now().strftime("%m%d-%H%M")
     # run_name = f'{date}' # the unique name of each experiment
     str_len = 140
@@ -369,7 +370,16 @@ class DDPM21CM:
         self.ddpm = DDPMScheduler(betas=(1e-4, 0.02), num_timesteps=config.num_timesteps, img_shape=config.img_shape, device=config.device, config=config,)#, dtype=config.dtype
 
         # initialize the unet
-        self.nn_model = ContextUnet(n_param=config.n_param, image_size=config.HII_DIM, dim=config.dim, stride=config.stride, channel_mult=config.channel_mult, use_checkpoint=config.use_checkpoint, dropout=config.dropout)#, dtype=config.dtype)
+        self.nn_model = ContextUnet(
+            n_param=config.n_param, 
+            image_size=config.HII_DIM, 
+            dim=config.dim, 
+            stride=config.stride, 
+            channel_mult=config.channel_mult, 
+            use_checkpoint=config.use_checkpoint, 
+            dropout=config.dropout,
+            num_res_blocks = config.num_res_blocks,
+        )#, dtype=config.dtype)
 
         self.nn_model.train()
         self.nn_model.to(self.ddpm.device)
@@ -724,6 +734,7 @@ if __name__ == "__main__":
     parser.add_argument("--lrate", type=float, required=False, default=1e-4)
     parser.add_argument("--dim", type=int, required=False, default=3)
     parser.add_argument("--num_redshift", type=int, required=False, default=64)
+    parser.add_argument("--num_res_blocks", type=int, required=False, default=3)
     parser.add_argument("--stride", type=int, nargs="+", required=False, default=(2,2,1))
 
     args = parser.parse_args()
@@ -751,7 +762,8 @@ if __name__ == "__main__":
     #print(config.stride, config.dim)
     config.num_redshift = args.num_redshift
     config.img_shape = (config.channel, config.HII_DIM, config.HII_DIM) if config.dim == 2 else (config.channel, config.HII_DIM, config.HII_DIM, config.num_redshift)
-
+    config.num_res_blocks = args.num_res_blocks
+    
     ############################ training ################################
     if args.train:
         config.dataset_name = args.train

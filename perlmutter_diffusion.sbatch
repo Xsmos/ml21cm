@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH -A m4717 
-#SBATCH -C gpu&hbm80g
+#SBATCH -C gpu #&hbm80g
 #SBATCH -q regular #shared
 #SBATCH --gpus-per-node=4
 #SBATCH -N2
@@ -34,8 +34,9 @@ srun python diffusion.py \
     --autocast 1 \
     --use_checkpoint 1 \
     --dropout 0 \
-    --channel_mult 1 2 3 4 \
-    --num_redshift 24 \
+    --channel_mult 1 1 2 2 \
+    --num_redshift 16 \
+    --num_res_blocks 3 \
     --stride 2 2 2 \
     --batch_size 16 \
     --n_epoch 120 \

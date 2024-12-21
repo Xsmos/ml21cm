@@ -217,6 +217,7 @@ class ResBlock(TimestepBlock):
 
         while len(emb_out.shape) < len(h.shape):
             emb_out = emb_out[..., None]
+            print(f"emb_out.shape = {emb_out.shape}")
 
         if self.use_scale_shift_norm:
             out_norm, out_rest = self.out_layers[0], self.out_layers[1:]

@@ -31,9 +31,7 @@ srun python diffusion.py \
     --num_image 3200 \
     --num_new_img_per_gpu 64 \
     --max_num_img_per_gpu 32 \
-    --autocast 1 \
-    --use_checkpoint 1 \
-    --dropout 0 \
+    --model_channels 96 \
     --channel_mult 1 1 2 2 \
     --num_redshift 16 \
     --num_res_blocks 3 \
@@ -44,6 +42,9 @@ srun python diffusion.py \
     --lrate 1e-5 \
     --train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
     #--resume ./outputs/model-N3200-device_count4-node2-epoch119-33965702 \
+    #--autocast 1 \
+    #--use_checkpoint 1 \
+    #--dropout 0 \
 
 date
 

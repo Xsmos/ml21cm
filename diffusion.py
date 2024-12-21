@@ -304,6 +304,7 @@ class TrainConfig:
 
     channel_mult = (1,2,2,2,4)
     num_res_blocks = 2
+    model_channels = 128
     # date = datetime.datetime.now().strftime("%m%d-%H%M")
     # run_name = f'{date}' # the unique name of each experiment
     str_len = 140
@@ -379,6 +380,7 @@ class DDPM21CM:
             use_checkpoint=config.use_checkpoint, 
             dropout=config.dropout,
             num_res_blocks = config.num_res_blocks,
+            model_channels = config.model_channels,
         )#, dtype=config.dtype)
 
         self.nn_model.train()
@@ -709,9 +711,6 @@ def generate_samples(rank, world_size, local_world_size, master_addr, master_por
             params=params, 
             num_new_img_per_gpu=num_new_img_per_gpu % max_num_img_per_gpu,
             )
-         
-
-        #print(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{config.global_rank} generated sample of shape: {sample.shape}")
 
     dist.destroy_process_group()
 
@@ -728,13 +727,14 @@ if __name__ == "__main__":
     parser.add_argument("--n_epoch", type=int, required=False, default=50)
     parser.add_argument("--batch_size", type=int, required=False, default=2)
     parser.add_argument("--channel_mult", type=float, nargs="+", required=False, default=(1,2,2,2,4))
-    parser.add_argument("--autocast", type=int, required=False, default=False)
-    parser.add_argument("--use_checkpoint", type=int, required=False, default=False)
+    parser.add_argument("--autocast", type=int, required=False, default=1)
+    parser.add_argument("--use_checkpoint", type=int, required=False, default=1)
     parser.add_argument("--dropout", type=float, required=False, default=0)
     parser.add_argument("--lrate", type=float, required=False, default=1e-4)
     parser.add_argument("--dim", type=int, required=False, default=3)
     parser.add_argument("--num_redshift", type=int, required=False, default=64)
     parser.add_argument("--num_res_blocks", type=int, required=False, default=3)
+    parser.add_argument("--model_channels", type=int, required=False, default=96)
     parser.add_argument("--stride", type=int, nargs="+", required=False, default=(2,2,1))
 
     args = parser.parse_args()
@@ -751,6 +751,7 @@ if __name__ == "__main__":
     config.n_epoch = args.n_epoch
     config.batch_size = args.batch_size
     config.channel_mult = args.channel_mult
+    config.model_channels = args.model_channels
     config.autocast = bool(args.autocast)
     config.use_checkpoint = bool(args.use_checkpoint)
     config.dropout = args.dropout
@@ -778,16 +779,6 @@ if __name__ == "__main__":
     if args.resume and not args.train:
         num_new_img_per_gpu = args.num_new_img_per_gpu#200#4#200
         max_num_img_per_gpu = args.max_num_img_per_gpu#40#2#20
-        #config = TrainConfig()
-        #config.world_size = world_size
-        #config.dtype = torch.float32 
-        #config.resume = args.resume
-        #config.gradient_accumulation_steps = args.gradient_accumulation_steps
-        # config.resume = f"./outputs/model_state-N30-device_count3-epoch4-172.27.149.181"
-        # config.resume = f"./outputs/model_state-N{config.num_image}-device_count{world_size}-epoch{config.n_epoch-1}"
-        # config.resume = f"./outputs/model_state-N{config.num_image}-device_count1-epoch{config.n_epoch-1}"
-        # manager = mp.Manager()
-        # return_dict = manager.dict()
         params_pairs = [
             (4.4, 131.341),
             (5.6, 19.037),
@@ -804,63 +795,5 @@ if __name__ == "__main__":
                     nprocs=local_world_size, 
                     join=True,
                     )
-
-        # print("---"*30)
-        # print(f"cuda:{torch.cuda.current_device()}, keys = {return_dict.keys()}")
-        # if "samples" in return_dict:
-        #     samples = return_dict["samples"]
-        #     print(f"cuda:{torch.cuda.current_device()} generated samples shape: {samples.shape}")
-
-
-# %%
-# ls -lth outputs | head
-
-# # %%
-# def plot_grid(samples, c=None, row=1, col=2):
-#     print("samples.shape =", samples.shape)
-#     for j in range(samples.shape[4]):
-#         plt.figure(figsize = (12,6), dpi=400)
-#         for i in range(len(samples)):
-#             plt.subplot(row,col,i+1)
-#             plt.imshow(samples[i,0,:,:,j], cmap='gray')#, vmin=-1, vmax=1)
-#             plt.xticks([])
-#             plt.yticks([])
-#         # plt.suptitle(f"ION_Tvir_MIN = {c[0][0]}, HII_EFF_FACTOR = {c[0][1]}")
-#             # plt.show()
-#         # plt.suptitle('simulations')
-#         plt.tight_layout()
-#         plt.subplots_adjust(wspace=0, hspace=0)
-#         plt.savefig(f"test3D-{j:03d}.png")
-#         plt.close()
-#         # plt.show()
-    
-# data = np.load("outputs/Tvir4.400000095367432-zeta131.34100341796875-N1000.npy")
-# # print(data.shape)
-# plot_grid(data)
-# plt.imshow(data)
-
-# %%
-# config = TrainConfig()
-# def plot(filename, row=4, col=6):
-#     samples = np.load(filename)
-#     params = filename.split('guide_w')[-1][:-4]
-#     print("plotting", samples.shape, params)
-#     plt.figure(figsize = (8,8))
-#     for i in range(24):
-#         plt.subplot(row,col,i+1)
-#         plt.imshow(samples[i,0,:,:], cmap='gray')#, vmin=-1, vmax=1)
-#         plt.xticks([])
-#         plt.yticks([])
-#         # plt.show()
-#     plt.suptitle(params)
-#     plt.tight_layout()
-#     plt.subplots_adjust(wspace=0, hspace=0) 
-#     plt.show()
-#     # plt.savefig('outputs/'+params+'.png')
-#     # plt.close()
-#     # plt.imshow(images[0,0])
-#     # plt.show()
-
-# %%
 
 

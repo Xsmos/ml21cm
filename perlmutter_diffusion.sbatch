@@ -3,8 +3,8 @@
 #SBATCH -C gpu&hbm80g
 #SBATCH -q regular #shared
 #SBATCH --gpus-per-node=4
-#SBATCH -N2
-#SBATCH -t 18:00:00
+#SBATCH -N1
+#SBATCH -t 5:00:00
 #SBATCH --ntasks-per-node=1
 #SBATCH -oReport-%j 
 #SBATCH --mail-type=BEGIN,END,FAIL
@@ -33,15 +33,15 @@ srun python diffusion.py \
     --max_num_img_per_gpu 32 \
     --model_channels 128 \
     --channel_mult 1 2 3 4 \
-    --num_res_blocks 1 \
+    --num_res_blocks 3 \
     --num_redshift 32 \
     --stride 2 2 2 \
     --batch_size 32 \
     --n_epoch 120 \
     --gradient_accumulation_steps 1 \
     --lrate 1e-5 \
-    --train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
-    #--resume ./outputs/model-N3200-device_count4-node2-epoch119-34768123 \
+    --resume ./outputs/model-N3200-device_count4-node2-epoch119-34897417 \
+    #--train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
     #--autocast 1 \
     #--use_checkpoint 1 \
     #--dropout 0 \

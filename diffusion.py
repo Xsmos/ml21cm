@@ -385,7 +385,7 @@ class DDPM21CM:
 
         self.nn_model.train()
         self.nn_model.to(self.ddpm.device)
-        self.nn_model = DDP(self.nn_model, device_ids=[self.ddpm.device])
+        self.nn_model = DDP(self.nn_model, device_ids=[self.ddpm.device], find_unused_parameters=True)
 
         #gpu_info = get_gpu_info(config.device)
         if config.resume and os.path.exists(config.resume):
@@ -604,6 +604,8 @@ class DDPM21CM:
                             # 'ema_unet_state_dict': self.ema_model.state_dict(),
                             }
                         save_name = self.config.save_name+f"-N{self.config.num_image}-device_count{self.config.world_size}-node{int(os.environ['SLURM_NNODES'])}-epoch{ep}-{self.config.run_name}"
+                        config.resume = save_name
+                        print("save_name copyed to config.resume =", config.resume)
                         torch.save(model_state, save_name)
                         print(f'cuda:{torch.cuda.current_device()}/{self.config.global_rank} saved model at ' + save_name)
                         # print('saved model at ' + config.save_dir + f"model_epoch_{ep}_test_{config.run_name}.pth")
@@ -718,7 +720,7 @@ def generate_samples(rank, world_size, local_world_size, master_addr, master_por
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--train", type=str, required=False, help="whether to train the model", default=False)
-    #parser.add_argument("--sample", type=int, required=False, help="whether to sample", default=0)
+    parser.add_argument("--sample", type=int, required=False, help="whether to sample", default=0)
     parser.add_argument("--resume", type=str, required=False, help="filename of the model to resume", default=False)
     parser.add_argument("--num_new_img_per_gpu", type=int, required=False, default=4)
     parser.add_argument("--max_num_img_per_gpu", type=int, required=False, default=2)
@@ -759,6 +761,7 @@ if __name__ == "__main__":
     config.lrate = args.lrate
     config.resume = args.resume
     config.guide_w = args.guide_w
+    config.sample = args.sample
 
     config.stride = args.stride #(2,2) if config.dim == 2 else (2,2,1)
     config.dim = len(config.stride) #args.dim
@@ -767,6 +770,7 @@ if __name__ == "__main__":
     config.img_shape = (config.channel, config.HII_DIM, config.HII_DIM) if config.dim == 2 else (config.channel, config.HII_DIM, config.HII_DIM, config.num_redshift)
     config.num_res_blocks = args.num_res_blocks
     
+    print("before args.train, config.resume =", config.resume)
     ############################ training ################################
     if args.train:
         config.dataset_name = args.train
@@ -777,8 +781,10 @@ if __name__ == "__main__":
                 nprocs=local_world_size, 
                 join=True,
                 )
+        print("in args.train, config.resume =", config.resume)
+
     ############################ sampling ################################
-    if args.resume and not args.train:
+    if config.resume and config.sample:
         num_new_img_per_gpu = args.num_new_img_per_gpu#200#4#200
         max_num_img_per_gpu = args.max_num_img_per_gpu#40#2#20
         params_pairs = [

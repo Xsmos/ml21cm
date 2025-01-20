@@ -736,6 +736,7 @@ if __name__ == "__main__":
     parser.add_argument("--num_res_blocks", type=int, required=False, default=3)
     parser.add_argument("--model_channels", type=int, required=False, default=96)
     parser.add_argument("--stride", type=int, nargs="+", required=False, default=(2,2,1))
+    parser.add_argument("--guide_w", type=int, required=False, default=0)
 
     args = parser.parse_args()
 
@@ -757,6 +758,7 @@ if __name__ == "__main__":
     config.dropout = args.dropout
     config.lrate = args.lrate
     config.resume = args.resume
+    config.guide_w = args.guide_w
 
     config.stride = args.stride #(2,2) if config.dim == 2 else (2,2,1)
     config.dim = len(config.stride) #args.dim

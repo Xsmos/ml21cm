@@ -604,8 +604,9 @@ class DDPM21CM:
                             # 'ema_unet_state_dict': self.ema_model.state_dict(),
                             }
                         save_name = self.config.save_name+f"-N{self.config.num_image}-device_count{self.config.world_size}-node{int(os.environ['SLURM_NNODES'])}-epoch{ep}-{self.config.run_name}"
-                        config.resume = save_name
-                        print("save_name copyed to config.resume =", config.resume)
+                        global config_resume
+                        config_resume = save_name
+                        print("save_name copyed to config_resume =", config_resume)
                         torch.save(model_state, save_name)
                         print(f'cuda:{torch.cuda.current_device()}/{self.config.global_rank} saved model at ' + save_name)
                         # print('saved model at ' + config.save_dir + f"model_epoch_{ep}_test_{config.run_name}.pth")
@@ -781,6 +782,7 @@ if __name__ == "__main__":
                 nprocs=local_world_size, 
                 join=True,
                 )
+        config.resume = config_resume
         print("in args.train, config.resume =", config.resume)
 
     ############################ sampling ################################

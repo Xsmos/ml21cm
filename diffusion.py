@@ -775,7 +775,7 @@ if __name__ == "__main__":
     config.run_name = os.environ.get("SLURM_JOB_ID", datetime.now().strftime("%d%H%M%S")) # the unique name of each experiment
     config.save_name += f"-N{config.num_image}-device_count{local_world_size}-node{total_nodes}-{config.run_name}"
     
-    print("before args.train, config.resume =", config.resume)
+    #print("before args.train, config.resume =", config.resume)
     ############################ training ################################
     if args.train:
         config.dataset_name = args.train
@@ -788,10 +788,10 @@ if __name__ == "__main__":
                 )
         #print(f"torch.cuda.current_device() = {torch.cuda.current_device()}")
         config.resume = config.save_name + f"-epoch{config.n_epoch}"
-        print("in args.train, config.resume =", config.resume)
+        #print("in args.train, config.resume =", config.resume)
 
     ############################ sampling ################################
-    if config.resume and config.sample:
+    if os.path.exists(config.resume) and config.sample:
         num_new_img_per_gpu = args.num_new_img_per_gpu#200#4#200
         max_num_img_per_gpu = args.max_num_img_per_gpu#40#2#20
         params_pairs = [

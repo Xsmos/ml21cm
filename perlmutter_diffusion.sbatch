@@ -4,7 +4,7 @@
 #SBATCH -q regular #shared
 #SBATCH --gpus-per-node=4
 #SBATCH -N2
-#SBATCH -t 20:00
+#SBATCH -t 10:00
 #SBATCH --ntasks-per-node=1
 #SBATCH -oReport-%j 
 #SBATCH --mail-type=BEGIN,END,FAIL
@@ -37,7 +37,7 @@ srun python diffusion.py \
     --num_redshift 8 \
     --stride 2 2 \
     --batch_size 32 \
-    --n_epoch 120 \
+    --n_epoch 20 \
     --gradient_accumulation_steps 1 \
     --lrate 1e-5 \
     --guide_w -1 \

@@ -366,7 +366,6 @@ def get_gpu_info(device):
 
 class DDPM21CM:
     def __init__(self, config):
-        config.run_name = os.environ.get("SLURM_JOB_ID", datetime.now().strftime("%d%H%M%S")) # the unique name of each experiment
         self.config = config
         self.ddpm = DDPMScheduler(betas=(1e-4, 0.02), num_timesteps=config.num_timesteps, img_shape=config.img_shape, device=config.device, config=config,)#, dtype=config.dtype
 
@@ -586,8 +585,13 @@ class DDPM21CM:
     def save(self, ep):
         # save model
         # if self.accelerator.is_main_process:
-        if self.config.global_rank == 0:# or torch.cuda.current_device() == 0:
-            if ep == self.config.n_epoch-1 or (ep+1) % self.config.save_period == 0:
+        if ep == self.config.n_epoch-1 or (ep+1) % self.config.save_period == 0:
+            #save_name = self.config.save_name+f"-N{self.config.num_image}-device_count{self.config.world_size}-node{int(os.environ['SLURM_NNODES'])}-epoch{ep}-{self.config.run_name}"
+            #global config_resume
+            #config_resume = save_name
+            #print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank}", "save_name copied to config_resume =", config_resume)
+
+            if self.config.global_rank == 0:# or torch.cuda.current_device() == 0:
                 self.nn_model.eval()
                 with torch.no_grad():
                     if self.config.push_to_hub:
@@ -603,10 +607,7 @@ class DDPM21CM:
                             'unet_state_dict': self.nn_model.module.state_dict(),
                             # 'ema_unet_state_dict': self.ema_model.state_dict(),
                             }
-                        save_name = self.config.save_name+f"-N{self.config.num_image}-device_count{self.config.world_size}-node{int(os.environ['SLURM_NNODES'])}-epoch{ep}-{self.config.run_name}"
-                        global config_resume
-                        config_resume = save_name
-                        print("save_name copyed to config_resume =", config_resume)
+                        save_name = self.config.save_name + f"-epoch{ep+1}"
                         torch.save(model_state, save_name)
                         print(f'cuda:{torch.cuda.current_device()}/{self.config.global_rank} saved model at ' + save_name)
                         # print('saved model at ' + config.save_dir + f"model_epoch_{ep}_test_{config.run_name}.pth")
@@ -770,6 +771,9 @@ if __name__ == "__main__":
     config.num_redshift = args.num_redshift
     config.img_shape = (config.channel, config.HII_DIM, config.HII_DIM) if config.dim == 2 else (config.channel, config.HII_DIM, config.HII_DIM, config.num_redshift)
     config.num_res_blocks = args.num_res_blocks
+
+    config.run_name = os.environ.get("SLURM_JOB_ID", datetime.now().strftime("%d%H%M%S")) # the unique name of each experiment
+    config.save_name += f"-N{config.num_image}-device_count{local_world_size}-node{total_nodes}-{config.run_name}"
     
     print("before args.train, config.resume =", config.resume)
     ############################ training ################################
@@ -782,7 +786,8 @@ if __name__ == "__main__":
                 nprocs=local_world_size, 
                 join=True,
                 )
-        config.resume = config_resume
+        #print(f"torch.cuda.current_device() = {torch.cuda.current_device()}")
+        config.resume = config.save_name + f"-epoch{config.n_epoch}"
         print("in args.train, config.resume =", config.resume)
 
     ############################ sampling ################################

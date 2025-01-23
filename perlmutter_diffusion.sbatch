@@ -1,10 +1,10 @@
 #!/bin/bash
 #SBATCH -A m4717 
-#SBATCH -C gpu #&hbm80g
+#SBATCH -C gpu&hbm80g
 #SBATCH -q regular #shared
 #SBATCH --gpus-per-node=4
 #SBATCH -N2
-#SBATCH -t 4:00:00
+#SBATCH -t 12:00:00
 #SBATCH --ntasks-per-node=1
 #SBATCH -oReport-%j 
 #SBATCH --mail-type=BEGIN,END,FAIL
@@ -34,7 +34,7 @@ srun python diffusion.py \
     --model_channels 128 \
     --channel_mult 1 2 3 4 \
     --num_res_blocks 1 \
-    --num_redshift 8 \
+    --num_redshift 32 \
     --stride 2 2 2 \
     --guide_w -1 \
     --batch_size 32 \

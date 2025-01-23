@@ -763,7 +763,7 @@ if __name__ == "__main__":
     config.lrate = args.lrate
     config.resume = args.resume
     config.guide_w = args.guide_w
-    config.sample = args.sample
+    #config.sample = args.sample
 
     config.stride = args.stride #(2,2) if config.dim == 2 else (2,2,1)
     config.dim = len(config.stride) #args.dim
@@ -791,7 +791,7 @@ if __name__ == "__main__":
         #print("in args.train, config.resume =", config.resume)
 
     ############################ sampling ################################
-    if os.path.exists(config.resume) and config.sample:
+    if os.path.exists(config.resume) and args.sample:
         num_new_img_per_gpu = args.num_new_img_per_gpu#200#4#200
         max_num_img_per_gpu = args.max_num_img_per_gpu#40#2#20
         params_pairs = [

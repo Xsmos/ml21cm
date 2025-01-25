@@ -10,10 +10,9 @@
 #SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH --gpu-bind=none
 
-date
-#module load anaconda3/2022.05 # Load module dependencies
+cat $0
+
 module load pytorch #/2.0.1
-#conda activate diffusers 
 which python
 conda env list
 module list
@@ -24,7 +23,7 @@ MASTER_PORT=$((10000 + RANDOM % 10000)) #12355
 export MASTER_ADDR=$MASTER_ADDR
 export MASTER_PORT=$MASTER_PORT
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
-cat $0
+
 git diff diffusion.py
 
 srun python diffusion.py \
@@ -48,7 +47,6 @@ srun python diffusion.py \
     #--use_checkpoint 1 \
     #--dropout 0 \
 
-date
-
+sacct -j $SLURM_JOB_ID --format=JobID,JobName,Elapsed,Start,End
 # SHORT NOTES:
 #

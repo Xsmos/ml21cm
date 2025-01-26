@@ -393,9 +393,9 @@ class DDPM21CM:
             # print(f"resumed nn_model from {config.resume}")
             self.nn_model.module.load_state_dict(torch.load(config.resume)['unet_state_dict'])
             #self.nn_model.module.to(config.dtype)
-            print(f"{config.run_name} cuda:{torch.cuda.current_device()}/{self.config.global_rank} resumed nn_model from {config.resume} with {sum(x.numel() for x in self.nn_model.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')}".center(self.config.str_len,'+'))
+            print(f"{config.run_name} cuda:{torch.cuda.current_device()}/{self.config.global_rank} resumed nn_model from {config.resume} with {sum(x.numel() for x in self.nn_model.module.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')}".center(self.config.str_len,'+'))
         else:
-            print(f"{config.run_name} cuda:{torch.cuda.current_device()}/{self.config.global_rank} initialized nn_model randomly with {sum(x.numel() for x in self.nn_model.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')}".center(self.config.str_len,'+'))
+            print(f"{config.run_name} cuda:{torch.cuda.current_device()}/{self.config.global_rank} initialized nn_model randomly with {sum(x.numel() for x in self.nn_model.module.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')}".center(self.config.str_len,'+'))
 
         # whether to use ema
         if config.ema:
@@ -414,19 +414,19 @@ class DDPM21CM:
             #self.ema_model.train()
             self.ema_model.eval().requires_grad_(False)
             self.ema_model.to(self.ddpm.device)
-            self.ema_model = DDP(self.ema_model, device_ids=[self.ddpm.device], find_unused_parameters=True)
+            #self.ema_model = DDP(self.ema_model, device_ids=[self.ddpm.device], find_unused_parameters=True)
 
             if config.resume and os.path.exists(config.resume):
                 #self.ema_model = ContextUnet(n_param=config.n_param, image_size=config.HII_DIM, dim=config.dim, stride=config.stride).to(config.device, dropout=config.dropout)#, dtype=config.dtype
-                self.ema_model.module.load_state_dict(torch.load(config.resume)['ema_unet_state_dict'])
+                self.ema_model.load_state_dict(torch.load(config.resume)['ema_unet_state_dict'])
                 print(f"{config.run_name} cuda:{torch.cuda.current_device()}/{self.config.global_rank} resumed ema_model from {config.resume} with {sum(x.numel() for x in self.ema_model.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')}".center(self.config.str_len,'+'))
                 #print(f"resumed ema_model from {config.resume}")
             else:
-                self.ema_model.module = copy.deepcopy(self.nn_model.module).eval().requires_grad_(False)
+                self.ema_model = copy.deepcopy(self.nn_model.module).eval().requires_grad_(False)
                 print(f"{config.run_name} cuda:{torch.cuda.current_device()}/{self.config.global_rank} initialized ema_model randomly with {sum(x.numel() for x in self.ema_model.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')}".center(self.config.str_len,'+'))
 
 
-        self.optimizer = torch.optim.AdamW(self.nn_model.parameters(), lr=config.lrate)
+        self.optimizer = torch.optim.AdamW(self.nn_model.module.parameters(), lr=config.lrate)
         self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
                 optimizer = self.optimizer,
                 T_max = int(config.num_image / config.batch_size * config.n_epoch / config.gradient_accumulation_steps),
@@ -563,7 +563,7 @@ class DDPM21CM:
 
                 if (i+1) % self.config.gradient_accumulation_steps == 0:
                     self.scaler.unscale_(self.optimizer)
-                    torch.nn.utils.clip_grad_norm_(self.nn_model.parameters(), max_norm=1.0)
+                    torch.nn.utils.clip_grad_norm_(self.nn_model.module.parameters(), max_norm=1.0)
 
                     self.scaler.step(self.optimizer)
                     self.lr_scheduler.step()
@@ -573,7 +573,7 @@ class DDPM21CM:
 
                 # ema update
                 if self.config.ema:
-                    self.ema.step_ema(self.ema_model.module, self.nn_model.module)
+                    self.ema.step_ema(self.ema_model, self.nn_model.module)
 
                 #if (i+1) % self.config.pbar_update_step == 0:
                 pbar_train.update(1)#self.config.pbar_update_step)
@@ -624,7 +624,7 @@ class DDPM21CM:
                         model_state = {
                             'epoch': ep,
                             'unet_state_dict': self.nn_model.module.state_dict(),
-                            'ema_unet_state_dict': self.ema_model.module.state_dict() if self.config.ema else None,
+                            'ema_unet_state_dict': self.ema_model.state_dict() if self.config.ema else None,
                             }
                         save_name = self.config.save_name + f"-epoch{ep+1}"
                         torch.save(model_state, save_name)
@@ -665,7 +665,7 @@ class DDPM21CM:
         assert params_normalized.dim() == 2, "params_normalized must be a 2D torch.tensor"
         # print("params =", params)
 
-        self.nn_model.eval()
+        self.nn_model.module.eval()
         if self.config.ema:
             self.ema_model.eval()
 
@@ -674,7 +674,7 @@ class DDPM21CM:
             with autocast(enabled=self.config.autocast):
             #with autocast():
                 x_last, x_entire = self.ddpm.sample(
-                    nn_model=self.nn_model, 
+                    nn_model=self.nn_model.module, 
                     params=params_normalized.to(self.config.device), 
                     device=self.config.device, 
                     guide_w=self.config.guide_w

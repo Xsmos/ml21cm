@@ -23,13 +23,14 @@ MASTER_PORT=$((10000 + RANDOM % 10000)) #12355
 export MASTER_ADDR=$MASTER_ADDR
 export MASTER_PORT=$MASTER_PORT
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+export TORCH_DISTRIBUTED_DEBUG=DETAIL
 
 git diff diffusion.py
 
 srun python diffusion.py \
     --num_image 32 \
-    --num_new_img_per_gpu 32 \
-    --max_num_img_per_gpu 32 \
+    --num_new_img_per_gpu 16 \
+    --max_num_img_per_gpu 16 \
     --model_channels 128 \
     --channel_mult 1 2 3 4 \
     --num_res_blocks 1 \
@@ -37,7 +38,7 @@ srun python diffusion.py \
     --stride 2 2 2 \
     --guide_w -1 \
     --batch_size 32 \
-    --n_epoch 120 \
+    --n_epoch 12 \
     --gradient_accumulation_steps 1 \
     --lrate 1e-5 \
     --sample 1 \

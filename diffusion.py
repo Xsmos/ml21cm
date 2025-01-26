@@ -694,9 +694,10 @@ class DDPM21CM:
                 os.makedirs(self.config.output_dir)
 
             for ema in range(self.config.ema + 1):
+                elapsed_time = (time()-sample_start)/(self.config.ema + 1)
                 savename = os.path.join(self.config.output_dir, f"Tvir{params_backup[0]:.3f}-zeta{params_backup[1]:.3f}-device{self.config.global_rank}-{os.path.basename(self.config.resume)}-{self.config.run_name}-{savetime}{'-ema' if ema else ''}")
                 np.save(savename, x_last if ema==0 else x_last_ema)
-                print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} saved {x_last.shape} to {os.path.basename(savename)} with {(time()-sample_start)/60:.2f} min", flush=True)
+                print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} saved {x_last.shape} to {os.path.basename(savename)} with {elapsed_time/60:.2f} min", flush=True)
 
             if entire:
                 savename = os.path.join(self.config.output_dir, f"Tvir{params_backup[0]:.3f}-zeta{params_backup[1]:.3f}-device{self.config.global_rank}-{os.path.basename(self.config.resume)}-{self.config.run_name}-{savetime}{'-ema' if ema else ''}_entire")
@@ -720,10 +721,11 @@ def train(rank, world_size, local_world_size, master_addr, master_port, config):
     #print("before dppm21cm")
     ddpm21cm = DDPM21CM(config)
     ddpm21cm.train()
-    destroy_process_group()
+    if dist.is_initialized():
+        dist.destroy_process_group()
 # %%
 
-def generate_samples(rank, world_size, local_world_size, master_addr, master_port, config, num_new_img_per_gpu, max_num_img_per_gpu, params):
+def generate_samples(rank, world_size, local_world_size, master_addr, master_port, config, num_new_img_per_gpu, max_num_img_per_gpu, params_pairs):
     global_rank = rank + local_world_size * int(os.environ["SLURM_NODEID"])
     ddp_setup(global_rank, world_size, master_addr, master_port)
     torch.cuda.set_device(rank)
@@ -734,20 +736,25 @@ def generate_samples(rank, world_size, local_world_size, master_addr, master_por
 
     ddpm21cm = DDPM21CM(config)
 
-    for _ in range(num_new_img_per_gpu // max_num_img_per_gpu):    
-        #print(f"rank = {rank}, global_rank = {global_rank}, world_size = {world_size}, local_world_size = {local_world_size}")
-        ddpm21cm.sample(
-            params=params, 
-            num_new_img_per_gpu=max_num_img_per_gpu,
-            )
-            
-    if num_new_img_per_gpu % max_num_img_per_gpu:
-        ddpm21cm.sample(
-            params=params, 
-            num_new_img_per_gpu=num_new_img_per_gpu % max_num_img_per_gpu,
-            )
+    for params in params_pairs:
+        if global_rank == 0:
+            print(f"sampling, {params}, ip = {socket.gethostbyname(socket.gethostname())}, local_world_size = {local_world_size}, world_size = {world_size}, {datetime.now().strftime('%d-%H:%M:%S.%f')}".center(config.str_len,'#'), flush=True)
 
-    dist.destroy_process_group()
+        for _ in range(num_new_img_per_gpu // max_num_img_per_gpu):    
+            #print(f"rank = {rank}, global_rank = {global_rank}, world_size = {world_size}, local_world_size = {local_world_size}")
+            ddpm21cm.sample(
+                params=params, 
+                num_new_img_per_gpu=max_num_img_per_gpu,
+                )
+                
+        if num_new_img_per_gpu % max_num_img_per_gpu:
+            ddpm21cm.sample(
+                params=params, 
+                num_new_img_per_gpu=num_new_img_per_gpu % max_num_img_per_gpu,
+                )
+
+    if dist.is_initialized():
+        dist.destroy_process_group()
 
 
 if __name__ == "__main__":
@@ -835,13 +842,12 @@ if __name__ == "__main__":
             (4.8, 131.341),
         ]
 
-        for params in params_pairs:
-            print(f"sampling, {params}, ip = {socket.gethostbyname(socket.gethostname())}, local_world_size = {local_world_size}, world_size = {world_size}, {datetime.now().strftime('%d-%H:%M:%S.%f')}".center(config.str_len,'#'))
-            mp.spawn(
-                    generate_samples, 
-                    args=(world_size, local_world_size, master_addr, master_port, config, num_new_img_per_gpu, max_num_img_per_gpu, torch.tensor(params)), 
-                    nprocs=local_world_size, 
-                    join=True,
-                    )
+        #for params in params_pairs:
+        mp.spawn(
+                generate_samples, 
+                args=(world_size, local_world_size, master_addr, master_port, config, num_new_img_per_gpu, max_num_img_per_gpu, torch.tensor(params_pairs)), 
+                nprocs=local_world_size, 
+                join=True,
+                )
 
 

@@ -273,7 +273,7 @@ class TrainConfig:
     guide_w = 0#-1#0#-1#0#-1#0.1#[0,0.1] #[0,0.5,2] strength of generative guidance
     dropout = 0
     #drop_prob = 0.1 #0.28 # only takes effect when guide_w != -1
-    ema=False # whether to use ema
+    ema=0 # whether to use ema
     ema_rate=0.995
 
     # seed = 0
@@ -400,12 +400,31 @@ class DDPM21CM:
         # whether to use ema
         if config.ema:
             self.ema = EMA(config.ema_rate)
+            self.ema_model = ContextUnet(
+                    n_param=config.n_param, 
+                    image_size=config.HII_DIM, 
+                    dim=config.dim, 
+                    stride=config.stride, 
+                    channel_mult=config.channel_mult, 
+                    use_checkpoint=config.use_checkpoint, 
+                    dropout=config.dropout,
+                    num_res_blocks = config.num_res_blocks,
+                    model_channels = config.model_channels,
+                )
+            #self.ema_model.train()
+            self.ema_model.eval().requires_grad_(False)
+            self.ema_model.to(self.ddpm.device)
+            self.ema_model = DDP(self.ema_model, device_ids=[self.ddpm.device], find_unused_parameters=True)
+
             if config.resume and os.path.exists(config.resume):
-                self.ema_model = ContextUnet(n_param=config.n_param, image_size=config.HII_DIM, dim=config.dim, stride=config.stride).to(config.device, dropout=config.dropout)#, dtype=config.dtype
-                self.ema_model.load_state_dict(torch.load(config.resume)['ema_unet_state_dict'])
-                print(f"resumed ema_model from {config.resume}")
+                #self.ema_model = ContextUnet(n_param=config.n_param, image_size=config.HII_DIM, dim=config.dim, stride=config.stride).to(config.device, dropout=config.dropout)#, dtype=config.dtype
+                self.ema_model.module.load_state_dict(torch.load(config.resume)['ema_unet_state_dict'])
+                print(f"{config.run_name} cuda:{torch.cuda.current_device()}/{self.config.global_rank} resumed ema_model from {config.resume} with {sum(x.numel() for x in self.ema_model.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')}".center(self.config.str_len,'+'))
+                #print(f"resumed ema_model from {config.resume}")
             else:
-                self.ema_model = copy.deepcopy(self.nn_model).eval().requires_grad_(False)
+                self.ema_model.module = copy.deepcopy(self.nn_model.module).eval().requires_grad_(False)
+                print(f"{config.run_name} cuda:{torch.cuda.current_device()}/{self.config.global_rank} initialized ema_model randomly with {sum(x.numel() for x in self.ema_model.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')}".center(self.config.str_len,'+'))
+
 
         self.optimizer = torch.optim.AdamW(self.nn_model.parameters(), lr=config.lrate)
         self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
@@ -554,7 +573,7 @@ class DDPM21CM:
 
                 # ema update
                 if self.config.ema:
-                    self.ema.step_ema(self.ema_model, self.nn_model)
+                    self.ema.step_ema(self.ema_model.module, self.nn_model.module)
 
                 #if (i+1) % self.config.pbar_update_step == 0:
                 pbar_train.update(1)#self.config.pbar_update_step)
@@ -605,7 +624,7 @@ class DDPM21CM:
                         model_state = {
                             'epoch': ep,
                             'unet_state_dict': self.nn_model.module.state_dict(),
-                            # 'ema_unet_state_dict': self.ema_model.state_dict(),
+                            'ema_unet_state_dict': self.ema_model.module.state_dict() if self.config.ema else None,
                             }
                         save_name = self.config.save_name + f"-epoch{ep+1}"
                         torch.save(model_state, save_name)
@@ -629,7 +648,7 @@ class DDPM21CM:
         value = value * (to[1]-to[0]) + to[0]
         return value 
 
-    def sample(self, params:torch.tensor=None, num_new_img_per_gpu=192, ema=False, entire=False, save=True):
+    def sample(self, params:torch.tensor=None, num_new_img_per_gpu=192, entire=False, save=True):
         # n_sample = params.shape[0]
         # file = self.config.resume
 
@@ -647,6 +666,9 @@ class DDPM21CM:
         # print("params =", params)
 
         self.nn_model.eval()
+        if self.config.ema:
+            self.ema_model.eval()
+
         sample_start = time()
         with torch.no_grad():
             with autocast(enabled=self.config.autocast):
@@ -657,22 +679,31 @@ class DDPM21CM:
                     device=self.config.device, 
                     guide_w=self.config.guide_w
                     )
+                if self.config.ema:
+                    x_last_ema, x_entire_ema = self.ddpm.sample(
+                        nn_model=self.ema_model, 
+                        params=params_normalized.to(self.config.device), 
+                        device=self.config.device, 
+                        guide_w=self.config.guide_w
+                        )
         #print(f"x_last.dtype = {x_last.dtype}")
         if save:    
             # np.save(os.path.join(self.config.output_dir, f"{self.config.run_name}{'ema' if ema else ''}.npy"), x_last)
             savetime = datetime.now().strftime("%d%H%M%S")
-            savename = os.path.join(self.config.output_dir, f"Tvir{params_backup[0]:.3f}-zeta{params_backup[1]:.3f}-device{self.config.global_rank}-{os.path.basename(self.config.resume)}-{self.config.run_name}-{savetime}{'ema' if ema else ''}.npy")
             if not os.path.exists(self.config.output_dir):
                 os.makedirs(self.config.output_dir)
-            np.save(savename, x_last)
-            print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} saved {x_last.shape} to {os.path.basename(savename)} with {(time()-sample_start)/60:.2f} min", flush=True)
+
+            for ema in range(self.config.ema + 1):
+                savename = os.path.join(self.config.output_dir, f"Tvir{params_backup[0]:.3f}-zeta{params_backup[1]:.3f}-device{self.config.global_rank}-{os.path.basename(self.config.resume)}-{self.config.run_name}-{savetime}{'-ema' if ema else ''}")
+                np.save(savename, x_last if ema==0 else x_last_ema)
+                print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} saved {x_last.shape} to {os.path.basename(savename)} with {(time()-sample_start)/60:.2f} min", flush=True)
 
             if entire:
-                savename = os.path.join(self.config.output_dir, f"Tvir{params_backup[0]:.3f}-zeta{params_backup[1]:.3f}-device{self.config.global_rank}-{os.path.basename(self.config.resume)}-{self.config.run_name}-{savetime}{'ema' if ema else ''}_entire.npy")
+                savename = os.path.join(self.config.output_dir, f"Tvir{params_backup[0]:.3f}-zeta{params_backup[1]:.3f}-device{self.config.global_rank}-{os.path.basename(self.config.resume)}-{self.config.run_name}-{savetime}{'-ema' if ema else ''}_entire")
                 np.save(savename, x_entire)
                 print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} saved images of shape {x_entire.shape} to {savename}")
         # else:
-        return x_last
+        #return x_last
 # %%
 
 #num_train_image_list = [6000]#[60]#[8000]#[1000]#[100]#
@@ -705,13 +736,13 @@ def generate_samples(rank, world_size, local_world_size, master_addr, master_por
 
     for _ in range(num_new_img_per_gpu // max_num_img_per_gpu):    
         #print(f"rank = {rank}, global_rank = {global_rank}, world_size = {world_size}, local_world_size = {local_world_size}")
-        sample = ddpm21cm.sample(
+        ddpm21cm.sample(
             params=params, 
             num_new_img_per_gpu=max_num_img_per_gpu,
             )
             
     if num_new_img_per_gpu % max_num_img_per_gpu:
-        sample_extra = ddpm21cm.sample(
+        ddpm21cm.sample(
             params=params, 
             num_new_img_per_gpu=num_new_img_per_gpu % max_num_img_per_gpu,
             )
@@ -741,6 +772,7 @@ if __name__ == "__main__":
     parser.add_argument("--model_channels", type=int, required=False, default=96)
     parser.add_argument("--stride", type=int, nargs="+", required=False, default=(2,2,1))
     parser.add_argument("--guide_w", type=int, required=False, default=0)
+    parser.add_argument("--ema", type=int, required=False, default=0)
 
     args = parser.parse_args()
 
@@ -763,6 +795,7 @@ if __name__ == "__main__":
     config.lrate = args.lrate
     config.resume = args.resume
     config.guide_w = args.guide_w
+    config.ema = args.ema
     #config.sample = args.sample
 
     config.stride = args.stride #(2,2) if config.dim == 2 else (2,2,1)

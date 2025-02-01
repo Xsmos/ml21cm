@@ -695,14 +695,15 @@ class DDPM21CM:
 
             for ema in range(self.config.ema + 1):
                 elapsed_time = (time()-sample_start)/(self.config.ema + 1)
-                savename = os.path.join(self.config.output_dir, f"Tvir{params_backup[0]:.3f}-zeta{params_backup[1]:.3f}-device{self.config.global_rank}-{os.path.basename(self.config.resume)}-{self.config.run_name}-{savetime}{'-ema' if ema else ''}")
+                savename = os.path.join(self.config.output_dir, f"Tvir{params_backup[0]:.3f}-zeta{params_backup[1]:.3f}-device{self.config.global_rank}-{os.path.basename(self.config.resume)}-{savetime}-ema{ema}")
                 np.save(savename, x_last if ema==0 else x_last_ema)
                 print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} saved {x_last.shape} to {os.path.basename(savename)} with {elapsed_time/60:.2f} min", flush=True)
 
-            if entire:
-                savename = os.path.join(self.config.output_dir, f"Tvir{params_backup[0]:.3f}-zeta{params_backup[1]:.3f}-device{self.config.global_rank}-{os.path.basename(self.config.resume)}-{self.config.run_name}-{savetime}{'-ema' if ema else ''}_entire")
-                np.save(savename, x_entire)
-                print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} saved images of shape {x_entire.shape} to {savename}")
+                if entire:
+                    #savename = os.path.join(self.config.output_dir, f"Tvir{params_backup[0]:.3f}-zeta{params_backup[1]:.3f}-device{self.config.global_rank}-{os.path.basename(self.config.resume)}-{savetime}-ema{ema}_entire")
+                    savename += '_entire'
+                    np.save(savename, x_entire)
+                    print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} saved images of shape {x_entire.shape} to {savename}")
         # else:
         #return x_last
 # %%

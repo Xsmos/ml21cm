@@ -4,7 +4,7 @@
 #SBATCH -q regular #shared
 #SBATCH --gpus-per-node=4
 #SBATCH -N2
-#SBATCH -t 48:00:00
+#SBATCH -t 2:00:00
 #SBATCH --ntasks-per-node=1
 #SBATCH -oReport-%j 
 #SBATCH --mail-type=BEGIN,END,FAIL
@@ -38,7 +38,7 @@ srun python diffusion.py \
     --stride 2 2 2 \
     --guide_w 0 \
     --batch_size 32 \
-    --n_epoch 120 \
+    --n_epoch 1 \
     --gradient_accumulation_steps 1 \
     --lrate 1e-5 \
     --train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
@@ -49,6 +49,6 @@ srun python diffusion.py \
     #--use_checkpoint 1 \
     #--dropout 0 \
 
-sacct -j $SLURM_JOB_ID --format=JobID,JobName,Start,Elapsed
+sacct -j $SLURM_JOB_ID --format=JobID,JobName,Start,End,Elapsed
 # SHORT NOTES:
 #

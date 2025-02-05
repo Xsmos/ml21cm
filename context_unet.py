@@ -21,6 +21,7 @@ import copy
 # from diffusers.utils import make_image_grid
 import datetime
 import torch.utils.checkpoint as checkpoint
+from termcolor import colored
 # from pathlib import Path
 # from diffusers.optimization import get_cosine_schedule_with_warmup
 # from accelerate import notebook_launcher, Accelerator
@@ -100,6 +101,7 @@ class Upsample(nn.Module):
         shape = torch.tensor(x.shape[2:]) * torch.tensor(self.stride)
         shape = tuple(shape.detach().numpy())
         # print(shape)
+        print(colored(f"Before interpolation: {x.shape}, Target shape: {shape}", 'red', 'on_white'))
         x = F.interpolate(x, shape, mode='nearest')
 
         if self.use_conv:

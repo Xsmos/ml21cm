@@ -52,6 +52,8 @@ from torch.cuda.amp import autocast, GradScaler
 from random import getrandbits
 
 import subprocess
+torch.backends.cuda.matmul.allow_tf32 = True
+torch.backends.cudnn.allow_tf32 = True
 
 # %%
 def ddp_setup(rank: int, world_size: int, master_addr, master_port):
@@ -384,7 +386,7 @@ class DDPM21CM:
 
         self.nn_model.train()
         self.nn_model.to(self.ddpm.device)
-        self.nn_model = DDP(self.nn_model, device_ids=[self.ddpm.device], find_unused_parameters=True)
+        self.nn_model = DDP(self.nn_model, device_ids=[self.ddpm.device], find_unused_parameters=False)
 
         #gpu_info = get_gpu_info(config.device)
         if config.resume and os.path.exists(config.resume):
@@ -393,9 +395,9 @@ class DDPM21CM:
             # print(f"resumed nn_model from {config.resume}")
             self.nn_model.module.load_state_dict(torch.load(config.resume)['unet_state_dict'])
             #self.nn_model.module.to(config.dtype)
-            print(f"{config.run_name} cuda:{torch.cuda.current_device()}/{self.config.global_rank} resumed nn_model from {config.resume} with {sum(x.numel() for x in self.nn_model.module.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')}".center(self.config.str_len,'+'))
+            print(f"📝 {config.run_name} cuda:{torch.cuda.current_device()}/{self.config.global_rank} resumed nn_model from {config.resume} with {sum(x.numel() for x in self.nn_model.module.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')} 📝".center(self.config.str_len,'+'))
         else:
-            print(f"{config.run_name} cuda:{torch.cuda.current_device()}/{self.config.global_rank} initialized nn_model randomly with {sum(x.numel() for x in self.nn_model.module.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')}".center(self.config.str_len,'+'))
+            print(f"🚀 {config.run_name} cuda:{torch.cuda.current_device()}/{self.config.global_rank} initialized nn_model randomly with {sum(x.numel() for x in self.nn_model.module.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🚀".center(self.config.str_len,'+'))
 
         # whether to use ema
         if config.ema:
@@ -529,7 +531,9 @@ class DDPM21CM:
             pbar_train = tqdm(total=len(self.dataloader), file=sys.stderr, disable=True)#, mininterval=self.config.pbar_update_step)#, disable=True)#not self.accelerator.is_local_main_process)
             pbar_train.set_description(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} Epoch {ep}")
             epoch_start = time()
+            #print(f"🚀 ep={ep}")
             for i, (x, c) in enumerate(self.dataloader):
+                #print(f"i={i}")
                 if self.config.dim == 3:
                     #x = self.transform(x)
                     for idx in range(len(x)):
@@ -546,29 +550,43 @@ class DDPM21CM:
                         c = c.to(self.config.device)
                         noise_pred = self.nn_model(xt, ts, c)#.to(x.dtype)
                     
-                    #if ep == 0 and i == 0 and self.config.global_rank == 0:
-                    #    result = subprocess.run(['nvidia-smi'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-                    #    print(result.stdout, flush=True)
-
+                    #print(f"ep = {ep}, noise_pred.shape = {noise_pred.shape}")
                     loss = F.mse_loss(noise, noise_pred)
                     loss = loss / self.config.gradient_accumulation_steps
 
-                    #print(f"loss = {loss}")
+                    #print(f"ep = {ep}, loss = {loss}")
                     if torch.isnan(loss).any():
                         raise ValueError(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} Epoch {ep}, loss: {loss}")
+
+                #if self.config.global_rank == 0:
+                #    result = subprocess.run(['nvidia-smi'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                #    print(result.stdout)#, flush=True)
+
+                #del noise, noise_pred
+                #torch.cuda.empty_cache()
+
+                #if self.config.global_rank == 0:
+                #    result = subprocess.run(['nvidia-smi'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                #    print(result.stdout)#, flush=True)
 
                 # scaler backward propogation
                 self.scaler.scale(loss).backward()
                 #loss.backward()
+                #print(f"ep = {ep}, after backward")
 
                 if (i+1) % self.config.gradient_accumulation_steps == 0:
+                    #Jprint(f"ep = {ep}, before unscale")
                     self.scaler.unscale_(self.optimizer)
                     torch.nn.utils.clip_grad_norm_(self.nn_model.module.parameters(), max_norm=1.0)
 
+                    #print(f"ep = {ep}, before scaler")
                     self.scaler.step(self.optimizer)
+                    #print(f"ep = {ep}, before step")
                     self.lr_scheduler.step()
 
+                    #print(f"ep = {ep}, before scaler.update")
                     self.scaler.update()
+                    #print(f"ep = {ep}, after scaler.update")
                     self.optimizer.zero_grad()
 
                 # ema update
@@ -628,7 +646,7 @@ class DDPM21CM:
                             }
                         save_name = self.config.save_name + f"-epoch{ep+1}"
                         torch.save(model_state, save_name)
-                        print(f'cuda:{torch.cuda.current_device()}/{self.config.global_rank} saved model at ' + save_name)
+                        print(f'🌟 cuda:{torch.cuda.current_device()}/{self.config.global_rank} saved model at ' + save_name)
                         # print('saved model at ' + config.save_dir + f"model_epoch_{ep}_test_{config.run_name}.pth")
 
     # def rescale(self, value, type='params', to_ranges=[0,1]):
@@ -739,7 +757,7 @@ def generate_samples(rank, world_size, local_world_size, master_addr, master_por
 
     for params in params_pairs:
         if global_rank == 0:
-            print(f"sampling, {params}, ip = {socket.gethostbyname(socket.gethostname())}, local_world_size = {local_world_size}, world_size = {world_size}, {datetime.now().strftime('%d-%H:%M:%S.%f')}".center(config.str_len,'#'), flush=True)
+            print(f"⛳️ sampling, {params}, ip = {socket.gethostbyname(socket.gethostname())}, local_world_size = {local_world_size}, world_size = {world_size}, {datetime.now().strftime('%d-%H:%M:%S.%f')} ⛳️".center(config.str_len,'#'), flush=True)
 
         for _ in range(num_new_img_per_gpu // max_num_img_per_gpu):    
             #print(f"rank = {rank}, global_rank = {global_rank}, world_size = {world_size}, local_world_size = {local_world_size}")
@@ -820,7 +838,7 @@ if __name__ == "__main__":
     ############################ training ################################
     if args.train:
         config.dataset_name = args.train
-        print(f" training, ip = {socket.gethostbyname(socket.gethostname())}, local_world_size = {local_world_size}, world_size = {world_size}, {datetime.now().strftime('%d-%H:%M:%S.%f')} ".center(config.str_len,'#'))
+        print(f"⛳️ training, ip = {socket.gethostbyname(socket.gethostname())}, local_world_size = {local_world_size}, world_size = {world_size}, {datetime.now().strftime('%d-%H:%M:%S.%f')} ⛳️".center(config.str_len,'#'))
         mp.spawn(
                 train, 
                 args=(world_size, local_world_size, master_addr, master_port, config), 

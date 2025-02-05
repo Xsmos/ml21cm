@@ -98,11 +98,13 @@ class Upsample(nn.Module):
 
     def forward(self, x):
         assert x.shape[1] == self.channels
-        shape = torch.tensor(x.shape[2:]) * torch.tensor(self.stride)
-        shape = tuple(shape.detach().numpy())
+        #shape = torch.tensor(x.shape[2:]) * torch.tensor(self.stride)
+        #shape = tuple(shape.detach().numpy())
         # print(shape)
-        print(colored(f"Before interpolation: {x.shape}, Target shape: {shape}", 'red', 'on_white'))
-        x = F.interpolate(x, shape, mode='nearest')
+        #print(colored(f"Before interpolation: {x.shape}", 'red', 'on_white'))
+        #x = F.interpolate(x, shape, mode='nearest')
+        x = F.interpolate(x, scale_factor=self.stride, mode='trilinear')
+        #print(colored(f"After interpolation: {x.shape}", 'red', 'on_white'))
 
         if self.use_conv:
             if self.use_checkpoint:
@@ -590,11 +592,11 @@ class ContextUnet(nn.Module):
             # print("len(hs) =", len(hs), ", hs[-1].shape =", hs[-1].shape)
             h = torch.cat([h, hs.pop()], dim=1)
             h = module(h, emb)
-            # print("module decoder, h.shape =", h.shape)
+            #print("module decoder, h.shape =", h.shape)
 
         #print("h = h.type(x.dtype), x.dtype =", x.dtype, h.dtype)
         #h = h.type(x.dtype)
         h = self.out(h)
-        #print("self.out(h)", "h.dtype =", h.dtype)
+        #print("🌟", "self.out(h)", "h.shape =", h.shape)
 
         return h 

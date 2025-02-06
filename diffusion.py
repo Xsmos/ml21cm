@@ -52,6 +52,7 @@ from torch.cuda.amp import autocast, GradScaler
 from random import getrandbits
 
 import subprocess
+
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
 
@@ -615,7 +616,14 @@ class DDPM21CM:
             self.save(ep)
             print(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} Epoch{ep}:{i+1}/{len(self.dataloader)} costs {(time()-epoch_start)/60:.2f} min", flush=True)
 
+        #print(f"🆘 global_rank = {self.config.global_rank}, after save(ep) 🆘", flush=True)
+        if dist.is_initialized():
+            dist.barrier()
+
+        #print(f"🆘 global_rank = {self.config.global_rank}, before del self.nn_model 🆘", flush=True)
         del self.nn_model
+        #print(f"🆘 global_rank = {self.config.global_rank}, after del self.nn_model 🆘", flush=True)
+
         if self.config.ema:
             del self.ema_model
 
@@ -740,9 +748,15 @@ def train(rank, world_size, local_world_size, master_addr, master_port, config):
     #print("before dppm21cm")
     ddpm21cm = DDPM21CM(config)
     ddpm21cm.train()
+    print(f"🆘 global_rank = {global_rank}, ddpm21cm.train is over 🆘", flush=True)
+
     if dist.is_initialized():
+        torch.cuda.synchronize()
+        dist.barrier()
+        print(f"🆘 global_rank = {global_rank}, destroy_process_group starts 🆘", flush=True)
         dist.destroy_process_group()
-# %%
+    print(f"🆘 global_rank = {global_rank}, destroy_process_group is over 🆘", flush=True)
+
 
 def generate_samples(rank, world_size, local_world_size, master_addr, master_port, config, num_new_img_per_gpu, max_num_img_per_gpu, params_pairs):
     global_rank = rank + local_world_size * int(os.environ["SLURM_NODEID"])
@@ -773,6 +787,8 @@ def generate_samples(rank, world_size, local_world_size, master_addr, master_por
                 )
 
     if dist.is_initialized():
+        torch.cuda.synchronize()
+        dist.barrier()
         dist.destroy_process_group()
 
 

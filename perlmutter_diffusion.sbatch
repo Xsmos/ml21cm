@@ -1,10 +1,10 @@
 #!/bin/bash
 #SBATCH -A m4717 
 #SBATCH -C gpu&hbm80g
-#SBATCH -q debug #regular #shared
+#SBATCH -q debug #regular #shared #
 #SBATCH --gpus-per-node=4
 #SBATCH -N2
-#SBATCH -t 30:00
+#SBATCH -t 10:00
 #SBATCH --ntasks-per-node=1
 #SBATCH -oReport-%j 
 #SBATCH --mail-type=BEGIN,END,FAIL
@@ -24,11 +24,13 @@ export MASTER_ADDR=$MASTER_ADDR
 export MASTER_PORT=$MASTER_PORT
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 export TORCH_DISTRIBUTED_DEBUG=DETAIL
+#export NCCL_ASYNC_ERROR_HANDLING=1
+export TORCH_NCCL_ASYNC_ERROR_HANDLING=1
 
 git diff diffusion.py
 
 srun python diffusion.py \
-    --num_image 3200 \
+    --num_image 300 \
     --num_new_img_per_gpu 25 \
     --max_num_img_per_gpu 25 \
     --model_channels 128 \
@@ -38,7 +40,7 @@ srun python diffusion.py \
     --stride 2 2 2 \
     --guide_w 0 \
     --batch_size 25 \
-    --n_epoch 3 \
+    --n_epoch 2 \
     --gradient_accumulation_steps 1 \
     --lrate 1e-5 \
     --train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \

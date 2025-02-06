@@ -1,10 +1,10 @@
 #!/bin/bash
 #SBATCH -A m4717 
 #SBATCH -C gpu&hbm80g
-#SBATCH -q debug #regular #shared #
+#SBATCH -q regular #debug #shared #
 #SBATCH --gpus-per-node=4
 #SBATCH -N2
-#SBATCH -t 30:00
+#SBATCH -t 2:00:00
 #SBATCH --ntasks-per-node=1
 #SBATCH -oReport-%j 
 #SBATCH --mail-type=BEGIN,END,FAIL
@@ -30,7 +30,7 @@ export TORCH_NCCL_ASYNC_ERROR_HANDLING=1
 git diff diffusion.py
 
 srun python diffusion.py \
-    --num_image 300 \
+    --num_image 3200 \
     --num_new_img_per_gpu 25 \
     --max_num_img_per_gpu 25 \
     --model_channels 128 \

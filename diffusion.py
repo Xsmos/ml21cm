@@ -39,7 +39,7 @@ from huggingface_hub import notebook_login
 import torch.multiprocessing as mp
 #from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.distributed import init_process_group, destroy_process_group
+from torch.distributed import init_process_group
 import torch.distributed as dist
 
 import argparse
@@ -566,10 +566,6 @@ class DDPM21CM:
                 #del noise, noise_pred
                 #torch.cuda.empty_cache()
 
-                #if self.config.global_rank == 0:
-                #    result = subprocess.run(['nvidia-smi'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-                #    print(result.stdout)#, flush=True)
-
                 # scaler backward propogation
                 self.scaler.scale(loss).backward()
                 #loss.backward()
@@ -621,7 +617,7 @@ class DDPM21CM:
             dist.barrier()
 
         #print(f"🆘 global_rank = {self.config.global_rank}, before del self.nn_model 🆘", flush=True)
-        del self.nn_model
+        #del self.nn_model
         #print(f"🆘 global_rank = {self.config.global_rank}, after del self.nn_model 🆘", flush=True)
 
         if self.config.ema:
@@ -748,14 +744,20 @@ def train(rank, world_size, local_world_size, master_addr, master_port, config):
     #print("before dppm21cm")
     ddpm21cm = DDPM21CM(config)
     ddpm21cm.train()
-    #print(f"🆘 global_rank = {global_rank}, ddpm21cm.train is over 🆘", flush=True)
 
     if dist.is_initialized():
-        torch.cuda.synchronize()
+        #if config.global_rank % 4 == 0:
+        #    result = subprocess.run(['nvidia-smi'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        #    print(result.stdout)#, flush=True)
         dist.barrier()
-        print(f"🆘 global_rank = {global_rank}, destroy_process_group starts 🆘", flush=True)
+        torch.cuda.empty_cache()
+        #if config.global_rank % 4 == 0:
+        #    result = subprocess.run(['nvidia-smi'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        #    print(result.stdout)#, flush=True)
+        torch.cuda.synchronize()
         dist.destroy_process_group()
-    print(f"🆘 global_rank = {global_rank}, destroy_process_group is over 🆘", flush=True)
+
+    print(f"🚥 cuda:{rank}/{global_rank} dist.destroy_process_group completed 🚥")#, flush=True)
 
 
 def generate_samples(rank, world_size, local_world_size, master_addr, master_port, config, num_new_img_per_gpu, max_num_img_per_gpu, params_pairs):
@@ -770,8 +772,8 @@ def generate_samples(rank, world_size, local_world_size, master_addr, master_por
     ddpm21cm = DDPM21CM(config)
 
     for params in params_pairs:
-        if global_rank == 0:
-            print(f"⛳️ sampling, {params}, ip = {socket.gethostbyname(socket.gethostname())}, local_world_size = {local_world_size}, world_size = {world_size}, {datetime.now().strftime('%d-%H:%M:%S.%f')} ⛳️".center(config.str_len,'#'), flush=True)
+        #if global_rank == 0:
+        #    print(f"⛳️ sampling, {params}, ip = {socket.gethostbyname(socket.gethostname())}, local_world_size = {local_world_size}, world_size = {world_size}, {datetime.now().strftime('%d-%H:%M:%S.%f')} ⛳️".center(config.str_len,'#'), flush=True)
 
         for _ in range(num_new_img_per_gpu // max_num_img_per_gpu):    
             #print(f"rank = {rank}, global_rank = {global_rank}, world_size = {world_size}, local_world_size = {local_world_size}")
@@ -787,8 +789,9 @@ def generate_samples(rank, world_size, local_world_size, master_addr, master_por
                 )
 
     if dist.is_initialized():
-        torch.cuda.synchronize()
         dist.barrier()
+        torch.cuda.empty_cache()
+        torch.cuda.synchronize()
         dist.destroy_process_group()
 
 
@@ -860,13 +863,17 @@ if __name__ == "__main__":
                 args=(world_size, local_world_size, master_addr, master_port, config), 
                 nprocs=local_world_size, 
                 join=True,
+                daemon=False,
                 )
+
+        torch.cuda.synchronize()
         #print(f"torch.cuda.current_device() = {torch.cuda.current_device()}")
         config.resume = config.save_name + f"-epoch{config.n_epoch}"
         #print("in args.train, config.resume =", config.resume)
 
     ############################ sampling ################################
     if os.path.exists(config.resume) and args.sample:
+        print(f"⛳️ sampling, ip = {socket.gethostbyname(socket.gethostname())}, local_world_size = {local_world_size}, world_size = {world_size}, {datetime.now().strftime('%d-%H:%M:%S.%f')} ⛳️".center(config.str_len,'#'))
         num_new_img_per_gpu = args.num_new_img_per_gpu#200#4#200
         max_num_img_per_gpu = args.max_num_img_per_gpu#40#2#20
         params_pairs = [
@@ -883,6 +890,8 @@ if __name__ == "__main__":
                 args=(world_size, local_world_size, master_addr, master_port, config, num_new_img_per_gpu, max_num_img_per_gpu, torch.tensor(params_pairs)), 
                 nprocs=local_world_size, 
                 join=True,
+                daemon=False,
                 )
+
 
 

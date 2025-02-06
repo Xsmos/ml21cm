@@ -4,7 +4,7 @@
 #SBATCH -q debug #regular #shared #
 #SBATCH --gpus-per-node=4
 #SBATCH -N2
-#SBATCH -t 10:00
+#SBATCH -t 30:00
 #SBATCH --ntasks-per-node=1
 #SBATCH -oReport-%j 
 #SBATCH --mail-type=BEGIN,END,FAIL

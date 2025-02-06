@@ -748,7 +748,7 @@ def train(rank, world_size, local_world_size, master_addr, master_port, config):
     #print("before dppm21cm")
     ddpm21cm = DDPM21CM(config)
     ddpm21cm.train()
-    print(f"🆘 global_rank = {global_rank}, ddpm21cm.train is over 🆘", flush=True)
+    #print(f"🆘 global_rank = {global_rank}, ddpm21cm.train is over 🆘", flush=True)
 
     if dist.is_initialized():
         torch.cuda.synchronize()
@@ -872,9 +872,9 @@ if __name__ == "__main__":
         params_pairs = [
             (4.4, 131.341),
             (5.6, 19.037),
-            (4.699, 30),
-            (5.477, 200),
-            (4.8, 131.341),
+            #(4.699, 30),
+            #(5.477, 200),
+            #(4.8, 131.341),
         ]
 
         #for params in params_pairs:

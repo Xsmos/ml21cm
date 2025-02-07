@@ -396,7 +396,7 @@ class DDPM21CM:
             # print(f"resumed nn_model from {config.resume}")
             self.nn_model.module.load_state_dict(torch.load(config.resume)['unet_state_dict'])
             #self.nn_model.module.to(config.dtype)
-            print(f"📝 {config.run_name} cuda:{torch.cuda.current_device()}/{self.config.global_rank} resumed nn_model from {config.resume} with {sum(x.numel() for x in self.nn_model.module.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')} 📝".center(self.config.str_len,'+'))
+            print(f"📚 {config.run_name} cuda:{torch.cuda.current_device()}/{self.config.global_rank} resumed nn_model from {config.resume} with {sum(x.numel() for x in self.nn_model.module.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')} 📚".center(self.config.str_len,'+'))
         else:
             print(f"🚀 {config.run_name} cuda:{torch.cuda.current_device()}/{self.config.global_rank} initialized nn_model randomly with {sum(x.numel() for x in self.nn_model.module.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🚀".center(self.config.str_len,'+'))
 
@@ -793,6 +793,8 @@ def generate_samples(rank, world_size, local_world_size, master_addr, master_por
         torch.cuda.empty_cache()
         torch.cuda.synchronize()
         dist.destroy_process_group()
+
+    print(f"🚥 cuda:{rank}/{global_rank} dist.destroy_process_group completed 🚥")#, flush=True)
 
 
 if __name__ == "__main__":

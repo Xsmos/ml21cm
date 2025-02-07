@@ -1,10 +1,10 @@
 #!/bin/bash
 #SBATCH -A m4717 
 #SBATCH -C gpu&hbm80g
-#SBATCH -q regular #debug #shared #
+#SBATCH -q debug #regular #shared #
 #SBATCH --gpus-per-node=4
 #SBATCH -N2
-#SBATCH -t 2:00:00
+#SBATCH -t 30:00
 #SBATCH --ntasks-per-node=1
 #SBATCH -oReport-%j 
 #SBATCH --mail-type=BEGIN,END,FAIL

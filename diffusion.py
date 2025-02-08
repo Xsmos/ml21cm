@@ -310,7 +310,7 @@ class TrainConfig:
     model_channels = 128
     # date = datetime.datetime.now().strftime("%m%d-%H%M")
     # run_name = f'{date}' # the unique name of each experiment
-    str_len = 140
+    str_len = 128
 # config = TrainConfig()
 # print("device =", config.device)
 
@@ -396,9 +396,9 @@ class DDPM21CM:
             # print(f"resumed nn_model from {config.resume}")
             self.nn_model.module.load_state_dict(torch.load(config.resume)['unet_state_dict'])
             #self.nn_model.module.to(config.dtype)
-            print(f"🍀 {config.run_name} cuda:{torch.cuda.current_device()}/{self.config.global_rank} resumed nn_model from {config.resume} with {sum(x.numel() for x in self.nn_model.module.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🍀".center(self.config.str_len,'+'))
+            print(f"🍀 {config.run_name} cuda:{torch.cuda.current_device()}/{self.config.global_rank} resumed nn_model from {config.resume} with {sum(x.numel() for x in self.nn_model.module.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🍀".center(self.config.str_len,'+'), flush=True)
         else:
-            print(f"🌱 {config.run_name} cuda:{torch.cuda.current_device()}/{self.config.global_rank} initialized nn_model randomly with {sum(x.numel() for x in self.nn_model.module.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🌱".center(self.config.str_len,'+'))
+            print(f"🌱 {config.run_name} cuda:{torch.cuda.current_device()}/{self.config.global_rank} initialized nn_model randomly with {sum(x.numel() for x in self.nn_model.module.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🌱".center(self.config.str_len,'+'), flush=True)
 
         # whether to use ema
         if config.ema:
@@ -617,12 +617,12 @@ class DDPM21CM:
         if dist.is_initialized():
             dist.barrier()
 
-        #print(f"🆘 global_rank = {self.config.global_rank}, before del self.nn_model 🆘", flush=True)
+        print(f"🆘 global_rank = {self.config.global_rank}, at the end of DDPM21CM.train 🆘", flush=True)
         #del self.nn_model
         #print(f"🆘 global_rank = {self.config.global_rank}, after del self.nn_model 🆘", flush=True)
 
-        if self.config.ema:
-            del self.ema_model
+        #if self.config.ema:
+        #    del self.ema_model
 
     def save(self, ep):
         # save model
@@ -683,7 +683,7 @@ class DDPM21CM:
         params_backup = params.numpy().copy()
         params_normalized = self.rescale(params, self.ranges_dict['params'], to=[0,1])
 
-        print(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} sampling {num_new_img_per_gpu} images with normalized params = {params_normalized}, {datetime.now().strftime('%d-%H:%M:%S.%f')}")
+        print(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} sampling {num_new_img_per_gpu} images with normalized params = {params_normalized}, {datetime.now().strftime('%d-%H:%M:%S.%f')}", flush=True)
         params_normalized = params_normalized.repeat(num_new_img_per_gpu,1)
         assert params_normalized.dim() == 2, "params_normalized must be a 2D torch.tensor"
         # print("params =", params)
@@ -710,6 +710,9 @@ class DDPM21CM:
                         guide_w=self.config.guide_w
                         )
         #print(f"x_last.dtype = {x_last.dtype}")
+
+        print(f"🆘 global_rank = {self.config.global_rank}, before save 🆘", flush=True)
+
         if save:    
             # np.save(os.path.join(self.config.output_dir, f"{self.config.run_name}{'ema' if ema else ''}.npy"), x_last)
             savetime = datetime.now().strftime("%d%H%M%S")
@@ -727,6 +730,8 @@ class DDPM21CM:
                     savename += '_entire'
                     np.save(savename, x_entire)
                     print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} saved images of shape {x_entire.shape} to {savename}")
+
+        print(f"🆘 global_rank = {self.config.global_rank}, at the end of DDPM21CM.sample 🆘", flush=True)
         # else:
         #return x_last
 # %%
@@ -746,19 +751,15 @@ def train(rank, world_size, local_world_size, master_addr, master_port, config):
     ddpm21cm = DDPM21CM(config)
     ddpm21cm.train()
 
+    print(f"🚥 cuda:{rank}/{global_rank} dist.destroy_process_group started 🚥")#, flush=True)
+
     if dist.is_initialized():
-        #if config.global_rank % 4 == 0:
-        #    result = subprocess.run(['nvidia-smi'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        #    print(result.stdout)#, flush=True)
         dist.barrier()
         torch.cuda.empty_cache()
-        #if config.global_rank % 4 == 0:
-        #    result = subprocess.run(['nvidia-smi'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        #    print(result.stdout)#, flush=True)
         torch.cuda.synchronize()
         dist.destroy_process_group()
 
-    print(f"🚥 cuda:{rank}/{global_rank} dist.destroy_process_group completed 🚥")#, flush=True)
+    print(f"✅ cuda:{rank}/{global_rank} dist.destroy_process_group completed ✅")#, flush=True)
 
 
 def generate_samples(rank, world_size, local_world_size, master_addr, master_port, config, num_new_img_per_gpu, max_num_img_per_gpu, params_pairs):
@@ -789,13 +790,15 @@ def generate_samples(rank, world_size, local_world_size, master_addr, master_por
                 num_new_img_per_gpu=num_new_img_per_gpu % max_num_img_per_gpu,
                 )
 
+    print(f"🚥 cuda:{rank}/{global_rank} dist.destroy_process_group started 🚥")#, flush=True)
+
     if dist.is_initialized():
         dist.barrier()
         torch.cuda.empty_cache()
         torch.cuda.synchronize()
         dist.destroy_process_group()
 
-    print(f"🚥 cuda:{rank}/{global_rank} dist.destroy_process_group completed 🚥")#, flush=True)
+    print(f"✅ cuda:{rank}/{global_rank} dist.destroy_process_group completed ✅")#, flush=True)
 
 
 if __name__ == "__main__":
@@ -882,9 +885,9 @@ if __name__ == "__main__":
         params_pairs = [
             (4.4, 131.341),
             (5.6, 19.037),
-            (4.699, 30),
-            (5.477, 200),
-            (4.8, 131.341),
+            #(4.699, 30),
+            #(5.477, 200),
+            #(4.8, 131.341),
         ]
 
         #for params in params_pairs:

@@ -242,20 +242,26 @@ class QKVAttention(nn.Module):
         ch = width // (3*self.n_heads)
 
         # print("QKVAttention", bs, self.n_heads, ch, length)
+        #print("qkv.shape =", qkv.shape, 'bs =', bs, 'width =', width, 'length =', length, 'n_heads =', self.n_heads, 'ch =', ch)
         q, k, v = qkv.reshape(bs*self.n_heads, ch*3, length).split(ch, dim=1)
+        #print("q.shape, k.shape, v.shape =", q.shape, k.shape, v.shape)
+
+        #q, k, v = qkv.transpose(-1,-2).split(ch, dim=-1)
+
         if encoder_kv is not None:
             assert encoder_kv.shape[1] == self.n_heads * ch * 2
             ek, ev = encoder_kv.reshape(bs*self.n_heads, ch*2, -1).split(ch, dim=1)
             k = torch.cat([ek,k], dim=-1)
             v = torch.cat([ev,v], dim=-1)
 
-        scale = 1 / math.sqrt(math.sqrt(ch))
-        weight = torch.einsum("bct,bcs->bts", q*scale, k*scale)
-        # print("forward, weight.dtype =", weight.dtype)
-        weight = torch.softmax(weight.float(), dim=-1)#.type(weight.dtype)
+        #scale = 1 / math.sqrt(math.sqrt(ch))
+        #weight = torch.einsum("bct,bcs->bts", q*scale, k*scale)
+        #weight = torch.softmax(weight.float(), dim=-1)
+        #a = torch.einsum("bts,bcs->bct", weight, v)
 
-        a = torch.einsum("bts,bcs->bct", weight, v)
-        return a.reshape(bs, -1, length)
+        out = F.scaled_dot_product_attention(q,k,v)#.transpose(-1,-2)
+        #print("out.shape =", out.shape, "a.shape =", a.shape)
+        return out.reshape(bs, -1, length)
 
 class AttentionBlock(nn.Module):
     def __init__(
@@ -406,7 +412,7 @@ class ContextUnet(nn.Module):
         self._feature_size = ch
         input_block_chans = [ch]
         ds = 1
-
+        
         for level, mult in enumerate(channel_mult):
             for _ in range(num_res_blocks):
                 layers = [

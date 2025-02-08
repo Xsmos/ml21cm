@@ -396,7 +396,7 @@ class DDPM21CM:
             # print(f"resumed nn_model from {config.resume}")
             self.nn_model.module.load_state_dict(torch.load(config.resume)['unet_state_dict'])
             #self.nn_model.module.to(config.dtype)
-            print(f"🌲 {config.run_name} cuda:{torch.cuda.current_device()}/{self.config.global_rank} resumed nn_model from {config.resume} with {sum(x.numel() for x in self.nn_model.module.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🌴".center(self.config.str_len,'+'))
+            print(f"🍀 {config.run_name} cuda:{torch.cuda.current_device()}/{self.config.global_rank} resumed nn_model from {config.resume} with {sum(x.numel() for x in self.nn_model.module.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🍀".center(self.config.str_len,'+'))
         else:
             print(f"🌱 {config.run_name} cuda:{torch.cuda.current_device()}/{self.config.global_rank} initialized nn_model randomly with {sum(x.numel() for x in self.nn_model.module.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🌱".center(self.config.str_len,'+'))
 
@@ -801,7 +801,7 @@ def generate_samples(rank, world_size, local_world_size, master_addr, master_por
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--train", type=str, required=False, help="whether to train the model", default=False)
-    parser.add_argument("--sample", type=int, required=False, help="whether to sample", default=0)
+    parser.add_argument("--sample", type=int, required=False, help="whether to sample", default=1)
     parser.add_argument("--resume", type=str, required=False, help="filename of the model to resume", default=False)
     parser.add_argument("--num_new_img_per_gpu", type=int, required=False, default=4)
     parser.add_argument("--max_num_img_per_gpu", type=int, required=False, default=2)
@@ -882,9 +882,9 @@ if __name__ == "__main__":
         params_pairs = [
             (4.4, 131.341),
             (5.6, 19.037),
-            #(4.699, 30),
-            #(5.477, 200),
-            #(4.8, 131.341),
+            (4.699, 30),
+            (5.477, 200),
+            (4.8, 131.341),
         ]
 
         #for params in params_pairs:

@@ -614,16 +614,15 @@ class DDPM21CM:
             self.save(ep)
             print(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} Epoch{ep}:{i+1}/{len(self.dataloader)} costs {(time()-epoch_start)/60:.2f} min", flush=True)
 
-        #print(f"🆘 global_rank = {self.config.global_rank}, after save(ep) 🆘", flush=True)
         if dist.is_initialized():
+            print(f"🗿 global_rank = {self.config.global_rank}, barrier, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🗿", flush=True)
             dist.barrier()
             torch.cuda.empty_cache()
             torch.cuda.synchronize()
 
         sleep(sleep_time)
-        #print(f"🆘 global_rank = {self.config.global_rank}, at the end of DDPM21CM.train 🆘", flush=True)
+        print(f"🆘 global_rank = {self.config.global_rank}, end of DDPM21CM.train, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🆘", flush=True)
         #del self.nn_model
-        #print(f"🆘 global_rank = {self.config.global_rank}, after del self.nn_model 🆘", flush=True)
 
         #if self.config.ema:
         #    del self.ema_model
@@ -715,8 +714,6 @@ class DDPM21CM:
                         )
         #print(f"x_last.dtype = {x_last.dtype}")
 
-        #print(f"🆘 global_rank = {self.config.global_rank}, before save 🆘", flush=True)
-
         if save:    
             # np.save(os.path.join(self.config.output_dir, f"{self.config.run_name}{'ema' if ema else ''}.npy"), x_last)
             savetime = datetime.now().strftime("%d%H%M%S")
@@ -736,12 +733,13 @@ class DDPM21CM:
                     print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} saved images of shape {x_entire.shape} to {savename}")
 
         if dist.is_initialized():
+            print(f"🗿 global_rank = {self.config.global_rank}, barrier, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🗿", flush=True)
             dist.barrier()
             torch.cuda.empty_cache()
             torch.cuda.synchronize()
 
         sleep(sleep_time)
-        #print(f"🆘 global_rank = {self.config.global_rank}, at the end of DDPM21CM.sample 🆘", flush=True)
+        print(f"🆘 global_rank = {self.config.global_rank}, end of DDPM21CM.sample, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🆘", flush=True)
         # else:
         #return x_last
 # %%

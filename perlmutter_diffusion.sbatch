@@ -19,11 +19,12 @@ conda env list
 module list
 
 MASTER_ADDR=$(scontrol show hostnames $SLURM_JOB_NODELIST | head -n 1)
-MASTER_PORT=$((10000 + RANDOM % 10000)) #12355
+MASTER_PORT=$((10000 + RANDOM % 10000)) #12355 #29500 
 #export OMP_NUM_THREADS=1
 export MASTER_ADDR=$MASTER_ADDR
 export MASTER_PORT=$MASTER_PORT
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+#export NCCL_DEBUG=INFO
 export TORCH_DISTRIBUTED_DEBUG=DETAIL
 #export NCCL_ASYNC_ERROR_HANDLING=1
 export TORCH_NCCL_ASYNC_ERROR_HANDLING=1
@@ -40,24 +41,24 @@ echo MASTER_ADDR:MASTER_PORT=$MASTER_ADDR:$MASTER_PORT
 #srun torchrun \
 #torchrun \
 #
-#srun --gpus-per-node=4 --ntasks-per-node=1 --gpu-bind=none torchrun \
-#    --nnodes=$SLURM_NNODES \
-#    --nproc_per_node=1 \
-#    --rdzv_backend=c10d \
-#    --rdzv_endpoint=$MASTER_ADDR:$MASTER_PORT \
-srun --gpus-per-node=4 --ntasks-per-node=1 --gpu-bind=none python \
+#srun --gpus-per-node=4 --ntasks-per-node=1 --gpu-bind=none python \
+srun -u --gpus-per-node=4 --ntasks-per-node=1 --gpu-bind=none torchrun \
+    --nnodes=$SLURM_NNODES \
+    --nproc_per_node=1 \
+    --rdzv_backend=c10d \
+    --rdzv_endpoint=$MASTER_ADDR:$MASTER_PORT \
     diffusion.py \
-        --num_image 200 \
-        --num_new_img_per_gpu 25 \
-        --max_num_img_per_gpu 25 \
+        --num_image 3200 \
+        --num_new_img_per_gpu 16 \
+        --max_num_img_per_gpu 16 \
         --model_channels 128 \
         --channel_mult 1 2 3 4 \
         --num_res_blocks 1 \
         --num_redshift 64 \
         --stride 2 2 \
         --guide_w 0 \
-        --batch_size 25 \
-        --n_epoch 6 \
+        --batch_size 16 \
+        --n_epoch 3 \
         --gradient_accumulation_steps 1 \
         --lrate 1e-5 \
         --train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \

@@ -64,11 +64,9 @@ def ddp_setup(rank: int, world_size: int, master_addr, master_port):
        rank: Unique identifier of each process
        world_size: Total number of processes
     """
-
-    #print("inside ddp_setup")
     os.environ["MASTER_ADDR"] = master_addr
     os.environ["MASTER_PORT"] = master_port
-    #print("ddp_setup, rank =", rank)
+
     init_process_group(
             backend="nccl", 
             init_method=f"tcp://{master_addr}:{master_port}", 
@@ -621,7 +619,7 @@ class DDPM21CM:
         #    torch.cuda.synchronize()
 
         #sleep(sleep_time)
-        print(f"🆘 global_rank = {self.config.global_rank}, end of DDPM21CM.train, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🆘", flush=True)
+        #print(f"🆘 cuda:{torch.cuda.current_device()}/{self.config.global_rank} end of DDPM21CM.train at {datetime.now().strftime('%d-%H:%M:%S.%f')} 🆘", flush=True)
         #del self.nn_model
 
         #if self.config.ema:
@@ -739,7 +737,7 @@ class DDPM21CM:
         #    torch.cuda.synchronize()
 
         #sleep(sleep_time)
-        print(f"🆘 global_rank = {self.config.global_rank}, end of DDPM21CM.sample, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🆘", flush=True)
+        #print(f"🆘 cuda:{torch.cuda.current_device()}/{self.config.global_rank} end of DDPM21CM.sample at {datetime.now().strftime('%d-%H:%M:%S.%f')} 🆘", flush=True)
         # else:
         #return x_last
 # %%
@@ -758,20 +756,18 @@ def train(rank, world_size, local_world_size, master_addr, master_port, config):
 
     #print("before dppm21cm")
     ddpm21cm = DDPM21CM(config)
-    try:
-        ddpm21cm.train()
+    ddpm21cm.train()
 
-    except Exception as e:
-        print(f"❌ Rank {rank}/{global_rank} encountered error: {e}", flush=True)
+    if dist.is_initialized():
+        print(f"🚥 cuda:{rank}/{global_rank} dist.destroy_process_group started at {datetime.now().strftime('%d-%H:%M:%S.%f')} 🚥")#, flush=True)
+        dist.barrier()
+        torch.cuda.empty_cache()
+        torch.cuda.synchronize()
+        dist.destroy_process_group()
+        print(f"✅ cuda:{rank}/{global_rank} dist.destroy_process_group completed at {datetime.now().strftime('%d-%H:%M:%S.%f')} ✅")#, flush=True)
 
-    finally:
-        #print(f"🚥 cuda:{rank}/{global_rank} dist.destroy_process_group started 🚥")#, flush=True)
-        if dist.is_initialized():
-            dist.barrier()
-            torch.cuda.empty_cache()
-            torch.cuda.synchronize()
-            dist.destroy_process_group()
-            print(f"✅ cuda:{rank}/{global_rank} dist.destroy_process_group completed ✅")#, flush=True)
+    if dist.is_initialized():
+        print(f"❌ cuda:{rank}/{global_rank} dist.destroy_process_group failed! ❌")
 
 
 def generate_samples(rank, world_size, local_world_size, master_addr, master_port, config, num_new_img_per_gpu, max_num_img_per_gpu, params_pairs):
@@ -784,30 +780,30 @@ def generate_samples(rank, world_size, local_world_size, master_addr, master_por
     config.global_rank = global_rank
 
     ddpm21cm = DDPM21CM(config)
-    try:
-        for params in params_pairs:
-            for _ in range(num_new_img_per_gpu // max_num_img_per_gpu):    
-                ddpm21cm.sample(
-                    params=params, 
-                    num_new_img_per_gpu=max_num_img_per_gpu,
-                    )
-            if num_new_img_per_gpu % max_num_img_per_gpu:
-                ddpm21cm.sample(
-                    params=params, 
-                    num_new_img_per_gpu=num_new_img_per_gpu % max_num_img_per_gpu,
-                    )
 
-    except Exception as e:
-        print(f"❌ Rank {rank}/{global_rank} encountered error: {e}", flush=True)
+    for params in params_pairs:
+        for _ in range(num_new_img_per_gpu // max_num_img_per_gpu):    
+            ddpm21cm.sample(
+                params=params, 
+                num_new_img_per_gpu=max_num_img_per_gpu,
+                )
+        if num_new_img_per_gpu % max_num_img_per_gpu:
+            ddpm21cm.sample(
+                params=params, 
+                num_new_img_per_gpu=num_new_img_per_gpu % max_num_img_per_gpu,
+                )
 
-    finally:
-        #print(f"🚥 cuda:{rank}/{global_rank} dist.destroy_process_group started 🚥")#, flush=True)
-        if dist.is_initialized():
-            dist.barrier()
-            torch.cuda.empty_cache()
-            torch.cuda.synchronize()
-            dist.destroy_process_group()
-            print(f"✅ cuda:{rank}/{global_rank} dist.destroy_process_group completed ✅")#, flush=True)
+    if dist.is_initialized():
+        print(f"🚥 cuda:{rank}/{global_rank} dist.destroy_process_group started at {datetime.now().strftime('%d-%H:%M:%S.%f')} 🚥")#, flush=True)
+        dist.barrier()
+        torch.cuda.empty_cache()
+        torch.cuda.synchronize()
+        dist.destroy_process_group()
+        print(f"✅ cuda:{rank}/{global_rank} dist.destroy_process_group completed at {datetime.now().strftime('%d-%H:%M:%S.%f')} ✅")#, flush=True)
+
+    if dist.is_initialized():
+        print(f"❌ cuda:{rank}/{global_rank} dist.destroy_process_group failed! ❌")
+
 
 
 if __name__ == "__main__":
@@ -881,7 +877,7 @@ if __name__ == "__main__":
                 daemon=False,
                 )
 
-        torch.cuda.synchronize()
+        #torch.cuda.synchronize()
         #print(f"torch.cuda.current_device() = {torch.cuda.current_device()}")
         config.resume = config.save_name + f"-epoch{config.n_epoch}"
         #print("in args.train, config.resume =", config.resume)

@@ -46,7 +46,7 @@ import argparse
 import socket
 import sys
 from datetime import timedelta
-from time import time
+from time import time, sleep
 
 from torch.cuda.amp import autocast, GradScaler
 from random import getrandbits
@@ -56,6 +56,7 @@ import subprocess
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
 
+sleep_time = 5
 # %%
 def ddp_setup(rank: int, world_size: int, master_addr, master_port):
     """
@@ -616,8 +617,11 @@ class DDPM21CM:
         #print(f"🆘 global_rank = {self.config.global_rank}, after save(ep) 🆘", flush=True)
         if dist.is_initialized():
             dist.barrier()
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
 
-        print(f"🆘 global_rank = {self.config.global_rank}, at the end of DDPM21CM.train 🆘", flush=True)
+        sleep(sleep_time)
+        #print(f"🆘 global_rank = {self.config.global_rank}, at the end of DDPM21CM.train 🆘", flush=True)
         #del self.nn_model
         #print(f"🆘 global_rank = {self.config.global_rank}, after del self.nn_model 🆘", flush=True)
 
@@ -711,7 +715,7 @@ class DDPM21CM:
                         )
         #print(f"x_last.dtype = {x_last.dtype}")
 
-        print(f"🆘 global_rank = {self.config.global_rank}, before save 🆘", flush=True)
+        #print(f"🆘 global_rank = {self.config.global_rank}, before save 🆘", flush=True)
 
         if save:    
             # np.save(os.path.join(self.config.output_dir, f"{self.config.run_name}{'ema' if ema else ''}.npy"), x_last)
@@ -731,7 +735,13 @@ class DDPM21CM:
                     np.save(savename, x_entire)
                     print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} saved images of shape {x_entire.shape} to {savename}")
 
-        print(f"🆘 global_rank = {self.config.global_rank}, at the end of DDPM21CM.sample 🆘", flush=True)
+        if dist.is_initialized():
+            dist.barrier()
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+
+        sleep(sleep_time)
+        #print(f"🆘 global_rank = {self.config.global_rank}, at the end of DDPM21CM.sample 🆘", flush=True)
         # else:
         #return x_last
 # %%
@@ -751,7 +761,7 @@ def train(rank, world_size, local_world_size, master_addr, master_port, config):
     ddpm21cm = DDPM21CM(config)
     ddpm21cm.train()
 
-    print(f"🚥 cuda:{rank}/{global_rank} dist.destroy_process_group started 🚥")#, flush=True)
+    #print(f"🚥 cuda:{rank}/{global_rank} dist.destroy_process_group started 🚥")#, flush=True)
 
     if dist.is_initialized():
         dist.barrier()
@@ -790,7 +800,7 @@ def generate_samples(rank, world_size, local_world_size, master_addr, master_por
                 num_new_img_per_gpu=num_new_img_per_gpu % max_num_img_per_gpu,
                 )
 
-    print(f"🚥 cuda:{rank}/{global_rank} dist.destroy_process_group started 🚥")#, flush=True)
+    #print(f"🚥 cuda:{rank}/{global_rank} dist.destroy_process_group started 🚥")#, flush=True)
 
     if dist.is_initialized():
         dist.barrier()

@@ -747,14 +747,11 @@ def train(rank, world_size, local_world_size, master_addr, master_port, config):
     global_rank = rank + local_world_size * int(os.environ["SLURM_NODEID"])
     ddp_setup(global_rank, world_size, master_addr, master_port)
     torch.cuda.set_device(rank)
-    #print(f"rank = {rank}, global_rank = {global_rank}, world_size = {world_size}, local_world_size = {local_world_size}")
 
-    #config = TrainConfig()
     config.device = f"cuda:{rank}"
     config.world_size = local_world_size
     config.global_rank = global_rank 
 
-    #print("before dppm21cm")
     ddpm21cm = DDPM21CM(config)
     ddpm21cm.train()
 
@@ -765,10 +762,6 @@ def train(rank, world_size, local_world_size, master_addr, master_port, config):
         torch.cuda.synchronize()
         dist.destroy_process_group()
         print(f"✅ cuda:{rank}/{global_rank} dist.destroy_process_group completed at {datetime.now().strftime('%d-%H:%M:%S.%f')} ✅")#, flush=True)
-
-    if dist.is_initialized():
-        print(f"❌ cuda:{rank}/{global_rank} dist.destroy_process_group failed! ❌")
-
 
 def generate_samples(rank, world_size, local_world_size, master_addr, master_port, config, num_new_img_per_gpu, max_num_img_per_gpu, params_pairs):
     global_rank = rank + local_world_size * int(os.environ["SLURM_NODEID"])

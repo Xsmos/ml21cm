@@ -614,13 +614,13 @@ class DDPM21CM:
             self.save(ep)
             print(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} Epoch{ep}:{i+1}/{len(self.dataloader)} costs {(time()-epoch_start)/60:.2f} min", flush=True)
 
-        if dist.is_initialized():
-            print(f"🗿 global_rank = {self.config.global_rank}, barrier, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🗿", flush=True)
-            dist.barrier()
-            torch.cuda.empty_cache()
-            torch.cuda.synchronize()
+        #if dist.is_initialized():
+        #    print(f"🗿 global_rank = {self.config.global_rank}, barrier, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🗿", flush=True)
+        #    dist.barrier()
+        #    torch.cuda.empty_cache()
+        #    torch.cuda.synchronize()
 
-        sleep(sleep_time)
+        #sleep(sleep_time)
         print(f"🆘 global_rank = {self.config.global_rank}, end of DDPM21CM.train, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🆘", flush=True)
         #del self.nn_model
 
@@ -732,13 +732,13 @@ class DDPM21CM:
                     np.save(savename, x_entire)
                     print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} saved images of shape {x_entire.shape} to {savename}")
 
-        if dist.is_initialized():
-            print(f"🗿 global_rank = {self.config.global_rank}, barrier, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🗿", flush=True)
-            dist.barrier()
-            torch.cuda.empty_cache()
-            torch.cuda.synchronize()
+        #if dist.is_initialized():
+        #    print(f"🗿 global_rank = {self.config.global_rank}, barrier, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🗿", flush=True)
+        #    dist.barrier()
+        #    torch.cuda.empty_cache()
+        #    torch.cuda.synchronize()
 
-        sleep(sleep_time)
+        #sleep(sleep_time)
         print(f"🆘 global_rank = {self.config.global_rank}, end of DDPM21CM.sample, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🆘", flush=True)
         # else:
         #return x_last
@@ -755,19 +755,23 @@ def train(rank, world_size, local_world_size, master_addr, master_port, config):
     config.device = f"cuda:{rank}"
     config.world_size = local_world_size
     config.global_rank = global_rank 
+
     #print("before dppm21cm")
     ddpm21cm = DDPM21CM(config)
-    ddpm21cm.train()
+    try:
+        ddpm21cm.train()
 
-    #print(f"🚥 cuda:{rank}/{global_rank} dist.destroy_process_group started 🚥")#, flush=True)
+    except Exception as e:
+        print(f"❌ Rank {rank}/{global_rank} encountered error: {e}", flush=True)
 
-    if dist.is_initialized():
-        dist.barrier()
-        torch.cuda.empty_cache()
-        torch.cuda.synchronize()
-        dist.destroy_process_group()
-
-    print(f"✅ cuda:{rank}/{global_rank} dist.destroy_process_group completed ✅")#, flush=True)
+    finally:
+        #print(f"🚥 cuda:{rank}/{global_rank} dist.destroy_process_group started 🚥")#, flush=True)
+        if dist.is_initialized():
+            dist.barrier()
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+            dist.destroy_process_group()
+            print(f"✅ cuda:{rank}/{global_rank} dist.destroy_process_group completed ✅")#, flush=True)
 
 
 def generate_samples(rank, world_size, local_world_size, master_addr, master_port, config, num_new_img_per_gpu, max_num_img_per_gpu, params_pairs):
@@ -780,33 +784,30 @@ def generate_samples(rank, world_size, local_world_size, master_addr, master_por
     config.global_rank = global_rank
 
     ddpm21cm = DDPM21CM(config)
+    try:
+        for params in params_pairs:
+            for _ in range(num_new_img_per_gpu // max_num_img_per_gpu):    
+                ddpm21cm.sample(
+                    params=params, 
+                    num_new_img_per_gpu=max_num_img_per_gpu,
+                    )
+            if num_new_img_per_gpu % max_num_img_per_gpu:
+                ddpm21cm.sample(
+                    params=params, 
+                    num_new_img_per_gpu=num_new_img_per_gpu % max_num_img_per_gpu,
+                    )
 
-    for params in params_pairs:
-        #if global_rank == 0:
-        #    print(f"⛳️ sampling, {params}, ip = {socket.gethostbyname(socket.gethostname())}, local_world_size = {local_world_size}, world_size = {world_size}, {datetime.now().strftime('%d-%H:%M:%S.%f')} ⛳️".center(config.str_len,'#'), flush=True)
+    except Exception as e:
+        print(f"❌ Rank {rank}/{global_rank} encountered error: {e}", flush=True)
 
-        for _ in range(num_new_img_per_gpu // max_num_img_per_gpu):    
-            #print(f"rank = {rank}, global_rank = {global_rank}, world_size = {world_size}, local_world_size = {local_world_size}")
-            ddpm21cm.sample(
-                params=params, 
-                num_new_img_per_gpu=max_num_img_per_gpu,
-                )
-                
-        if num_new_img_per_gpu % max_num_img_per_gpu:
-            ddpm21cm.sample(
-                params=params, 
-                num_new_img_per_gpu=num_new_img_per_gpu % max_num_img_per_gpu,
-                )
-
-    #print(f"🚥 cuda:{rank}/{global_rank} dist.destroy_process_group started 🚥")#, flush=True)
-
-    if dist.is_initialized():
-        dist.barrier()
-        torch.cuda.empty_cache()
-        torch.cuda.synchronize()
-        dist.destroy_process_group()
-
-    print(f"✅ cuda:{rank}/{global_rank} dist.destroy_process_group completed ✅")#, flush=True)
+    finally:
+        #print(f"🚥 cuda:{rank}/{global_rank} dist.destroy_process_group started 🚥")#, flush=True)
+        if dist.is_initialized():
+            dist.barrier()
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+            dist.destroy_process_group()
+            print(f"✅ cuda:{rank}/{global_rank} dist.destroy_process_group completed ✅")#, flush=True)
 
 
 if __name__ == "__main__":
@@ -893,7 +894,7 @@ if __name__ == "__main__":
         params_pairs = [
             (4.4, 131.341),
             (5.6, 19.037),
-            #(4.699, 30),
+            (4.699, 30),
             #(5.477, 200),
             #(4.8, 131.341),
         ]

@@ -57,7 +57,7 @@ srun --gpus-per-node=4 --ntasks-per-node=1 --gpu-bind=none python \
         --stride 2 2 \
         --guide_w 0 \
         --batch_size 25 \
-        --n_epoch 3 \
+        --n_epoch 6 \
         --gradient_accumulation_steps 1 \
         --lrate 1e-5 \
         --train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \

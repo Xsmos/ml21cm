@@ -56,44 +56,32 @@ import subprocess
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
 
-sleep_time = 5
-# %%
-def ddp_setup(rank: int, world_size: int, master_addr, master_port):
-    """
-    Args:
-       rank: Unique identifier of each process
-       world_size: Total number of processes
-    """
-    os.environ["MASTER_ADDR"] = master_addr
-    os.environ["MASTER_PORT"] = master_port
+#def ddp_setup_backup(rank: int, world_size: int, master_addr, master_port):
+#    """
+#    Args:
+#       rank: Unique identifier of each process
+#       world_size: Total number of processes
+#    """
+#    os.environ["MASTER_ADDR"] = master_addr
+#    os.environ["MASTER_PORT"] = master_port
+#
+#    init_process_group(
+#            backend="nccl", 
+#            init_method=f"tcp://{master_addr}:{master_port}", 
+#            rank=rank, 
+#            world_size=world_size,
+#            timeout=timedelta(minutes=20)
+#            )
 
-    init_process_group(
-            backend="nccl", 
-            init_method=f"tcp://{master_addr}:{master_port}", 
-            rank=rank, 
-            world_size=world_size,
-            timeout=timedelta(minutes=20)
-            )
+def ddp_setup():
+    dist.init_process_group(backend='nccl')
+    local_rank = int(os.environ["LOCAL_RANK"])
+    global_rank = dist.get_rank()
+    world_size = dist.get_world_size()
+    #print(f"🆘 global_rank = {global_rank}, torch.cuda.current_device() = {torch.cuda.current_device()}, world_size = {world_size} , local_rank = {local_rank} 🆘", flush=True)
+    torch.cuda.set_device(local_rank)
+    #return local_rank, global_rank, world_size 
 
-# %%
-# notebook_login()
-
-# %% [markdown]
-# # Add noise:
-# 
-# \begin{align*}
-# x_t &\sim \mathcal N\left(\sqrt{1-\beta_t}\ x_{t-1},\ \beta_t \right) \\
-# x_t &\equiv \sqrt{1-\beta_t}\ x_{t-1} + \sqrt{\beta_t}\ \epsilon\\
-# \epsilon &\sim \mathcal N(0,1)\\
-# \alpha_t & \equiv 1 - \beta_t\\
-# & ...\\
-# x_t &= \sqrt{\bar {\alpha_t}} x_0 + \epsilon\ \sqrt{1 - \bar{\alpha_t}}\\
-# \bar {\alpha_t} &\equiv \prod_{i=1}^t \alpha_i\\
-# &= \exp\left({\ln{\prod_{i=1}^t \alpha_i}}\right)\\
-# &= \exp\left({\sum_{i=1}^t\ln{ \alpha_i}}\right)
-# \end{align*}
-
-# %%
 class DDPMScheduler(nn.Module):
     def __init__(self, betas: tuple, num_timesteps: int, img_shape: list, device='cpu', config=None):#, dtype=torch.float16,
         super().__init__()
@@ -156,7 +144,7 @@ class DDPMScheduler(nn.Module):
         # for i in range(self.num_timesteps, 0, -1):
         # print(f'sampling!!!')
         pbar_sample = tqdm(total=self.num_timesteps, file=sys.stderr, disable=True)
-        pbar_sample.set_description(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} sampling")
+        pbar_sample.set_description(f"cuda:{torch.cuda.current_device()}|{self.config.global_rank} sampling")
         for i in reversed(range(0, self.num_timesteps)):
             # print(f'sampling timestep {i:4d}',end='\r')
             t_is = torch.tensor([i]).to(device)
@@ -386,6 +374,7 @@ class DDPM21CM:
 
         self.nn_model.train()
         self.nn_model.to(self.ddpm.device)
+        #print(f"self.ddpm.device = {self.ddpm.device}; torch.cuda.current_device() = {torch.cuda.current_device()}")
         self.nn_model = DDP(self.nn_model, device_ids=[self.ddpm.device], find_unused_parameters=False)
 
         #gpu_info = get_gpu_info(config.device)
@@ -395,9 +384,9 @@ class DDPM21CM:
             # print(f"resumed nn_model from {config.resume}")
             self.nn_model.module.load_state_dict(torch.load(config.resume)['unet_state_dict'])
             #self.nn_model.module.to(config.dtype)
-            print(f"🍀 {config.run_name} cuda:{torch.cuda.current_device()}/{self.config.global_rank} resumed nn_model from {config.resume} with {sum(x.numel() for x in self.nn_model.module.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🍀".center(self.config.str_len,'+'), flush=True)
+            print(f"🍀 {config.run_name} cuda:{torch.cuda.current_device()}|{self.config.global_rank} resumed nn_model from {config.resume} with {sum(x.numel() for x in self.nn_model.module.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🍀".center(self.config.str_len,'+'))#, flush=True)
         else:
-            print(f"🌱 {config.run_name} cuda:{torch.cuda.current_device()}/{self.config.global_rank} initialized nn_model randomly with {sum(x.numel() for x in self.nn_model.module.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🌱".center(self.config.str_len,'+'), flush=True)
+            print(f"🌱 {config.run_name} cuda:{torch.cuda.current_device()}|{self.config.global_rank} initialized nn_model randomly with {sum(x.numel() for x in self.nn_model.module.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🌱".center(self.config.str_len,'+'))#, flush=True)
 
         # whether to use ema
         if config.ema:
@@ -416,16 +405,15 @@ class DDPM21CM:
             #self.ema_model.train()
             self.ema_model.eval().requires_grad_(False)
             self.ema_model.to(self.ddpm.device)
-            #self.ema_model = DDP(self.ema_model, device_ids=[self.ddpm.device], find_unused_parameters=True)
 
             if config.resume and os.path.exists(config.resume):
                 #self.ema_model = ContextUnet(n_param=config.n_param, image_size=config.HII_DIM, dim=config.dim, stride=config.stride).to(config.device, dropout=config.dropout)#, dtype=config.dtype
                 self.ema_model.load_state_dict(torch.load(config.resume)['ema_unet_state_dict'])
-                print(f"{config.run_name} cuda:{torch.cuda.current_device()}/{self.config.global_rank} resumed ema_model from {config.resume} with {sum(x.numel() for x in self.ema_model.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')}".center(self.config.str_len,'+'))
+                print(f"{config.run_name} cuda:{torch.cuda.current_device()}|{self.config.global_rank} resumed ema_model from {config.resume} with {sum(x.numel() for x in self.ema_model.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')}".center(self.config.str_len,'+'))
                 #print(f"resumed ema_model from {config.resume}")
             else:
                 self.ema_model = copy.deepcopy(self.nn_model.module).eval().requires_grad_(False)
-                print(f"{config.run_name} cuda:{torch.cuda.current_device()}/{self.config.global_rank} initialized ema_model randomly with {sum(x.numel() for x in self.ema_model.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')}".center(self.config.str_len,'+'))
+                print(f"{config.run_name} cuda:{torch.cuda.current_device()}|{self.config.global_rank} initialized ema_model randomly with {sum(x.numel() for x in self.ema_model.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')}".center(self.config.str_len,'+'))
 
 
         self.optimizer = torch.optim.AdamW(self.nn_model.module.parameters(), lr=config.lrate)
@@ -451,7 +439,7 @@ class DDPM21CM:
             num_workers=min(1,len(os.sched_getaffinity(0))//self.config.world_size),
             str_len = self.config.str_len,
             )
-        #print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank}: Dataset4h5 done")
+        #print(f"cuda:{torch.cuda.current_device()}|{self.config.global_rank}: Dataset4h5 done")
 
         dataloader_start = time()
         self.dataloader = DataLoader(
@@ -463,11 +451,12 @@ class DDPM21CM:
             persistent_workers=True,
             # sampler=DistributedSampler(dataset),
             )
+
         if len(self.dataloader) % self.config.gradient_accumulation_steps != 0:
             raise ValueError(f"len(self.dataloader) % self.config.gradient_accumulation_steps = {len(self.dataloader) % self.config.gradient_accumulation_steps} instead of 0. Make sure len(dataloader)={len(self.dataloader)} is dividable by gradient_accumulation_steps={self.config.gradient_accumulation_steps}.")
 
         dataloader_end = time()
-        #print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} dataloader costs {dataloader_end-dataloader_start:.3f}s")
+        #print(f"cuda:{torch.cuda.current_device()}|{self.config.global_rank} dataloader costs {dataloader_end-dataloader_start:.3f}s")
 
         del dataset
 
@@ -512,25 +501,22 @@ class DDPM21CM:
 
         # print("!!!!!!!!!!!!!!!!, before prepare, self.dataloader.sampler =", self.dataloader.sampler)
         #model_start = time()
-        #print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} model: {self.nn_model.device}", f"{time()-model_start:.3f}s")
+        #print(f"cuda:{torch.cuda.current_device()}|{self.config.global_rank} model: {self.nn_model.device}", f"{time()-model_start:.3f}s")
         #print(f"optimizer: {self.optimizer.state_dict()}")
         #dataloader_start = time()
-        #print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} dataloader: {next(iter(self.dataloader))[0].device}", f"{time()-dataloader_start:.3f}s")
+        #print(f"cuda:{torch.cuda.current_device()}|{self.config.global_rank} dataloader: {next(iter(self.dataloader))[0].device}", f"{time()-dataloader_start:.3f}s")
         #lr_start = time()
-        #print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} lr_scheduler: {self.lr_scheduler.optimizer is self.optimizer}", f"{time()-lr_start:.3f}s")
-        #print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} print costs {print_end-print_start:.3f}s")
+        #print(f"cuda:{torch.cuda.current_device()}|{self.config.global_rank} lr_scheduler: {self.lr_scheduler.optimizer is self.optimizer}", f"{time()-lr_start:.3f}s")
+        #print(f"cuda:{torch.cuda.current_device()}|{self.config.global_rank} print costs {print_end-print_start:.3f}s")
         if torch.distributed.is_initialized():
-            #print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} torch.distributed.is_initialized")
             torch.distributed.barrier()
-            print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} training starts! 🚀")
-        else:
-            print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} torch.distributed.is_initialized False!!!!!!!!!!!!!!!") 
+            print(f"cuda:{torch.cuda.current_device()}|{self.config.global_rank} training 🚀 ")
 
         global_step = 0
         for ep in range(self.config.n_epoch):
             self.ddpm.train()
             pbar_train = tqdm(total=len(self.dataloader), file=sys.stderr, disable=True)#, mininterval=self.config.pbar_update_step)#, disable=True)#not self.accelerator.is_local_main_process)
-            pbar_train.set_description(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} Epoch {ep}")
+            pbar_train.set_description(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}|{self.config.global_rank} Epoch {ep}")
             epoch_start = time()
             #print(f"🚀 ep={ep}")
             for i, (x, c) in enumerate(self.dataloader):
@@ -557,19 +543,10 @@ class DDPM21CM:
 
                     #print(f"ep = {ep}, loss = {loss}")
                     if torch.isnan(loss).any():
-                        raise ValueError(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} Epoch {ep}, loss: {loss}")
-
-                #if self.config.global_rank == 0:
-                #    result = subprocess.run(['nvidia-smi'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-                #    print(result.stdout)#, flush=True)
-
-                #del noise, noise_pred
-                #torch.cuda.empty_cache()
+                        raise ValueError(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}|{self.config.global_rank} Epoch {ep}, loss: {loss}")
 
                 # scaler backward propogation
                 self.scaler.scale(loss).backward()
-                #loss.backward()
-                #print(f"ep = {ep}, after backward")
 
                 if (i+1) % self.config.gradient_accumulation_steps == 0:
                     #Jprint(f"ep = {ep}, before unscale")
@@ -610,7 +587,7 @@ class DDPM21CM:
                 print(f"(i+1)%self.config.gradient_accumulation_steps = {(i+1)%self.config.gradient_accumulation_steps}, i = {i}, scg = {self.config.gradient_accumulation_steps}".center(self.config.str_len,'-'))
             # if ep == config.n_epoch-1 or (ep+1)*config.save_period==1:
             self.save(ep)
-            print(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} Epoch{ep}:{i+1}/{len(self.dataloader)} costs {(time()-epoch_start)/60:.2f} min", flush=True)
+            print(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}|{self.config.global_rank} Epoch{ep}:{i+1}/{len(self.dataloader)} costs {(time()-epoch_start)/60:.2f} min")#, flush=True)
 
         #if dist.is_initialized():
         #    print(f"🗿 global_rank = {self.config.global_rank}, barrier, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🗿", flush=True)
@@ -619,7 +596,7 @@ class DDPM21CM:
         #    torch.cuda.synchronize()
 
         #sleep(sleep_time)
-        #print(f"🆘 cuda:{torch.cuda.current_device()}/{self.config.global_rank} end of DDPM21CM.train at {datetime.now().strftime('%d-%H:%M:%S.%f')} 🆘", flush=True)
+        #print(f"🆘 cuda:{torch.cuda.current_device()}|{self.config.global_rank} end of DDPM21CM.train at {datetime.now().strftime('%d-%H:%M:%S.%f')} 🆘", flush=True)
         #del self.nn_model
 
         #if self.config.ema:
@@ -632,7 +609,7 @@ class DDPM21CM:
             #save_name = self.config.save_name+f"-N{self.config.num_image}-device_count{self.config.world_size}-node{int(os.environ['SLURM_NNODES'])}-epoch{ep}-{self.config.run_name}"
             #global config_resume
             #config_resume = save_name
-            #print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank}", "save_name copied to config_resume =", config_resume)
+            #print(f"cuda:{torch.cuda.current_device()}|{self.config.global_rank}", "save_name copied to config_resume =", config_resume)
 
             if self.config.global_rank == 0:# or torch.cuda.current_device() == 0:
                 self.nn_model.eval()
@@ -652,7 +629,7 @@ class DDPM21CM:
                             }
                         save_name = self.config.save_name + f"-epoch{ep+1}"
                         torch.save(model_state, save_name)
-                        print(f'🌟 cuda:{torch.cuda.current_device()}/{self.config.global_rank} saved model at ' + save_name)
+                        print(f'🌟 cuda:{torch.cuda.current_device()}|{self.config.global_rank} saved model at ' + save_name)
                         # print('saved model at ' + config.save_dir + f"model_epoch_{ep}_test_{config.run_name}.pth")
 
     # def rescale(self, value, type='params', to_ranges=[0,1]):
@@ -679,12 +656,14 @@ class DDPM21CM:
         # print(f"cuda:{torch.cuda.current_device()}, sample, params = {params}")
         if params is None:
             params = torch.tensor([4.4, 131.341])
+        elif type(params) is not torch.Tensor:
+            params = torch.tensor(params)
             # params_backup = params.numpy().copy()
         # else:
         params_backup = params.numpy().copy()
         params_normalized = self.rescale(params, self.ranges_dict['params'], to=[0,1])
 
-        print(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.config.global_rank} sampling {num_new_img_per_gpu} images with normalized params = {params_normalized}, {datetime.now().strftime('%d-%H:%M:%S.%f')}", flush=True)
+        print(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}|{self.config.global_rank} sampling {num_new_img_per_gpu} images with normalized params = {params_normalized}, {datetime.now().strftime('%d-%H:%M:%S.%f')}")#, flush=True)
         params_normalized = params_normalized.repeat(num_new_img_per_gpu,1)
         assert params_normalized.dim() == 2, "params_normalized must be a 2D torch.tensor"
         # print("params =", params)
@@ -722,13 +701,13 @@ class DDPM21CM:
                 elapsed_time = (time()-sample_start)/(self.config.ema + 1)
                 savename = os.path.join(self.config.output_dir, f"Tvir{params_backup[0]:.3f}-zeta{params_backup[1]:.3f}-device{self.config.global_rank}-{os.path.basename(self.config.resume)}-{savetime}-ema{ema}")
                 np.save(savename, x_last if ema==0 else x_last_ema)
-                print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} saved {x_last.shape} to {os.path.basename(savename)} with {elapsed_time/60:.2f} min", flush=True)
+                print(f"cuda:{torch.cuda.current_device()}|{self.config.global_rank} saved {x_last.shape} to {os.path.basename(savename)} with {elapsed_time/60:.2f} min")#, flush=True)
 
                 if entire:
                     #savename = os.path.join(self.config.output_dir, f"Tvir{params_backup[0]:.3f}-zeta{params_backup[1]:.3f}-device{self.config.global_rank}-{os.path.basename(self.config.resume)}-{savetime}-ema{ema}_entire")
                     savename += '_entire'
                     np.save(savename, x_entire)
-                    print(f"cuda:{torch.cuda.current_device()}/{self.config.global_rank} saved images of shape {x_entire.shape} to {savename}")
+                    print(f"cuda:{torch.cuda.current_device()}|{self.config.global_rank} saved images of shape {x_entire.shape} to {savename}")
 
         #if dist.is_initialized():
         #    print(f"🗿 global_rank = {self.config.global_rank}, barrier, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🗿", flush=True)
@@ -737,43 +716,67 @@ class DDPM21CM:
         #    torch.cuda.synchronize()
 
         #sleep(sleep_time)
-        #print(f"🆘 cuda:{torch.cuda.current_device()}/{self.config.global_rank} end of DDPM21CM.sample at {datetime.now().strftime('%d-%H:%M:%S.%f')} 🆘", flush=True)
+        #print(f"🆘 cuda:{torch.cuda.current_device()}|{self.config.global_rank} end of DDPM21CM.sample at {datetime.now().strftime('%d-%H:%M:%S.%f')} 🆘", flush=True)
         # else:
         #return x_last
 # %%
 
 #num_train_image_list = [6000]#[60]#[8000]#[1000]#[100]#
-def train(rank, world_size, local_world_size, master_addr, master_port, config):
-    global_rank = rank + local_world_size * int(os.environ["SLURM_NODEID"])
-    ddp_setup(global_rank, world_size, master_addr, master_port)
-    torch.cuda.set_device(rank)
+#def train_backup(rank, world_size, local_world_size, master_addr, master_port, config):
+#    global_rank = rank + local_world_size * int(os.environ["SLURM_NODEID"])
+#    ddp_setup(global_rank, world_size, master_addr, master_port)
+#    torch.cuda.set_device(rank)
+#
+#    config.device = f"cuda:{rank}"
+#    config.world_size = local_world_size
+#    config.global_rank = global_rank 
+#
+#    ddpm21cm = DDPM21CM(config)
+#    ddpm21cm.train()
+#
+#    if dist.is_initialized():
+#        print(f"🚥 cuda:{local_rank}|{global_rank} dist.destroy_process_group started at {datetime.now().strftime('%d-%H:%M:%S.%f')} 🚥")#, flush=True)
+#        dist.barrier()
+#        torch.cuda.empty_cache()
+#        torch.cuda.synchronize()
+#        dist.destroy_process_group()
+#        print(f"✅ cuda:{local_rank}|{global_rank} dist.destroy_process_group completed at {datetime.now().strftime('%d-%H:%M:%S.%f')} ✅")#, flush=True)
 
-    config.device = f"cuda:{rank}"
-    config.world_size = local_world_size
-    config.global_rank = global_rank 
+def train(config):
+    local_rank = int(os.environ["LOCAL_RANK"])
+    global_rank = int(os.environ["RANK"])
+    world_size = int(os.environ["WORLD_SIZE"])
 
+    config.device = f"cuda:{local_rank}"
+    config.world_size = world_size
+    config.global_rank = global_rank
+
+    print(f"⛳️ training cuda:{local_rank}|{global_rank}/{world_size} {datetime.now().strftime('%d-%H:%M:%S.%f')} ⛳️".center(config.str_len,'#'))
     ddpm21cm = DDPM21CM(config)
     ddpm21cm.train()
 
-    if dist.is_initialized():
-        print(f"🚥 cuda:{rank}/{global_rank} dist.destroy_process_group started at {datetime.now().strftime('%d-%H:%M:%S.%f')} 🚥")#, flush=True)
-        dist.barrier()
-        torch.cuda.empty_cache()
-        torch.cuda.synchronize()
-        dist.destroy_process_group()
-        print(f"✅ cuda:{rank}/{global_rank} dist.destroy_process_group completed at {datetime.now().strftime('%d-%H:%M:%S.%f')} ✅")#, flush=True)
+    #if dist.is_initialized():
+    #    print(f"🚥 cuda:{local_rank}|{global_rank} dist.destroy_process_group started at {datetime.now().strftime('%d-%H:%M:%S.%f')} 🚥")#, flush=True)
+    #    dist.barrier()
+    #    torch.cuda.empty_cache()
+    #    torch.cuda.synchronize()
+    #    dist.destroy_process_group()
+    #    print(f"✅ cuda:{local_rank}|{global_rank} dist.destroy_process_group completed at {datetime.now().strftime('%d-%H:%M:%S.%f')} ✅")#, flush=True)
 
-def generate_samples(rank, world_size, local_world_size, master_addr, master_port, config, num_new_img_per_gpu, max_num_img_per_gpu, params_pairs):
-    global_rank = rank + local_world_size * int(os.environ["SLURM_NODEID"])
-    ddp_setup(global_rank, world_size, master_addr, master_port)
-    torch.cuda.set_device(rank)
-
-    config.device = f"cuda:{rank}"
-    config.world_size = local_world_size
+def generate_samples(config, num_new_img_per_gpu, max_num_img_per_gpu, params_pairs):
+    local_rank = int(os.environ["LOCAL_RANK"])
+    global_rank = int(os.environ["RANK"])
+    world_size = int(os.environ["WORLD_SIZE"])
+    
+    config.device = f"cuda:{local_rank}"
+    config.world_size = world_size
     config.global_rank = global_rank
 
-    ddpm21cm = DDPM21CM(config)
+    if dist.is_initialized():
+        dist.barrier()
 
+    print(f"⛳️ sampling cuda:{local_rank}|{global_rank}/{world_size} {datetime.now().strftime('%d-%H:%M:%S.%f')} ⛳️".center(config.str_len,'#'))
+    ddpm21cm = DDPM21CM(config)
     for params in params_pairs:
         for _ in range(num_new_img_per_gpu // max_num_img_per_gpu):    
             ddpm21cm.sample(
@@ -786,16 +789,48 @@ def generate_samples(rank, world_size, local_world_size, master_addr, master_por
                 num_new_img_per_gpu=num_new_img_per_gpu % max_num_img_per_gpu,
                 )
 
-    if dist.is_initialized():
-        print(f"🚥 cuda:{rank}/{global_rank} dist.destroy_process_group started at {datetime.now().strftime('%d-%H:%M:%S.%f')} 🚥")#, flush=True)
-        dist.barrier()
-        torch.cuda.empty_cache()
-        torch.cuda.synchronize()
-        dist.destroy_process_group()
-        print(f"✅ cuda:{rank}/{global_rank} dist.destroy_process_group completed at {datetime.now().strftime('%d-%H:%M:%S.%f')} ✅")#, flush=True)
+    #if dist.is_initialized():
+    #    print(f"🚥 cuda:{local_rank}|{global_rank} dist.destroy_process_group started at {datetime.now().strftime('%d-%H:%M:%S.%f')} 🚥")#, flush=True)
+    #    dist.barrier()
+    #    torch.cuda.empty_cache()
+    #    torch.cuda.synchronize()
+    #    dist.destroy_process_group()
+    #    print(f"✅ cuda:{local_rank}|{global_rank} dist.destroy_process_group completed at {datetime.now().strftime('%d-%H:%M:%S.%f')} ✅")#, flush=True)
 
-    if dist.is_initialized():
-        print(f"❌ cuda:{rank}/{global_rank} dist.destroy_process_group failed! ❌")
+
+#def generate_samples_backup(rank, world_size, local_world_size, master_addr, master_port, config, num_new_img_per_gpu, max_num_img_per_gpu, params_pairs):
+#    global_rank = rank + local_world_size * int(os.environ["SLURM_NODEID"])
+#    ddp_setup(global_rank, world_size, master_addr, master_port)
+#    torch.cuda.set_device(rank)
+#
+#    config.device = f"cuda:{rank}"
+#    config.world_size = local_world_size
+#    config.global_rank = global_rank
+#
+#    ddpm21cm = DDPM21CM(config)
+#
+#    for params in params_pairs:
+#        for _ in range(num_new_img_per_gpu // max_num_img_per_gpu):    
+#            ddpm21cm.sample(
+#                params=params, 
+#                num_new_img_per_gpu=max_num_img_per_gpu,
+#                )
+#        if num_new_img_per_gpu % max_num_img_per_gpu:
+#            ddpm21cm.sample(
+#                params=params, 
+#                num_new_img_per_gpu=num_new_img_per_gpu % max_num_img_per_gpu,
+#                )
+#
+#    if dist.is_initialized():
+#        print(f"🚥 cuda:{rank}/{global_rank} dist.destroy_process_group started at {datetime.now().strftime('%d-%H:%M:%S.%f')} 🚥")#, flush=True)
+#        dist.barrier()
+#        torch.cuda.empty_cache()
+#        torch.cuda.synchronize()
+#        dist.destroy_process_group()
+#        print(f"✅ cuda:{rank}/{global_rank} dist.destroy_process_group completed at {datetime.now().strftime('%d-%H:%M:%S.%f')} ✅")#, flush=True)
+#
+#    if dist.is_initialized():
+#        print(f"❌ cuda:{rank}/{global_rank} dist.destroy_process_group failed! ❌")
 
 
 
@@ -856,28 +891,18 @@ if __name__ == "__main__":
 
     config.run_name = os.environ.get("SLURM_JOB_ID", datetime.now().strftime("%d%H%M%S")) # the unique name of each experiment
     config.save_name += f"-N{config.num_image}-device_count{local_world_size}-node{total_nodes}-{config.run_name}"
-    
-    #print("before args.train, config.resume =", config.resume)
+
+    if not dist.is_initialized():
+        ddp_setup()
+   
     ############################ training ################################
     if args.train:
         config.dataset_name = args.train
-        print(f"⛳️ training, ip = {socket.gethostbyname(socket.gethostname())}, local_world_size = {local_world_size}, world_size = {world_size}, {datetime.now().strftime('%d-%H:%M:%S.%f')} ⛳️".center(config.str_len,'#'))
-        mp.spawn(
-                train, 
-                args=(world_size, local_world_size, master_addr, master_port, config), 
-                nprocs=local_world_size, 
-                join=True,
-                daemon=False,
-                )
-
-        #torch.cuda.synchronize()
-        #print(f"torch.cuda.current_device() = {torch.cuda.current_device()}")
+        train(config)
         config.resume = config.save_name + f"-epoch{config.n_epoch}"
-        #print("in args.train, config.resume =", config.resume)
 
     ############################ sampling ################################
     if os.path.exists(config.resume) and args.sample:
-        print(f"⛳️ sampling, ip = {socket.gethostbyname(socket.gethostname())}, local_world_size = {local_world_size}, world_size = {world_size}, {datetime.now().strftime('%d-%H:%M:%S.%f')} ⛳️".center(config.str_len,'#'))
         num_new_img_per_gpu = args.num_new_img_per_gpu#200#4#200
         max_num_img_per_gpu = args.max_num_img_per_gpu#40#2#20
         params_pairs = [
@@ -887,15 +912,12 @@ if __name__ == "__main__":
             #(5.477, 200),
             #(4.8, 131.341),
         ]
+        generate_samples(config, num_new_img_per_gpu, max_num_img_per_gpu, params_pairs)
 
-        #for params in params_pairs:
-        mp.spawn(
-                generate_samples, 
-                args=(world_size, local_world_size, master_addr, master_port, config, num_new_img_per_gpu, max_num_img_per_gpu, torch.tensor(params_pairs)), 
-                nprocs=local_world_size, 
-                join=True,
-                daemon=False,
-                )
-
-
-
+    if dist.is_initialized():
+        dist.barrier()
+        print(f"🚥 cuda:{os.environ['LOCAL_RANK']}|{os.environ['RANK']} dist.destroy_process_group {datetime.now().strftime('%d-%H:%M:%S.%f')} 🚥")#, flush=True)
+        torch.cuda.empty_cache()
+        torch.cuda.synchronize()
+        #dist.destroy_process_group()
+        #print(f"✅ cuda:{os.environ['LOCAL_RANK']}|{os.environ['RANK']} dist.destroy_process_group completed at {datetime.now().strftime('%d-%H:%M:%S.%f')} ✅")#, flush=True)

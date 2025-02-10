@@ -42,22 +42,22 @@ echo MASTER_ADDR:MASTER_PORT=$MASTER_ADDR:$MASTER_PORT
 #torchrun \
 #
 #srun --gpus-per-node=4 --ntasks-per-node=1 --gpu-bind=none python \
-srun -u --gpus-per-node=4 --ntasks-per-node=1 --gpu-bind=none torchrun \
+srun --gpus-per-node=4 --ntasks-per-node=1 --gpu-bind=none torchrun \
     --nnodes=$SLURM_NNODES \
-    --nproc_per_node=1 \
+    --nproc_per_node=4 \
     --rdzv_backend=c10d \
     --rdzv_endpoint=$MASTER_ADDR:$MASTER_PORT \
     diffusion.py \
-        --num_image 3200 \
-        --num_new_img_per_gpu 16 \
-        --max_num_img_per_gpu 16 \
+        --num_image 320 \
+        --num_new_img_per_gpu 32 \
+        --max_num_img_per_gpu 32 \
         --model_channels 128 \
         --channel_mult 1 2 3 4 \
         --num_res_blocks 1 \
         --num_redshift 64 \
         --stride 2 2 \
         --guide_w 0 \
-        --batch_size 16 \
+        --batch_size 32 \
         --n_epoch 3 \
         --gradient_accumulation_steps 1 \
         --lrate 1e-5 \

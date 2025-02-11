@@ -13,4 +13,4 @@ data/
 # frontera*
 error-*
 logs/
-
+wandb/

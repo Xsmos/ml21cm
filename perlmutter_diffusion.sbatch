@@ -6,7 +6,7 @@
 #SBATCH --gpus-per-node=4
 #SBATCH --ntasks-per-node=1
 #SBATCH --gpu-bind=none
-#SBATCH -t 30:00:00
+#SBATCH -t 48:00:00
 #SBATCH -oReport-%j 
 #SBATCH --mail-type=BEGIN,END,FAIL
 
@@ -49,15 +49,15 @@ srun --gpus-per-node=4 --ntasks-per-node=1 --gpu-bind=none torchrun \
     --rdzv_endpoint=$MASTER_ADDR:$MASTER_PORT \
     diffusion.py \
         --num_image 3200 \
-        --num_new_img_per_gpu 32 \
-        --max_num_img_per_gpu 32 \
+        --num_new_img_per_gpu 20 \
+        --max_num_img_per_gpu 20 \
         --model_channels 128 \
         --channel_mult 1 2 3 4 \
         --num_res_blocks 1 \
-        --num_redshift 32 \
+        --num_redshift 64 \
         --stride 2 2 2 \
         --guide_w 0 \
-        --batch_size 32 \
+        --batch_size 20 \
         --n_epoch 360 \
         --gradient_accumulation_steps 1 \
         --lrate 1e-5 \

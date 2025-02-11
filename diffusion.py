@@ -1,6 +1,5 @@
 # %%
 import logging
-#logging.getLogger("torch").setLevel(logging.ERROR)
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
 
@@ -18,7 +17,7 @@ import torch.nn.functional as F
 import math
 # from PIL import Image
 import os
-from torch.utils.tensorboard import SummaryWriter
+#from torch.utils.tensorboard import SummaryWriter
 import copy
 from tqdm.auto import tqdm
 # from diffusers import UNet2DModel#, UNet3DConditionModel
@@ -56,6 +55,7 @@ import subprocess
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
 
+import wandb
 #def ddp_setup_backup(rank: int, world_size: int, master_addr, master_port):
 #    """
 #    Args:
@@ -477,18 +477,7 @@ class DDPM21CM:
         ###################      
         ## training loop ##
         ###################
-        # plot_unet = True
 
-        self.load()
-        #self.accelerator = Accelerator(
-        #    mixed_precision=self.config.mixed_precision,
-        #    gradient_accumulation_steps=self.config.gradient_accumulation_steps,
-        #    log_with="tensorboard",
-        #    project_dir=os.path.join(self.config.output_dir, "logs"),
-            # distributed_type="MULTI_GPU",
-        #)
-        # print("!!!!!!!!!!!!!!!!!!!self.accelerator.device:", self.accelerator.device)
-        # if self.accelerator.is_main_process:
         if self.config.global_rank == 0: # or torch.cuda.current_device() == 0:
             if self.config.output_dir is not None:
                 os.makedirs(self.config.output_dir, exist_ok=True)
@@ -497,20 +486,18 @@ class DDPM21CM:
                     repo_id=self.config.hub_model_id or Path(self.config.output_dir).name, exist_ok=True
                 ).repo_id
             #self.accelerator.init_trackers(f"{self.config.run_name}")
-            self.config.logger = SummaryWriter(f"logs/{self.config.run_name}") 
+            #self.config.logger = SummaryWriter(f"logs/{self.config.run_name}") 
+            wandb.init(
+                    project = "ml21cm",
+                    name = self.config.run_name,
+                    config = self.config,
+            )
 
-        # print("!!!!!!!!!!!!!!!!, before prepare, self.dataloader.sampler =", self.dataloader.sampler)
-        #model_start = time()
-        #print(f"cuda:{torch.cuda.current_device()}|{self.config.global_rank} model: {self.nn_model.device}", f"{time()-model_start:.3f}s")
-        #print(f"optimizer: {self.optimizer.state_dict()}")
-        #dataloader_start = time()
-        #print(f"cuda:{torch.cuda.current_device()}|{self.config.global_rank} dataloader: {next(iter(self.dataloader))[0].device}", f"{time()-dataloader_start:.3f}s")
-        #lr_start = time()
-        #print(f"cuda:{torch.cuda.current_device()}|{self.config.global_rank} lr_scheduler: {self.lr_scheduler.optimizer is self.optimizer}", f"{time()-lr_start:.3f}s")
-        #print(f"cuda:{torch.cuda.current_device()}|{self.config.global_rank} print costs {print_end-print_start:.3f}s")
+        self.load()
+        print(f"cuda:{torch.cuda.current_device()}|{self.config.global_rank} training 🚀 ")
+
         if torch.distributed.is_initialized():
             torch.distributed.barrier()
-            print(f"cuda:{torch.cuda.current_device()}|{self.config.global_rank} training 🚀 ")
 
         global_step = 0
         for ep in range(self.config.n_epoch):
@@ -579,8 +566,13 @@ class DDPM21CM:
 
                 #self.accelerator.log(logs, step=global_step)
                 if self.config.global_rank == 0:
-                    self.config.logger.add_scalar("MSE", logs["loss"], global_step = global_step)
-                    self.config.logger.add_scalar("learning_rate", logs["lr"], global_step = global_step)
+                    wandb.log({
+                        'MSE': logs['loss'],
+                        'learning_rate': logs['lr'],
+                        'global_step': global_step,
+                        })
+                    #self.config.logger.add_scalar("MSE", logs["loss"], global_step = global_step)
+                    #self.config.logger.add_scalar("learning_rate", logs["lr"], global_step = global_step)
                 global_step += 1
 
             if (i+1) % self.config.gradient_accumulation_steps != 0:
@@ -675,7 +667,6 @@ class DDPM21CM:
         sample_start = time()
         with torch.no_grad():
             with autocast(enabled=self.config.autocast):
-            #with autocast():
                 x_last, x_entire = self.ddpm.sample(
                     nn_model=self.nn_model.module, 
                     params=params_normalized.to(self.config.device), 
@@ -689,7 +680,6 @@ class DDPM21CM:
                         device=self.config.device, 
                         guide_w=self.config.guide_w
                         )
-        #print(f"x_last.dtype = {x_last.dtype}")
 
         if save:    
             # np.save(os.path.join(self.config.output_dir, f"{self.config.run_name}{'ema' if ema else ''}.npy"), x_last)
@@ -772,10 +762,10 @@ def generate_samples(config, num_new_img_per_gpu, max_num_img_per_gpu, params_pa
     config.world_size = world_size
     config.global_rank = global_rank
 
+    print(f"⛳️ sampling cuda:{local_rank}|{global_rank}/{world_size} {datetime.now().strftime('%d-%H:%M:%S.%f')} ⛳️".center(config.str_len,'#'))
     if dist.is_initialized():
         dist.barrier()
 
-    print(f"⛳️ sampling cuda:{local_rank}|{global_rank}/{world_size} {datetime.now().strftime('%d-%H:%M:%S.%f')} ⛳️".center(config.str_len,'#'))
     ddpm21cm = DDPM21CM(config)
     for params in params_pairs:
         for _ in range(num_new_img_per_gpu // max_num_img_per_gpu):    

@@ -241,7 +241,7 @@ class TrainConfig:
     n_epoch = 100#30#50#20#1#50#10#1#50#1#50#5#50#5#50#100#50#100#30#120#5#4# 10#50#20#20#2#5#25 # 120
     HII_DIM = 64
     num_redshift = HII_DIM #1024
-    startat = 512 #-num_redshift
+    startat = 0 #512 #-num_redshift
 
     channel = 1
     img_shape = (channel, HII_DIM, num_redshift) if dim == 2 else (channel, HII_DIM, HII_DIM, num_redshift)

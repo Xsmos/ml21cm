@@ -103,7 +103,7 @@ class Upsample(nn.Module):
         # print(shape)
         #print(colored(f"Before interpolation: {x.shape}", 'red', 'on_white'))
         #x = F.interpolate(x, shape, mode='nearest')
-        x = F.interpolate(x, scale_factor=self.stride, mode='nearest')#, mode='trilinear')
+        x = F.interpolate(x, scale_factor=self.stride, mode='nearest' if x.ndim==4 else 'trilinear')
         #print(colored(f"After interpolation: {x.shape}", 'red', 'on_white'))
 
         if self.use_conv:

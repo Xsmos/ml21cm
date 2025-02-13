@@ -53,7 +53,7 @@ ranges_dict = dict(
 # In[2]:
 
 
-def load_h5_as_tensor(dir_name='LEN128-DIM64-CUB8.h5', num_image=256, num_redshift=32, HII_DIM=64, rescale=False, dim=3, startat=512):
+def load_h5_as_tensor(dir_name='LEN128-DIM64-CUB8.h5', num_image=256, num_redshift=32, HII_DIM=64, rescale=False, dim=3, startat=0):
     # print("dataset = Dataset4h5(")
     dir_name = os.path.join(os.environ['SCRATCH'], dir_name)
     dataset = Dataset4h5(dir_name, num_image=num_image, num_redshift=num_redshift, HII_DIM=HII_DIM, rescale=rescale, dim=dim, startat=startat)

@@ -2,15 +2,16 @@
 #SBATCH -A m4717 
 #SBATCH -C gpu&hbm80g
 #SBATCH -q regular #debug #shared #
-#SBATCH -N2
+#SBATCH -N20
 #SBATCH --gpus-per-node=4
 #SBATCH --ntasks-per-node=1
 #SBATCH --gpu-bind=none
 #SBATCH -t 48:00:00
-#SBATCH -oReport-%j 
+#SBATCH -o logs/%x-%j
 #SBATCH --mail-type=BEGIN,END,FAIL
 
 cat $0
+mkdir -p logs
 echo "$(printf '%0.s🚥 ' {1..30})"
 
 module load pytorch #/2.0.1
@@ -48,9 +49,9 @@ srun --gpus-per-node=4 --ntasks-per-node=1 --gpu-bind=none torchrun \
     --rdzv_backend=c10d \
     --rdzv_endpoint=$MASTER_ADDR:$MASTER_PORT \
     diffusion.py \
-        --num_image 32 \
-        --num_new_img_per_gpu 1 \
-        --max_num_img_per_gpu 1 \
+        --num_image 320 \
+        --num_new_img_per_gpu 2 \
+        --max_num_img_per_gpu 2 \
         --model_channels 128 \
         --channel_mult 1 2 3 4 \
         --num_res_blocks 1 \
@@ -58,7 +59,7 @@ srun --gpus-per-node=4 --ntasks-per-node=1 --gpu-bind=none torchrun \
         --stride 2 2 4 \
         --guide_w 0 \
         --batch_size 2 \
-        --n_epoch 1 \
+        --n_epoch 3 \
         --gradient_accumulation_steps 1 \
         --lrate 1e-5 \
         --train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \

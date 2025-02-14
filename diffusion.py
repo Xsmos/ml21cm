@@ -35,7 +35,6 @@ from context_unet import ContextUnet
 
 from huggingface_hub import notebook_login
 
-import torch.multiprocessing as mp
 #from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed import init_process_group
@@ -54,6 +53,7 @@ import subprocess
 
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
+torch.backends.cudnn.benchmark = True
 
 import wandb
 #def ddp_setup_backup(rank: int, world_size: int, master_addr, master_port):
@@ -74,7 +74,7 @@ import wandb
 #            )
 
 def ddp_setup():
-    dist.init_process_group(backend='nccl')
+    dist.init_process_group(backend='nccl', timeout=timedelta(minutes=20))
     local_rank = int(os.environ["LOCAL_RANK"])
     global_rank = dist.get_rank()
     world_size = dist.get_world_size()
@@ -143,6 +143,7 @@ class DDPMScheduler(nn.Module):
         # print("self.num_timesteps =", self.num_timesteps)
         # for i in range(self.num_timesteps, 0, -1):
         # print(f'sampling!!!')
+
         pbar_sample = tqdm(total=self.num_timesteps, file=sys.stderr, disable=True)
         pbar_sample.set_description(f"cuda:{torch.cuda.current_device()}|{self.config.global_rank} sampling")
         for i in reversed(range(0, self.num_timesteps)):
@@ -374,16 +375,16 @@ class DDPM21CM:
 
         self.nn_model.train()
         self.nn_model.to(self.ddpm.device)
-        #print(f"self.ddpm.device = {self.ddpm.device}; torch.cuda.current_device() = {torch.cuda.current_device()}")
+
         self.nn_model = DDP(self.nn_model, device_ids=[self.ddpm.device], find_unused_parameters=False)
 
         #gpu_info = get_gpu_info(config.device)
         if config.resume and os.path.exists(config.resume):
-            # resume_file = os.path.join(config.output_dir, f"{config.resume}")
-            # self.nn_model.load_state_dict(torch.load(config.resume)['unet_state_dict'])
-            # print(f"resumed nn_model from {config.resume}")
-            self.nn_model.module.load_state_dict(torch.load(config.resume)['unet_state_dict'])
-            #self.nn_model.module.to(config.dtype)
+            if dist.is_initialized():
+                map_loc = f"cuda:{int(os.environ['LOCAL_RANK'])}"
+            else:
+                map_loc = f"cuda:{torch.cuda.current_device()}"
+            self.nn_model.module.load_state_dict(torch.load(config.resume, map_location=map_loc)['unet_state_dict'])
             print(f"🍀 {config.run_name} cuda:{torch.cuda.current_device()}|{self.config.global_rank} resumed nn_model from {config.resume} with {sum(x.numel() for x in self.nn_model.module.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🍀".center(self.config.str_len,'+'))#, flush=True)
         else:
             print(f"🌱 {config.run_name} cuda:{torch.cuda.current_device()}|{self.config.global_rank} initialized nn_model randomly with {sum(x.numel() for x in self.nn_model.module.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🌱".center(self.config.str_len,'+'))#, flush=True)
@@ -414,7 +415,6 @@ class DDPM21CM:
             else:
                 self.ema_model = copy.deepcopy(self.nn_model.module).eval().requires_grad_(False)
                 print(f"{config.run_name} cuda:{torch.cuda.current_device()}|{self.config.global_rank} initialized ema_model randomly with {sum(x.numel() for x in self.ema_model.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')}".center(self.config.str_len,'+'))
-
 
         self.optimizer = torch.optim.AdamW(self.nn_model.module.parameters(), lr=config.lrate)
         self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
@@ -648,6 +648,7 @@ class DDPM21CM:
         # print(f"cuda:{torch.cuda.current_device()}, sample, params = {params}")
         if params is None:
             params = torch.tensor([4.4, 131.341])
+
         elif type(params) is not torch.Tensor:
             params = torch.tensor(params)
             # params_backup = params.numpy().copy()
@@ -767,6 +768,7 @@ def generate_samples(config, num_new_img_per_gpu, max_num_img_per_gpu, params_pa
         dist.barrier()
 
     ddpm21cm = DDPM21CM(config)
+
     for params in params_pairs:
         for _ in range(num_new_img_per_gpu // max_num_img_per_gpu):    
             ddpm21cm.sample(

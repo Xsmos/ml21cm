@@ -144,7 +144,7 @@ class DDPMScheduler(nn.Module):
         # for i in range(self.num_timesteps, 0, -1):
         # print(f'sampling!!!')
 
-        pbar_sample = tqdm(total=self.num_timesteps, file=sys.stderr)#, disable=True)
+        pbar_sample = tqdm(total=self.num_timesteps, file=sys.stderr, disable=True)
         pbar_sample.set_description(f"cuda:{torch.cuda.current_device()}|{self.config.global_rank} sampling")
         for i in reversed(range(0, self.num_timesteps)):
             # print(f'sampling timestep {i:4d}',end='\r')
@@ -502,7 +502,7 @@ class DDPM21CM:
         global_step = 0
         for ep in range(self.config.n_epoch):
             self.ddpm.train()
-            pbar_train = tqdm(total=len(self.dataloader), file=sys.stderr)#, disable=True)#, mininterval=self.config.pbar_update_step)#, disable=True)#not self.accelerator.is_local_main_process)
+            pbar_train = tqdm(total=len(self.dataloader), file=sys.stderr, disable=True)#, mininterval=self.config.pbar_update_step)#, disable=True)#not self.accelerator.is_local_main_process)
             pbar_train.set_description(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}|{self.config.global_rank} Epoch {ep}")
             epoch_start = time()
             #print(f"🚀 ep={ep}")

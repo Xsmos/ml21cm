@@ -2,7 +2,7 @@
 #SBATCH -A m4717 
 #SBATCH -C gpu&hbm80g
 #SBATCH -q regular #debug #shared #
-#SBATCH -N20
+#SBATCH -N8
 #SBATCH --gpus-per-node=4
 #SBATCH --ntasks-per-node=1
 #SBATCH --gpu-bind=none
@@ -49,11 +49,11 @@ srun --gpus-per-node=4 --ntasks-per-node=1 --gpu-bind=none torchrun \
     --rdzv_backend=c10d \
     --rdzv_endpoint=$MASTER_ADDR:$MASTER_PORT \
     diffusion.py \
-        --num_image 320 \
+        --num_image 800 \
         --num_new_img_per_gpu 2 \
         --max_num_img_per_gpu 2 \
         --model_channels 128 \
-        --channel_mult 1 2 3 4 \
+        --channel_mult 1 1 2 4 \
         --num_res_blocks 1 \
         --num_redshift 1024 \
         --stride 2 2 4 \

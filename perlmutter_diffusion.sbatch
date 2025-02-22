@@ -2,7 +2,7 @@
 #SBATCH -A m4717 
 #SBATCH -C gpu&hbm80g
 #SBATCH -q regular #debug #shared #
-#SBATCH -N8
+#SBATCH -N20
 #SBATCH --gpus-per-node=4
 #SBATCH --ntasks-per-node=1
 #SBATCH --gpu-bind=none
@@ -38,30 +38,24 @@ echo SLURM_GPUS_PER_NODE=$SLURM_GPUS_PER_NODE
 echo SLURM_GPUS=$SLURM_GPUS
 echo MASTER_ADDR:MASTER_PORT=$MASTER_ADDR:$MASTER_PORT
 
-#srun python diffusion.py \
-#srun --nodes=$SLURM_NNODES --gpus-per-node=$SLURM_GPUS_PER_NODE --ntasks-per-node=1 torchrun --nproc_per_node=1 \
-#srun torchrun \
-#torchrun \
-#
-#srun --gpus-per-node=4 --ntasks-per-node=1 --gpu-bind=none python \
 srun --gpus-per-node=4 --ntasks-per-node=1 --gpu-bind=none torchrun \
     --nnodes=$SLURM_NNODES \
     --nproc_per_node=4 \
     --rdzv_backend=c10d \
     --rdzv_endpoint=$MASTER_ADDR:$MASTER_PORT \
     diffusion.py \
-        --num_image 800 \
+        --num_image 320 \
         --num_new_img_per_gpu 2 \
         --max_num_img_per_gpu 2 \
         --model_channels 128 \
-        --channel_mult 1 1 2 4 \
+        --channel_mult 1 2 3 4 \
         --num_res_blocks 1 \
         --num_redshift 1024 \
         --stride 2 2 4 \
         --guide_w 0 \
         --batch_size 2 \
         --n_epoch 120 \
-        --gradient_accumulation_steps 8 \
+        --gradient_accumulation_steps 4 \
         --lrate 1e-5 \
         --train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
         #--sample 1 \

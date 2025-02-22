@@ -10,6 +10,7 @@
 #SBATCH -o logs/%x-%j
 #SBATCH --mail-type=BEGIN,END,FAIL
 
+date
 cat $0
 mkdir -p logs
 echo "$(printf '%0.s🚥 ' {1..30})"

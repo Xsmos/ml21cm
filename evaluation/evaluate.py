@@ -117,9 +117,9 @@ vmax = 30#Tb_all.max()
 # print(vmin, vmax)
 cmap = get_eor_cmap(vmin, vmax)
 
-def plot_grid(samples, c, row=4, col=13, idx=0, los=None, savename=None, figsize=(16, 4.5)):
+def plot_grid(samples, c, row=9, col=2, idx=0, los=None, savename=None, figsize=(16, 4.5)):
     # plt.figure(dpi=200, figsize=(16, 5.5))
-    fig, axes = plt.subplots(row, col, figsize=figsize, dpi=200)#, constrained_layout=True)
+    fig, axes = plt.subplots(row, col, figsize=figsize, dpi=100)#, constrained_layout=True)
     plt.subplots_adjust(wspace=0, hspace=-.15)
     axes = axes.flatten()
     #print(samples.shape)
@@ -250,16 +250,15 @@ def calc_ps(field, L):
 # plt.figure(figsize=(6, 4), dpi=100)
 # k_vals_all = []
 def x2Pk(x):
-    #print(f"x.shape = {x.shape}")
+    print(f"x2Pk, x.shape = {x.shape}")
     Pk_vals_all = []
     for i in range(x.shape[0]):
         if x.ndim == 4:
-            # density_field = x[i,0,:,x.shape[-1]//2:x.shape[-1]//2+64]#np.random.randn(Nx, Ny, Nz)  # 示例密度场，可以替换为实际数据
-            density_field = x[i,0,:,:]#np.random.randn(Nx, Ny, Nz)  # 示例密度场，可以替换为实际数据
+            density_field = x[i,0,:,x.shape[-1]//2:x.shape[-1]//2+64]
+            # density_field = x[i,0,:,:]
         elif x.ndim == 5:
-            density_field = x[i,0,:,:,:]#np.random.randn(Nx, Ny, Nz)  # 示例密度场，可以替换为实际数据
-            # density_field = x[i,0,:,:,x.shape[-1]//2:x.shape[-1]//2+64]#np.random.randn(Nx, Ny, Nz)  # 示例密度场，可以替换为实际数据
-        # print(density_field.shape)
+            density_field = x[i,0,:,:,x.shape[-1]//2:x.shape[-1]//2+64]
+            # density_field = x[i,0,:,:,:]
         if density_field.ndim == 3:
             Nx, Ny, Nz = density_field.shape
             box_size = 128#(128.0, 128.0, 1024.0) #512#
@@ -311,8 +310,8 @@ def load_x_ml(fname_pattern0, fname_pattern1, ema = 0):
     return x_ml
 
 
-def plot_global_signal(x_pairs, params, los, sigma_level=68.27, alpha=0.2, interval = 2, lw = 0.6, y_eps = 0.2, savename=None):
-    fig, ax = plt.subplots(4,1, sharex=True, figsize=(8,6), dpi=200, gridspec_kw={'height_ratios': [1.5,.5,.5,.5]})
+def plot_global_signal(x_pairs, params, los, sigma_level=68.27, alpha=0.2, interval = 10, lw = 0.6, y_eps = 0.2, savename=None):
+    fig, ax = plt.subplots(4,1, sharex=True, figsize=(8,6), dpi=100, gridspec_kw={'height_ratios': [1.5,.5,.5,.5]})
     
     for i, (x0, x1) in enumerate(x_pairs):
         # print(Tb0.shape)
@@ -408,7 +407,7 @@ def plot_global_signal(x_pairs, params, los, sigma_level=68.27, alpha=0.2, inter
 
 def plot_power_spectrum(x_pairs, params, los, sigma_level=68.27, alpha=0.2, redshift=None, savename=None):
     
-    fig, ax = plt.subplots(4,1, sharex=True, figsize=(8,6), dpi=200)
+    fig, ax = plt.subplots(4,1, sharex=True, figsize=(8,6), dpi=100)
     
     for i, (x0, x1) in enumerate(x_pairs):
         k_vals, Pk0 = x2Pk(x0)
@@ -644,7 +643,7 @@ def plot_scattering_transform_2(x_pairs, params, los, sigma_level=68.27, alpha=0
     S2, j1j2 = average_S2_over_l(x_pairs, params, J, L, M, N)
     #print("S2.shape, j1j2.shape =", S2.shape, j1j2.shape)
     # plt.figure(dpi=200, figsize=(12,4))
-    fig, ax = plt.subplots(4,1, sharex=True, figsize=(12,6), dpi=200)
+    fig, ax = plt.subplots(4,1, sharex=True, figsize=(12,6), dpi=100)
     ax[0].set_title(f"reduced scattering coefficients at z = {los[0].mean():.2f}")
     # S2 = S2[..., :20]
     #print("S2.min() =", S2.min())
@@ -743,27 +742,27 @@ def plot_scattering_transform_2(x_pairs, params, los, sigma_level=68.27, alpha=0
 def evaluate(
     what: List[str] = ['grid', 'global_signal', 'power_spectrum', 'scatter_transform'],
     device_count: int = 4,
-    node: int = 2,
-    jobID: int = 35661163,
-    epoch: int = 360, #120
+    node: int = 8,
+    jobID: int = 35912978,
+    epoch: int = 120,
     ):
 
     print(f"device = {device}")
     config = f"device_count{device_count}-node{node}-{jobID}-epoch{epoch}"
-    
+
     x0_ml = load_x_ml(f"Tvir4.400-zeta131.341", config)
     x1_ml = load_x_ml(f"Tvir5.600-zeta19.037", config)
     x2_ml = load_x_ml(f"Tvir4.699-zeta30.000", config)
     x3_ml = load_x_ml(f"Tvir5.477-zeta200.000", config)
     x4_ml = load_x_ml(f"Tvir4.800-zeta131.341", config)
 
-    #print(f"x0_ml.shape = {x0_ml.shape}")
+    print(f"x0_ml.shape = {x0_ml.shape}")
     dim = x0_ml[0,0].ndim 
     if dim == 2:
         num_image, _, HII_DIM, num_redshift = x0_ml.shape
     elif dim == 3:
         num_image, _, HII_DIM, _, num_redshift = x0_ml.shape
-#
+
     x0, c0, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir4.4-zeta131.341-0812-104709.h5',num_image=num_image,num_redshift=num_redshift,dim=dim)
     x1, c1, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir5.6-zeta19.037-0812-104704.h5',num_image=num_image,num_redshift=num_redshift,dim=dim)
     x2, c2, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir4.699-zeta30-0812-104322.h5',num_image=num_image,num_redshift=num_redshift,dim=dim)
@@ -827,11 +826,11 @@ def evaluate(
     if 'scatter_transform' in what:
         plot_scattering_transform_2(
             [
-                (x0[...,0,:],x0_ml[...,0,:]),
-                (x1[...,0,:],x1_ml[...,0,:]),
-                (x2[...,0,:],x2_ml[...,0,:]),
-                (x3[...,0,:],x3_ml[...,0,:]),
-                (x4[...,0,:],x4_ml[...,0,:]),
+                (x0[...,0,512:512+64],x0_ml[...,0,512:512+64]),
+                (x1[...,0,512:512+64],x1_ml[...,0,512:512+64]),
+                (x2[...,0,512:512+64],x2_ml[...,0,512:512+64]),
+                (x3[...,0,512:512+64],x3_ml[...,0,512:512+64]),
+                (x4[...,0,512:512+64],x4_ml[...,0,512:512+64]),
             ],
             params = [
                 c0[0], 
@@ -848,7 +847,7 @@ if __name__ == '__main__':
     evaluate(
             what = ['grid', 'global_signal', 'power_spectrum', 'scatter_transform'],
             device_count = 4,
-            node = 2,
-            jobID = 35710098,
-            epoch = 360, #120
+            node = 8,
+            jobID = 35913062,
+            epoch = 120,
             )

@@ -44,22 +44,22 @@ srun --gpus-per-node=4 --ntasks-per-node=1 --gpu-bind=none torchrun \
     --rdzv_endpoint=$MASTER_ADDR:$MASTER_PORT \
     diffusion.py \
         --num_image 800 \
-        --num_new_img_per_gpu 2 \
+        --num_new_img_per_gpu 8 \
         --max_num_img_per_gpu 2 \
         --channel_mult 1 2 3 4 \
         --num_redshift 64 \
         --stride 2 2 4 \
         --batch_size 2 \
-        --n_epoch 120 \
+        --n_epoch 360 \
         --gradient_accumulation_steps 8 \
         --lrate 1e-5 \
-        --train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
+        --resume ./outputs/model-N800-device_count4-node8-36135510-epoch360
+        #--train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
         #--guide_w 0 \
         #--num_res_blocks 1 \
         #--model_channels 128 \
         #--sample 1 \
         #--ema 0 \
-        #--resume ./outputs/model-N3200-device_count4-node2-epoch119-35015390 \
         #--autocast 1 \
         #--use_checkpoint 1 \
         #--dropout 0 \

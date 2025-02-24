@@ -117,7 +117,7 @@ vmax = 30#Tb_all.max()
 # print(vmin, vmax)
 cmap = get_eor_cmap(vmin, vmax)
 
-def plot_grid(samples, c, row=9, col=2, idx=0, los=None, savename=None, figsize=(16, 4.5)):
+def plot_grid(samples, c, row=4, col=13, idx=0, los=None, savename=None, figsize=(16, 4.5)):
     # plt.figure(dpi=200, figsize=(16, 5.5))
     fig, axes = plt.subplots(row, col, figsize=figsize, dpi=100)#, constrained_layout=True)
     plt.subplots_adjust(wspace=0, hspace=-.15)
@@ -254,11 +254,11 @@ def x2Pk(x):
     Pk_vals_all = []
     for i in range(x.shape[0]):
         if x.ndim == 4:
-            density_field = x[i,0,:,x.shape[-1]//2:x.shape[-1]//2+64]
-            # density_field = x[i,0,:,:]
+            # density_field = x[i,0,:,x.shape[-1]//2:x.shape[-1]//2+64]
+            density_field = x[i,0,:,:]
         elif x.ndim == 5:
-            density_field = x[i,0,:,:,x.shape[-1]//2:x.shape[-1]//2+64]
-            # density_field = x[i,0,:,:,:]
+            # density_field = x[i,0,:,:,x.shape[-1]//2:x.shape[-1]//2+64]
+            density_field = x[i,0,:,:,:]
         if density_field.ndim == 3:
             Nx, Ny, Nz = density_field.shape
             box_size = 128#(128.0, 128.0, 1024.0) #512#
@@ -804,12 +804,11 @@ def evaluate(
                 (x2, x2_ml), 
                 (x3, x3_ml),
                 (x4, x4_ml),
-
-                #(x0[...,0], x0_ml[...,0]), 
-                #(x1[...,0], x1_ml[...,0]),
-                #(x2[...,0], x2_ml[...,0]), 
-                #(x3[...,0], x3_ml[...,0]),
-                #(x4[...,0], x4_ml[...,0]),
+                #(x0[...,-1], x0_ml[...,-1]), 
+                #(x1[...,-1], x1_ml[...,-1]),
+                #(x2[...,-1], x2_ml[...,-1]), 
+                #(x3[...,-1], x3_ml[...,-1]),
+                #(x4[...,-1], x4_ml[...,-1]),
             ],
             params = [
                 c0[0], 
@@ -826,11 +825,16 @@ def evaluate(
     if 'scatter_transform' in what:
         plot_scattering_transform_2(
             [
-                (x0[...,0,512:512+64],x0_ml[...,0,512:512+64]),
-                (x1[...,0,512:512+64],x1_ml[...,0,512:512+64]),
-                (x2[...,0,512:512+64],x2_ml[...,0,512:512+64]),
-                (x3[...,0,512:512+64],x3_ml[...,0,512:512+64]),
-                (x4[...,0,512:512+64],x4_ml[...,0,512:512+64]),
+                # (x0[...,0,512:512+64],x0_ml[...,0,512:512+64]),
+                # (x1[...,0,512:512+64],x1_ml[...,0,512:512+64]),
+                # (x2[...,0,512:512+64],x2_ml[...,0,512:512+64]),
+                # (x3[...,0,512:512+64],x3_ml[...,0,512:512+64]),
+                # (x4[...,0,512:512+64],x4_ml[...,0,512:512+64]),
+                (x0[...,-1],x0_ml[...,-1]),
+                (x1[...,-1],x1_ml[...,-1]),
+                (x2[...,-1],x2_ml[...,-1]),
+                (x3[...,-1],x3_ml[...,-1]),
+                (x4[...,-1],x4_ml[...,-1]),
             ],
             params = [
                 c0[0], 
@@ -848,6 +852,6 @@ if __name__ == '__main__':
             what = ['grid', 'global_signal', 'power_spectrum', 'scatter_transform'],
             device_count = 4,
             node = 8,
-            jobID = 35913062,
-            epoch = 120,
+            jobID = 36135510,
+            epoch = 360,
             )

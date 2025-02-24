@@ -43,7 +43,7 @@ srun --gpus-per-node=4 --ntasks-per-node=1 --gpu-bind=none torchrun \
     --rdzv_backend=c10d \
     --rdzv_endpoint=$MASTER_ADDR:$MASTER_PORT \
     diffusion.py \
-        --num_image 800 \
+        --num_image 32 \
         --num_new_img_per_gpu 2 \
         --max_num_img_per_gpu 2 \
         --channel_mult 1 2 3 4 \

@@ -378,15 +378,26 @@ class DDPM21CM:
 
         self.nn_model = DDP(self.nn_model, device_ids=[self.ddpm.device], find_unused_parameters=False)
 
-        #gpu_info = get_gpu_info(config.device)
+        self.global_step = 0
+        self.start_epoch = 0
         if config.resume and os.path.exists(config.resume):
             if dist.is_initialized():
                 map_loc = f"cuda:{int(os.environ['LOCAL_RANK'])}"
             else:
                 map_loc = f"cuda:{torch.cuda.current_device()}"
-            self.nn_model.module.load_state_dict(torch.load(config.resume, map_location=map_loc)['unet_state_dict'])
+            checkpoint = torch.load(config.resume, map_location=map_loc)
+            self.nn_model.module.load_state_dict(checkpoint['unet_state_dict'])
+            self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            self.lr_scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+            self.start_epoch = checkpoint.get('epoch', 0)
+            self.global_step = checkpoint.get('global_step', 0)
             print(f"🍀 {config.run_name} cuda:{torch.cuda.current_device()}|{self.config.global_rank} resumed nn_model from {config.resume} with {sum(x.numel() for x in self.nn_model.module.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🍀".center(self.config.str_len,'+'))#, flush=True)
         else:
+            self.optimizer = torch.optim.AdamW(self.nn_model.module.parameters(), lr=config.lrate)
+            self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                    optimizer = self.optimizer,
+                    T_max = int(config.num_image / config.batch_size * config.n_epoch / config.gradient_accumulation_steps),
+                    )
             print(f"🌱 {config.run_name} cuda:{torch.cuda.current_device()}|{self.config.global_rank} initialized nn_model randomly with {sum(x.numel() for x in self.nn_model.module.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🌱".center(self.config.str_len,'+'))#, flush=True)
 
         # whether to use ema
@@ -415,12 +426,6 @@ class DDPM21CM:
             else:
                 self.ema_model = copy.deepcopy(self.nn_model.module).eval().requires_grad_(False)
                 print(f"{config.run_name} cuda:{torch.cuda.current_device()}|{self.config.global_rank} initialized ema_model randomly with {sum(x.numel() for x in self.ema_model.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')}".center(self.config.str_len,'+'))
-
-        self.optimizer = torch.optim.AdamW(self.nn_model.module.parameters(), lr=config.lrate)
-        self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-                optimizer = self.optimizer,
-                T_max = int(config.num_image / config.batch_size * config.n_epoch / config.gradient_accumulation_steps),
-                )
 
         self.ranges_dict = config.ranges_dict
         self.scaler = GradScaler()
@@ -499,8 +504,7 @@ class DDPM21CM:
         if torch.distributed.is_initialized():
             torch.distributed.barrier()
 
-        global_step = 0
-        for ep in range(self.config.n_epoch):
+        for ep in range(self.start_epoch, self.config.n_epoch):
             self.ddpm.train()
             pbar_train = tqdm(total=len(self.dataloader), file=sys.stderr, disable=True)#, mininterval=self.config.pbar_update_step)#, disable=True)#not self.accelerator.is_local_main_process)
             pbar_train.set_description(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}|{self.config.global_rank} Epoch {ep}")
@@ -560,20 +564,17 @@ class DDPM21CM:
                 logs = dict(
                     loss=loss.detach().item(),
                     lr=self.optimizer.param_groups[0]['lr'],
-                    step=global_step
+                    step=self.global_step
                 )
                 pbar_train.set_postfix(**logs)
 
-                #self.accelerator.log(logs, step=global_step)
                 if self.config.global_rank == 0:
                     wandb.log({
                         'MSE': logs['loss'],
                         'learning_rate': logs['lr'],
-                        'global_step': global_step,
+                        'global_step': self.global_step,
                         })
-                    #self.config.logger.add_scalar("MSE", logs["loss"], global_step = global_step)
-                    #self.config.logger.add_scalar("learning_rate", logs["lr"], global_step = global_step)
-                global_step += 1
+                self.global_step += 1
 
             if (i+1) % self.config.gradient_accumulation_steps != 0:
                 print(f"(i+1)%self.config.gradient_accumulation_steps = {(i+1)%self.config.gradient_accumulation_steps}, i = {i}, scg = {self.config.gradient_accumulation_steps}".center(self.config.str_len,'-'))
@@ -595,14 +596,7 @@ class DDPM21CM:
         #    del self.ema_model
 
     def save(self, ep):
-        # save model
-        # if self.accelerator.is_main_process:
         if ep == self.config.n_epoch-1 or (ep+1) % self.config.save_period == 0:
-            #save_name = self.config.save_name+f"-N{self.config.num_image}-device_count{self.config.world_size}-node{int(os.environ['SLURM_NNODES'])}-epoch{ep}-{self.config.run_name}"
-            #global config_resume
-            #config_resume = save_name
-            #print(f"cuda:{torch.cuda.current_device()}|{self.config.global_rank}", "save_name copied to config_resume =", config_resume)
-
             if self.config.global_rank == 0:# or torch.cuda.current_device() == 0:
                 self.nn_model.eval()
                 with torch.no_grad():
@@ -616,18 +610,16 @@ class DDPM21CM:
                     if self.config.save_name:
                         model_state = {
                             'epoch': ep,
+                            'global_step': self.global_step,
                             'unet_state_dict': self.nn_model.module.state_dict(),
                             'ema_unet_state_dict': self.ema_model.state_dict() if self.config.ema else None,
+                            "optimizer_state_dict": self.optimizer.state_dict(),
+                            "scheduler_state_dict": self.lr_scheduler.state_dict(),
                             }
                         save_name = self.config.save_name + f"-epoch{ep+1}"
                         torch.save(model_state, save_name)
                         print(f'🌟 cuda:{torch.cuda.current_device()}|{self.config.global_rank} saved model at ' + save_name)
-                        # print('saved model at ' + config.save_dir + f"model_epoch_{ep}_test_{config.run_name}.pth")
 
-    # def rescale(self, value, type='params', to_ranges=[0,1]):
-    #     for i, from_ranges in self.ranges_dict[type].items():
-    #         value[i] = (value[i] - from_ranges[0])/(from_ranges[1]-from_ranges[0]) # normalize
-    #         value[i] = 
     def rescale(self, params, ranges, to: list):
         # value = np.array(params).copy()
         value = params.clone()

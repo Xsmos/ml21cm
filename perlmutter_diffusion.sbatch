@@ -54,7 +54,7 @@ srun --gpus-per-node=4 --ntasks-per-node=1 --gpu-bind=none torchrun \
         --gradient_accumulation_steps 8 \
         --lrate 1e-5 \
         --train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
-        --resume ./outputs/model-N32-device_count4-node2-36229835-epoch200.pt \
+        --resume ./outputs/model-N32-device_count4-node2-36229835-epoch330.pt \
         #--guide_w 0 \
         #--num_res_blocks 1 \
         #--model_channels 128 \

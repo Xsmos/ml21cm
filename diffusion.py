@@ -270,7 +270,7 @@ class TrainConfig:
     # seed = 0
     # save_dir = './outputs/'
 
-    save_period = 10 #np.infty #n_epoch // 2 #np.infty#.1 # the period of sampling
+    save_period = 20 #np.infty #n_epoch // 2 #np.infty#.1 # the period of sampling
     # general parameters for the name and logger    
     # device = "cuda" if torch.cuda.is_available() else "cpu"
     lrate = 1e-4
@@ -398,9 +398,6 @@ class DDPM21CM:
             self.start_epoch = checkpoint['epoch'] + 1
             self.global_step = checkpoint['global_step']
             print(f"🍀 {config.run_name} cuda:{torch.cuda.current_device()}|{self.config.global_rank} resumed nn_model from {config.resume} with {sum(x.numel() for x in self.nn_model.module.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🍀".center(self.config.str_len,'+'))#, flush=True)
-            if self.start_epoch >= self.config.n_epoch:
-                print("✅ Training already completed.")
-
         else:
             print(f"🌱 {config.run_name} cuda:{torch.cuda.current_device()}|{self.config.global_rank} initialized nn_model randomly with {sum(x.numel() for x in self.nn_model.module.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🌱".center(self.config.str_len,'+'))#, flush=True)
 

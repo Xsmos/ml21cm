@@ -378,6 +378,12 @@ class DDPM21CM:
 
         self.nn_model = DDP(self.nn_model, device_ids=[self.ddpm.device], find_unused_parameters=False)
 
+        self.optimizer = torch.optim.AdamW(self.nn_model.module.parameters(), lr=config.lrate)
+        self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                optimizer = self.optimizer,
+                T_max = int(config.num_image / config.batch_size * config.n_epoch / config.gradient_accumulation_steps),
+                )
+
         self.global_step = 0
         self.start_epoch = 0
         if config.resume and os.path.exists(config.resume):
@@ -389,15 +395,13 @@ class DDPM21CM:
             self.nn_model.module.load_state_dict(checkpoint['unet_state_dict'])
             self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
             self.lr_scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
-            self.start_epoch = checkpoint.get('epoch', 0)
-            self.global_step = checkpoint.get('global_step', 0)
+            self.start_epoch = checkpoint['epoch'] + 1
+            self.global_step = checkpoint['global_step']
             print(f"🍀 {config.run_name} cuda:{torch.cuda.current_device()}|{self.config.global_rank} resumed nn_model from {config.resume} with {sum(x.numel() for x in self.nn_model.module.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🍀".center(self.config.str_len,'+'))#, flush=True)
+            if self.start_epoch >= self.config.n_epoch:
+                print("✅ Training already completed.")
+
         else:
-            self.optimizer = torch.optim.AdamW(self.nn_model.module.parameters(), lr=config.lrate)
-            self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-                    optimizer = self.optimizer,
-                    T_max = int(config.num_image / config.batch_size * config.n_epoch / config.gradient_accumulation_steps),
-                    )
             print(f"🌱 {config.run_name} cuda:{torch.cuda.current_device()}|{self.config.global_rank} initialized nn_model randomly with {sum(x.numel() for x in self.nn_model.module.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🌱".center(self.config.str_len,'+'))#, flush=True)
 
         # whether to use ema
@@ -573,6 +577,7 @@ class DDPM21CM:
                         'MSE': logs['loss'],
                         'learning_rate': logs['lr'],
                         'global_step': self.global_step,
+                        'epoch': ep,
                         })
                 self.global_step += 1
 
@@ -616,7 +621,7 @@ class DDPM21CM:
                             "optimizer_state_dict": self.optimizer.state_dict(),
                             "scheduler_state_dict": self.lr_scheduler.state_dict(),
                             }
-                        save_name = self.config.save_name + f"-epoch{ep+1}"
+                        save_name = self.config.save_name + f"-epoch{ep+1}.pt"
                         torch.save(model_state, save_name)
                         print(f'🌟 cuda:{torch.cuda.current_device()}|{self.config.global_rank} saved model at ' + save_name)
 
@@ -684,7 +689,7 @@ class DDPM21CM:
 
             for ema in range(self.config.ema + 1):
                 elapsed_time = (time()-sample_start)/(self.config.ema + 1)
-                savename = os.path.join(self.config.output_dir, f"Tvir{params_backup[0]:.3f}-zeta{params_backup[1]:.3f}-device{self.config.global_rank}-{os.path.basename(self.config.resume)}-{savetime}-ema{ema}")
+                savename = os.path.join(self.config.output_dir, f"Tvir{params_backup[0]:.3f}-zeta{params_backup[1]:.3f}-device{self.config.global_rank}-{Path(self.config.resume).stem}-{savetime}-ema{ema}")
                 np.save(savename, x_last if ema==0 else x_last_ema)
                 print(f"cuda:{torch.cuda.current_device()}|{self.config.global_rank} saved {x_last.shape} to {os.path.basename(savename)} with {elapsed_time/60:.2f} min")#, flush=True)
 
@@ -885,7 +890,7 @@ if __name__ == "__main__":
     if args.train:
         config.dataset_name = args.train
         train(config)
-        config.resume = config.save_name + f"-epoch{config.n_epoch}"
+        config.resume = config.save_name + f"-epoch{config.n_epoch}.pt"
 
     ############################ sampling ################################
     if os.path.exists(config.resume) and args.sample:

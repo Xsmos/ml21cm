@@ -117,7 +117,7 @@ vmax = 30#Tb_all.max()
 # print(vmin, vmax)
 cmap = get_eor_cmap(vmin, vmax)
 
-def plot_grid(samples, c, row=4, col=13, idx=0, los=None, savename=None, figsize=(16, 4.5)):
+def plot_grid(samples, c, row=10, col=6, idx=0, los=None, savename=None, figsize=(16, 4.5)):
     # plt.figure(dpi=200, figsize=(16, 5.5))
     fig, axes = plt.subplots(row, col, figsize=figsize, dpi=100)#, constrained_layout=True)
     plt.subplots_adjust(wspace=0, hspace=-.15)
@@ -255,10 +255,10 @@ def x2Pk(x):
     for i in range(x.shape[0]):
         if x.ndim == 4:
             # density_field = x[i,0,:,x.shape[-1]//2:x.shape[-1]//2+64]
-            density_field = x[i,0,:,:]
+            density_field = x[i,0,:,:64]
         elif x.ndim == 5:
             # density_field = x[i,0,:,:,x.shape[-1]//2:x.shape[-1]//2+64]
-            density_field = x[i,0,:,:,:]
+            density_field = x[i,0,:,:,:64]
         if density_field.ndim == 3:
             Nx, Ny, Nz = density_field.shape
             box_size = 128#(128.0, 128.0, 1024.0) #512#
@@ -799,16 +799,16 @@ def evaluate(
     if 'power_spectrum' in what:
         plot_power_spectrum(
             [
-                (x0, x0_ml), 
-                (x1, x1_ml),
-                (x2, x2_ml), 
-                (x3, x3_ml),
-                (x4, x4_ml),
-                #(x0[...,-1], x0_ml[...,-1]), 
-                #(x1[...,-1], x1_ml[...,-1]),
-                #(x2[...,-1], x2_ml[...,-1]), 
-                #(x3[...,-1], x3_ml[...,-1]),
-                #(x4[...,-1], x4_ml[...,-1]),
+                #(x0, x0_ml),
+                #(x1, x1_ml),
+                #(x2, x2_ml),
+                #(x3, x3_ml),
+                #(x4, x4_ml),
+                (x0[...,-1], x0_ml[...,-1]),
+                (x1[...,-1], x1_ml[...,-1]),
+                (x2[...,-1], x2_ml[...,-1]),
+                (x3[...,-1], x3_ml[...,-1]),
+                (x4[...,-1], x4_ml[...,-1]),
             ],
             params = [
                 c0[0], 
@@ -852,6 +852,6 @@ if __name__ == '__main__':
             what = ['grid', 'global_signal', 'power_spectrum', 'scatter_transform'],
             device_count = 4,
             node = 8,
-            jobID = 36135510,
+            jobID = 36207072,
             epoch = 360,
             )

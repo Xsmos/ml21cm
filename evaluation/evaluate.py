@@ -117,7 +117,7 @@ vmax = 30#Tb_all.max()
 # print(vmin, vmax)
 cmap = get_eor_cmap(vmin, vmax)
 
-def plot_grid(samples, c, row=10, col=6, idx=0, los=None, savename=None, figsize=(16, 4.5)):
+def plot_grid(samples, c, row=8, col=6, idx=0, los=None, savename=None, figsize=(16, 4.5)):
     # plt.figure(dpi=200, figsize=(16, 5.5))
     fig, axes = plt.subplots(row, col, figsize=figsize, dpi=100)#, constrained_layout=True)
     plt.subplots_adjust(wspace=0, hspace=-.15)
@@ -770,6 +770,12 @@ def evaluate(
     x4, c4, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir4.8-zeta131.341-0812-103813.h5',num_image=num_image,num_redshift=num_redshift,dim=dim)
 
     if 'grid' in what:
+        plot_grid(x0, c=c0, los=los, savename = '21cmfast')
+        plot_grid(x1, c=c1, los=los, savename = '21cmfast')
+        plot_grid(x2, c=c2, los=los, savename = '21cmfast')
+        plot_grid(x3, c=c3, los=los, savename = '21cmfast')
+        plot_grid(x4, c=c4, los=los, savename = '21cmfast')
+
         plot_grid(x0_ml, c=c0, los=los, savename = jobID)
         plot_grid(x1_ml, c=c1, los=los, savename = jobID)
         plot_grid(x2_ml, c=c2, los=los, savename = jobID)

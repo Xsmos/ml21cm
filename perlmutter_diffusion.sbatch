@@ -1,12 +1,13 @@
 #!/bin/bash
 #SBATCH -A m4717 
+#SBATCH -J diffusion
 #SBATCH -C gpu&hbm80g
 #SBATCH -q regular #debug #shared #
 #SBATCH -N8
 #SBATCH --gpus-per-node=4
 #SBATCH --ntasks-per-node=1
 #SBATCH --gpu-bind=none
-#SBATCH -t 25:00:00
+#SBATCH -t 27:00:00
 #SBATCH -o logs/%x-%j
 #SBATCH --mail-type=BEGIN,END,FAIL
 
@@ -48,7 +49,7 @@ srun --gpus-per-node=4 --ntasks-per-node=1 --gpu-bind=none torchrun \
         --max_num_img_per_gpu 2 \
         --channel_mult 1 2 3 4 \
         --num_redshift 128 \
-        --stride 2 2 4 \
+        --stride 2 2 2 \
         --batch_size 2 \
         --n_epoch 360 \
         --gradient_accumulation_steps 8 \

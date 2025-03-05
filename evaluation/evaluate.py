@@ -117,7 +117,9 @@ vmax = 30#Tb_all.max()
 # print(vmin, vmax)
 cmap = get_eor_cmap(vmin, vmax)
 
-def plot_grid(samples, c, row=8, col=6, idx=0, los=None, savename=None, figsize=(16, 4.5)):
+#def plot_grid(samples, c, row=4, col=13, idx=0, los=None, savename=None, figsize=(16, 4.5)): # (64,64)
+#def plot_grid(samples, c, row=8, col=6, idx=0, los=None, savename=None, figsize=(16, 4.5)): # (64,256)
+def plot_grid(samples, c, row=8, col=12, idx=0, los=None, savename=None, figsize=(16, 4.5)): # (64,128)
     # plt.figure(dpi=200, figsize=(16, 5.5))
     fig, axes = plt.subplots(row, col, figsize=figsize, dpi=100)#, constrained_layout=True)
     plt.subplots_adjust(wspace=0, hspace=-.15)
@@ -139,7 +141,7 @@ def plot_grid(samples, c, row=8, col=6, idx=0, los=None, savename=None, figsize=
     cbar = mpl.colorbar.ColorbarBase(cbar_ax, cmap=cmap, norm=norm, orientation='vertical')
     cbar.set_label('Brightness Temperature (mK)', fontsize=10) 
     
-    plt.suptitle(f"ION_Tvir_MIN = {c[0][0]:.3f}, HII_EFF_FACTOR = {c[0][1]:.3f},\nz = [{los[0,0]:.2f}, {los[0,-1]:.2f}]")
+    plt.suptitle(f"ION_Tvir_MIN = {c[0][0]:.3f}, HII_EFF_FACTOR = {c[0][1]:.3f},\nz = [{los[0,0]:.2f}, {los[0,-1]:.2f}] {savename}")
     plt.colormaps()
     
     if savename is None:
@@ -857,7 +859,7 @@ if __name__ == '__main__':
     evaluate(
             what = ['grid', 'global_signal', 'power_spectrum', 'scatter_transform'],
             device_count = 4,
-            node = 8,
-            jobID = 36207072,
+            node = 4,
+            jobID = 36435429,
             epoch = 360,
             )

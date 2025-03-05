@@ -3,7 +3,7 @@
 #SBATCH -J diffusion
 #SBATCH -C gpu&hbm80g
 #SBATCH -q regular #debug #shared #
-#SBATCH -N8
+#SBATCH -N4
 #SBATCH --gpus-per-node=4
 #SBATCH --ntasks-per-node=1
 #SBATCH --gpu-bind=none
@@ -44,18 +44,18 @@ srun --gpus-per-node=4 --ntasks-per-node=1 --gpu-bind=none torchrun \
     --rdzv_backend=c10d \
     --rdzv_endpoint=$MASTER_ADDR:$MASTER_PORT \
     diffusion.py \
-        --num_image 800 \
-        --num_new_img_per_gpu 2 \
+        --num_image 1600 \
+        --num_new_img_per_gpu 8 \
         --max_num_img_per_gpu 2 \
         --channel_mult 1 2 3 4 \
         --num_redshift 128 \
         --stride 2 2 2 \
         --batch_size 2 \
         --n_epoch 360 \
-        --gradient_accumulation_steps 8 \
+        --gradient_accumulation_steps 16 \
         --lrate 1e-5 \
         --train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
-        #--resume ./outputs/model-N32-device_count4-node2-36229835-epoch330.pt \
+        --resume ./outputs/model-N1600-device_count4-node4-36401694-epoch200.pt \
         #--guide_w 0 \
         #--num_res_blocks 1 \
         #--model_channels 128 \

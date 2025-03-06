@@ -5,7 +5,11 @@
 
 # In[1]:
 import os, sys
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+# sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+parent_dir = os.path.abspath(os.path.join(os.getcwd(), '..'))
+print(f"sys.path.append(parent_dir): {parent_dir}")
+sys.path.append(parent_dir)
+
 from load_h5 import Dataset4h5
 import matplotlib.pyplot as plt
 import numpy as np

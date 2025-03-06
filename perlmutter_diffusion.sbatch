@@ -7,7 +7,7 @@
 #SBATCH --gpus-per-node=4
 #SBATCH --ntasks-per-node=1
 #SBATCH --gpu-bind=none
-#SBATCH -t 27:00:00
+#SBATCH -t 48:00:00
 #SBATCH -o logs/%x-%j
 #SBATCH --mail-type=BEGIN,END,FAIL
 
@@ -18,6 +18,7 @@ echo "$(printf '%0.s🚥 ' {1..30})"
 
 module load pytorch #/2.0.1
 which python
+which torchrun
 conda env list
 module list
 
@@ -33,10 +34,13 @@ export TORCH_NCCL_ASYNC_ERROR_HANDLING=1
 
 git diff diffusion.py | cat
 
+echo SLURM_JOB_NAME=$SLURM_JOB_NAME
 echo SLURM_NNODES=$SLURM_NNODES
 echo SLURM_GPUS_PER_NODE=$SLURM_GPUS_PER_NODE
 echo SLURM_GPUS=$SLURM_GPUS
 echo MASTER_ADDR:MASTER_PORT=$MASTER_ADDR:$MASTER_PORT
+env | grep SLURM_
+echo "$(printf '%0.s🚥 ' {1..30})"
 
 srun --gpus-per-node=4 --ntasks-per-node=1 --gpu-bind=none torchrun \
     --nnodes=$SLURM_NNODES \
@@ -48,19 +52,19 @@ srun --gpus-per-node=4 --ntasks-per-node=1 --gpu-bind=none torchrun \
         --num_new_img_per_gpu 8 \
         --max_num_img_per_gpu 2 \
         --channel_mult 1 2 3 4 \
-        --num_redshift 128 \
+        --num_redshift 96 \
         --stride 2 2 2 \
         --batch_size 2 \
         --n_epoch 360 \
         --gradient_accumulation_steps 16 \
         --lrate 1e-5 \
         --train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
-        --resume ./outputs/model-N1600-device_count4-node4-36401694-epoch200.pt \
+        #--resume ./outputs/model-N1600-device_count4-node4-36401694-epoch200.pt \
+        #--ema 1 \
         #--guide_w 0 \
         #--num_res_blocks 1 \
         #--model_channels 128 \
         #--sample 1 \
-        #--ema 0 \
         #--autocast 1 \
         #--use_checkpoint 1 \
         #--dropout 0 \

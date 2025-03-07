@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH -J diffusion # Job name
 #SBATCH -p rtx #-dev
-#SBATCH -N2            # Number of nodes and cores per node required
+#SBATCH -N4            # Number of nodes and cores per node required
 #SBATCH --ntasks-per-node=1
-#SBATCH -t 10:00                                    # Duration of the job (Ex: 15 mins)
+#SBATCH -t 60:00                                    # Duration of the job (Ex: 15 mins)
 #SBATCH -o logs/%x-%j
 #SBATCH --mail-type=BEGIN,END,FAIL              # Mail preferences
 #SBATCH --mail-user=xiabin@gatech.edu
@@ -11,7 +11,7 @@
 date
 cat $0
 mkdir -p logs
-echo "$(printf '%0.s🚥 ' {1..30})"
+echo --------------------------------------------------------------------
  
 #module load pytorch #/2.0.1
 #conda activate diffusers
@@ -37,10 +37,10 @@ echo SLURM_NNODES=$SLURM_NNODES
 echo SLURM_GPUS_PER_NODE=$SLURM_GPUS_PER_NODE
 echo SLURM_GPUS=$SLURM_GPUS
 echo MASTER_ADDR:MASTER_PORT=$MASTER_ADDR:$MASTER_PORT
-env | grep SLURM_
-echo "$(printf '%0.s🚥 ' {1..30})"
+#env | grep SLURM_
+echo --------------------------------------------------------------------
 
-srun --gpus-per-node=4 --ntasks-per-node=1 --gpu-bind=none torchrun \
+srun --ntasks-per-node=1 torchrun \
     --nnodes=$SLURM_NNODES \
     --nproc_per_node=4 \
     --rdzv_backend=c10d \
@@ -50,14 +50,14 @@ srun --gpus-per-node=4 --ntasks-per-node=1 --gpu-bind=none torchrun \
         --num_new_img_per_gpu 8 \
         --max_num_img_per_gpu 2 \
         --channel_mult 1 2 3 4 \
-        --num_redshift 128 \
+        --num_redshift 64 \
         --stride 2 2 2 \
         --batch_size 2 \
-        --n_epoch 360 \
+        --n_epoch 3 \
         --gradient_accumulation_steps 16 \
         --lrate 1e-5 \
-        --train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
-        --resume ./outputs/model-N1600-device_count4-node4-36401694-epoch200.pt \
+        --train "$SCRATCH/optimized_data/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
+        #--resume ./outputs/model-N1600-device_count4-node4-36401694-epoch200.pt \
         #--guide_w 0 \
         #--num_res_blocks 1 \
         #--model_channels 128 \

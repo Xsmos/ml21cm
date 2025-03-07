@@ -432,6 +432,8 @@ class DDPM21CM:
         self.scaler = GradScaler()
 
     def load(self):
+        num_workers = len(os.sched_getaffinity(0))//self.config.world_size
+        min_num_workers = min(4,num_workers)
         dataset = Dataset4h5(
             self.config.dataset_name, 
             num_image=self.config.num_image,
@@ -442,19 +444,20 @@ class DDPM21CM:
             #drop_prob=self.config.drop_prob, 
             dim=self.config.dim,
             ranges_dict=self.ranges_dict,
-            num_workers=min(1,len(os.sched_getaffinity(0))//self.config.world_size),
+            num_workers=min_num_workers,
             str_len = self.config.str_len,
             )
-        #print(f"cuda:{torch.cuda.current_device()}|{self.config.global_rank}: Dataset4h5 done")
+        print(f"cuda:{torch.cuda.current_device()}|{self.config.global_rank}: Dataset4h5 loaded by {min_num_workers} workers ✅")
 
         dataloader_start = time()
         self.dataloader = DataLoader(
             dataset=dataset, 
             batch_size=self.config.batch_size, 
             shuffle=True,#False, 
-            num_workers=len(os.sched_getaffinity(0))//self.config.world_size,
+            num_workers=num_workers,
             pin_memory=True,
             persistent_workers=True,
+            prefetch_factor=2,
             # sampler=DistributedSampler(dataset),
             )
 
@@ -462,6 +465,7 @@ class DDPM21CM:
             raise ValueError(f"len(self.dataloader) % self.config.gradient_accumulation_steps = {len(self.dataloader) % self.config.gradient_accumulation_steps} instead of 0. Make sure len(dataloader)={len(self.dataloader)} is dividable by gradient_accumulation_steps={self.config.gradient_accumulation_steps}.")
 
         dataloader_end = time()
+        print(f"cuda:{torch.cuda.current_device()}|{self.config.global_rank}: DataLoader loaded by {num_workers} workers ✅")
         #print(f"cuda:{torch.cuda.current_device()}|{self.config.global_rank} dataloader costs {dataloader_end-dataloader_start:.3f}s")
 
         del dataset

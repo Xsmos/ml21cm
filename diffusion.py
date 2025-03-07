@@ -384,23 +384,6 @@ class DDPM21CM:
                 T_max = int(config.num_image / config.batch_size * config.n_epoch / config.gradient_accumulation_steps),
                 )
 
-        self.global_step = 0
-        self.start_epoch = 0
-        if config.resume and os.path.exists(config.resume):
-            if dist.is_initialized():
-                map_loc = f"cuda:{int(os.environ['LOCAL_RANK'])}"
-            else:
-                map_loc = f"cuda:{torch.cuda.current_device()}"
-            checkpoint = torch.load(config.resume, map_location=map_loc)
-            self.nn_model.module.load_state_dict(checkpoint['unet_state_dict'])
-            self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            self.lr_scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
-            self.start_epoch = checkpoint['epoch'] + 1
-            self.global_step = checkpoint['global_step']
-            print(f"🍀 {config.run_name} cuda:{torch.cuda.current_device()}|{self.config.global_rank} resumed nn_model from {config.resume} with {sum(x.numel() for x in self.nn_model.module.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🍀".center(self.config.str_len,'+'))#, flush=True)
-        else:
-            print(f"🌱 {config.run_name} cuda:{torch.cuda.current_device()}|{self.config.global_rank} initialized nn_model randomly with {sum(x.numel() for x in self.nn_model.module.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🌱".center(self.config.str_len,'+'))#, flush=True)
-
         # whether to use ema
         if config.ema:
             self.ema = EMA(config.ema_rate)
@@ -419,21 +402,37 @@ class DDPM21CM:
             self.ema_model.eval().requires_grad_(False)
             self.ema_model.to(self.ddpm.device)
 
-            if config.resume and os.path.exists(config.resume):
-                #self.ema_model = ContextUnet(n_param=config.n_param, image_size=config.HII_DIM, dim=config.dim, stride=config.stride).to(config.device, dropout=config.dropout)#, dtype=config.dtype
-                self.ema_model.load_state_dict(torch.load(config.resume)['ema_unet_state_dict'])
-                print(f"{config.run_name} cuda:{torch.cuda.current_device()}|{self.config.global_rank} resumed ema_model from {config.resume} with {sum(x.numel() for x in self.ema_model.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')}".center(self.config.str_len,'+'))
-                #print(f"resumed ema_model from {config.resume}")
+        self.global_step = 0
+        self.start_epoch = 0
+        if config.resume and os.path.exists(config.resume):
+            if dist.is_initialized():
+                map_loc = f"cuda:{int(os.environ['LOCAL_RANK'])}"
             else:
+                map_loc = f"cuda:{torch.cuda.current_device()}"
+            checkpoint = torch.load(config.resume, map_location=map_loc)
+
+            self.nn_model.module.load_state_dict(checkpoint['unet_state_dict'])
+            self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            self.lr_scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+            self.start_epoch = checkpoint['epoch'] + 1
+            self.global_step = checkpoint['global_step']
+            print(f"🍀 {config.run_name} cuda:{torch.cuda.current_device()}|{self.config.global_rank} resumed nn_model from {config.resume} with {sum(x.numel() for x in self.nn_model.module.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🍀".center(self.config.str_len,'+'))#, flush=True)
+            if config.ema:
+                self.ema_model.load_state_dict(torch.load(config.resume)['ema_unet_state_dict'])
+                print(f"🍀 {config.run_name} cuda:{torch.cuda.current_device()}|{self.config.global_rank} resumed ema_model from {config.resume} with {sum(x.numel() for x in self.ema_model.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🍀".center(self.config.str_len,'+'))
+
+        else:
+            print(f"🌱 {config.run_name} cuda:{torch.cuda.current_device()}|{self.config.global_rank} initialized nn_model randomly with {sum(x.numel() for x in self.nn_model.module.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🌱".center(self.config.str_len,'+'))#, flush=True)
+            if config.ema:
                 self.ema_model = copy.deepcopy(self.nn_model.module).eval().requires_grad_(False)
-                print(f"{config.run_name} cuda:{torch.cuda.current_device()}|{self.config.global_rank} initialized ema_model randomly with {sum(x.numel() for x in self.ema_model.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')}".center(self.config.str_len,'+'))
+                print(f"🌱 {config.run_name} cuda:{torch.cuda.current_device()}|{self.config.global_rank} initialized ema_model randomly with {sum(x.numel() for x in self.ema_model.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🌱".center(self.config.str_len,'+'))
 
         self.ranges_dict = config.ranges_dict
         self.scaler = GradScaler()
 
     def load(self):
         num_workers = len(os.sched_getaffinity(0))//self.config.world_size
-        min_num_workers = min(4,num_workers)
+        min_num_workers = min(1,num_workers)
         dataset = Dataset4h5(
             self.config.dataset_name, 
             num_image=self.config.num_image,
@@ -447,7 +446,7 @@ class DDPM21CM:
             num_workers=min_num_workers,
             str_len = self.config.str_len,
             )
-        print(f"cuda:{torch.cuda.current_device()}|{self.config.global_rank}: Dataset4h5 loaded by {min_num_workers} workers ✅")
+        #print(f"cuda:{torch.cuda.current_device()}|{self.config.global_rank}: Dataset4h5 loaded by {min_num_workers} workers ✅")
 
         dataloader_start = time()
         self.dataloader = DataLoader(
@@ -457,7 +456,6 @@ class DDPM21CM:
             num_workers=num_workers,
             pin_memory=True,
             persistent_workers=True,
-            prefetch_factor=2,
             # sampler=DistributedSampler(dataset),
             )
 
@@ -465,7 +463,6 @@ class DDPM21CM:
             raise ValueError(f"len(self.dataloader) % self.config.gradient_accumulation_steps = {len(self.dataloader) % self.config.gradient_accumulation_steps} instead of 0. Make sure len(dataloader)={len(self.dataloader)} is dividable by gradient_accumulation_steps={self.config.gradient_accumulation_steps}.")
 
         dataloader_end = time()
-        print(f"cuda:{torch.cuda.current_device()}|{self.config.global_rank}: DataLoader loaded by {num_workers} workers ✅")
         #print(f"cuda:{torch.cuda.current_device()}|{self.config.global_rank} dataloader costs {dataloader_end-dataloader_start:.3f}s")
 
         del dataset
@@ -514,7 +511,7 @@ class DDPM21CM:
             pbar_train = tqdm(total=len(self.dataloader), file=sys.stderr, disable=True)#, mininterval=self.config.pbar_update_step)#, disable=True)#not self.accelerator.is_local_main_process)
             pbar_train.set_description(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}|{self.config.global_rank} Epoch {ep}")
             epoch_start = time()
-            #print(f"🚀 ep={ep}")
+
             for i, (x, c) in enumerate(self.dataloader):
                 #print(f"i={i}")
                 if self.config.dim == 3:
@@ -559,9 +556,9 @@ class DDPM21CM:
                     #print(f"ep = {ep}, after scaler.update")
                     self.optimizer.zero_grad()
 
-                # ema update
-                if self.config.ema:
-                    self.ema.step_ema(self.ema_model, self.nn_model.module)
+                    # ema update
+                    if self.config.ema:
+                        self.ema.step_ema(self.ema_model, self.nn_model.module)
 
                 #if (i+1) % self.config.pbar_update_step == 0:
                 pbar_train.update(1)#self.config.pbar_update_step)
@@ -582,24 +579,8 @@ class DDPM21CM:
                         })
                 self.global_step += 1
 
-            if (i+1) % self.config.gradient_accumulation_steps != 0:
-                print(f"(i+1)%self.config.gradient_accumulation_steps = {(i+1)%self.config.gradient_accumulation_steps}, i = {i}, scg = {self.config.gradient_accumulation_steps}".center(self.config.str_len,'-'))
-            # if ep == config.n_epoch-1 or (ep+1)*config.save_period==1:
             self.save(ep)
             print(f"{socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}|{self.config.global_rank} Epoch{ep}:{i+1}/{len(self.dataloader)} costs {(time()-epoch_start)/60:.2f} min")#, flush=True)
-
-        #if dist.is_initialized():
-        #    print(f"🗿 global_rank = {self.config.global_rank}, barrier, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🗿", flush=True)
-        #    dist.barrier()
-        #    torch.cuda.empty_cache()
-        #    torch.cuda.synchronize()
-
-        #sleep(sleep_time)
-        #print(f"🆘 cuda:{torch.cuda.current_device()}|{self.config.global_rank} end of DDPM21CM.train at {datetime.now().strftime('%d-%H:%M:%S.%f')} 🆘", flush=True)
-        #del self.nn_model
-
-        #if self.config.ema:
-        #    del self.ema_model
 
     def save(self, ep):
         if ep == self.config.n_epoch-1 or (ep+1) % self.config.save_period == 0:

@@ -39,7 +39,7 @@ echo SLURM_NNODES=$SLURM_NNODES
 echo SLURM_GPUS_PER_NODE=$SLURM_GPUS_PER_NODE
 echo SLURM_GPUS=$SLURM_GPUS
 echo MASTER_ADDR:MASTER_PORT=$MASTER_ADDR:$MASTER_PORT
-env | grep SLURM_
+#env | grep SLURM_
 echo "$(printf '%0.s🚥 ' {1..30})"
 
 srun --gpus-per-node=4 --ntasks-per-node=1 --gpu-bind=none torchrun \

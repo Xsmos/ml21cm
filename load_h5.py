@@ -156,7 +156,7 @@ class Dataset4h5(Dataset):
         # cpu_num = psutil.Process().cpu_num()
         # print(f"cpu_num = {cpu_num}")#, cpu_affinity = {cpu_affinity}")
         set_device = time()
-        torch.cuda.set_device(device)
+        #torch.cuda.set_device(device)
         open_h5py = time()
         with h5py.File(self.dir_name, 'r') as f:
             images_start = time()

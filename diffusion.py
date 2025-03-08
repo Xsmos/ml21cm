@@ -160,22 +160,7 @@ class DDPMScheduler(nn.Module):
                 eps = nn_model(x_i, t_is)#.to(self.dtype)
                 # x_i = 1/torch.sqrt(self.alpha_t[i])*(x_i-eps*self.beta_t[i]/torch.sqrt(1-self.bar_alpha_t[i])) + torch.sqrt(self.beta_t[i])*z
             else:
-                # double batch
-                #print(f"#2 x_i.device = {x_i.device}")
-                #x_i = x_i.repeat(2, *torch.ones(len(self.img_shape), dtype=int).tolist())
-                #t_is = t_is.repeat(2)
-
-                # split predictions and compute weighting
-                # print("nn_model input shape", x_i.shape, t_is.shape, c_i.shape)
-                #print(f"sample, i = {i}, x_i.dtype = {x_i.dtype}, c_i.dtype = {c_i.dtype}")
                 eps = nn_model(x_i, t_is, c_i)#.to(self.dtype)
-                #eps1 = eps[:n_sample]
-                #eps2 = eps[n_sample:]
-                #eps = eps1 + guide_w*(eps1 - eps2)
-                # eps = (1+guide_w)*eps1 - guide_w*eps2
-                #x_i = x_i[:n_sample]
-                # x_i = 1/torch.sqrt(self.alpha_t[i])*(x_i-eps*self.beta_t[i]/torch.sqrt(1-self.bar_alpha_t[i])) + torch.sqrt(self.beta_t[i])*z
-            
             # print("x_i.shape =", x_i.shape)
             #print(f"before, x_i.dtype = {x_i.dtype}, beta_t.dtype = {self.beta_t.dtype}, eps.dtype = {eps.dtype}, alpha_t.dtype = {self.alpha_t.dtype}, z.dtype = {z.dtype}")
             x_i = 1/torch.sqrt(self.alpha_t[i])*(x_i-eps*self.beta_t[i]/torch.sqrt(1-self.bar_alpha_t[i])) + torch.sqrt(self.beta_t[i])*z
@@ -191,10 +176,6 @@ class DDPMScheduler(nn.Module):
         return x_i, x_i_entire
 
 
-# ddpm_scheduler = DDPMScheduler((1e-4,0.02),10)
-# noisy_images, noise, ts = ddpm_scheduler.add_noise(images)
-
-# %%
 class EMA:
     def __init__(self, beta):
         super().__init__()
@@ -418,13 +399,13 @@ class DDPM21CM:
             self.global_step = checkpoint['global_step']
             print(f"🍀 {config.run_name} cuda:{torch.cuda.current_device()}|{self.config.global_rank} resumed nn_model from {config.resume} with {sum(x.numel() for x in self.nn_model.module.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🍀".center(self.config.str_len,'+'))#, flush=True)
             if config.ema:
-                self.ema_model.load_state_dict(torch.load(config.resume)['ema_unet_state_dict'])
+                self.ema_model.load_state_dict(checkpoint['ema_unet_state_dict'])
                 print(f"🍀 {config.run_name} cuda:{torch.cuda.current_device()}|{self.config.global_rank} resumed ema_model from {config.resume} with {sum(x.numel() for x in self.ema_model.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🍀".center(self.config.str_len,'+'))
 
         else:
             print(f"🌱 {config.run_name} cuda:{torch.cuda.current_device()}|{self.config.global_rank} initialized nn_model randomly with {sum(x.numel() for x in self.nn_model.module.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🌱".center(self.config.str_len,'+'))#, flush=True)
             if config.ema:
-                self.ema_model = copy.deepcopy(self.nn_model.module).eval().requires_grad_(False)
+                self.ema_model = copy.deepcopy(self.nn_model.module).eval().requires_grad_(False).to(self.ddpm.device)
                 print(f"🌱 {config.run_name} cuda:{torch.cuda.current_device()}|{self.config.global_rank} initialized ema_model randomly with {sum(x.numel() for x in self.ema_model.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🌱".center(self.config.str_len,'+'))
 
         self.ranges_dict = config.ranges_dict
@@ -469,12 +450,21 @@ class DDPM21CM:
         del dataset
 
     def transform(self, img):
-        #flip along x or y or both
-        flip_xy = [dim + 1 for dim in range(2) if getrandbits(1)]
-        img = torch.flip(img, dims=flip_xy) 
-        # flip diagonally 
         if getrandbits(1):
-            img = img.transpose(-2,-3) #.contiguous()
+            img = torch.flip(img, dims=[-2])
+        if img.ndim == 4:
+            if getrandbits(1):
+                img = torch.flip(img, dims=[-3])
+            if getrandbits(1):
+                img = img.transpose(-2,-3)
+
+        ##flip along x or y or both
+        #flip_xy = [dim + 1 for dim in range(2) if getrandbits(1)]
+        #img = torch.flip(img, dims=flip_xy) 
+        ## flip diagonally 
+        #if getrandbits(1):
+        #    img = img.transpose(-2,-3) #.contiguous()
+        #torch.distributed.breakpoint()
         return img
 
     def train(self):
@@ -510,8 +500,7 @@ class DDPM21CM:
             epoch_start = time()
 
             for i, (x, c) in enumerate(self.dataloader):
-                if self.config.dim == 3:
-                    x = self.transform_vmap(x)
+                x = self.transform_vmap(x)
 
                 x = x.to(self.config.device)#.to(self.config.dtype)
                 # autocast forward propogation
@@ -721,6 +710,9 @@ def train(config):
     ddpm21cm = DDPM21CM(config)
     ddpm21cm.train()
 
+    if dist.is_initialized():
+        dist.barrier()
+
     #if dist.is_initialized():
     #    print(f"🚥 cuda:{local_rank}|{global_rank} dist.destroy_process_group started at {datetime.now().strftime('%d-%H:%M:%S.%f')} 🚥")#, flush=True)
     #    dist.barrier()
@@ -755,50 +747,6 @@ def generate_samples(config, num_new_img_per_gpu, max_num_img_per_gpu, params_pa
                 params=params, 
                 num_new_img_per_gpu=num_new_img_per_gpu % max_num_img_per_gpu,
                 )
-
-    #if dist.is_initialized():
-    #    print(f"🚥 cuda:{local_rank}|{global_rank} dist.destroy_process_group started at {datetime.now().strftime('%d-%H:%M:%S.%f')} 🚥")#, flush=True)
-    #    dist.barrier()
-    #    torch.cuda.empty_cache()
-    #    torch.cuda.synchronize()
-    #    dist.destroy_process_group()
-    #    print(f"✅ cuda:{local_rank}|{global_rank} dist.destroy_process_group completed at {datetime.now().strftime('%d-%H:%M:%S.%f')} ✅")#, flush=True)
-
-
-#def generate_samples_backup(rank, world_size, local_world_size, master_addr, master_port, config, num_new_img_per_gpu, max_num_img_per_gpu, params_pairs):
-#    global_rank = rank + local_world_size * int(os.environ["SLURM_NODEID"])
-#    ddp_setup(global_rank, world_size, master_addr, master_port)
-#    torch.cuda.set_device(rank)
-#
-#    config.device = f"cuda:{rank}"
-#    config.world_size = local_world_size
-#    config.global_rank = global_rank
-#
-#    ddpm21cm = DDPM21CM(config)
-#
-#    for params in params_pairs:
-#        for _ in range(num_new_img_per_gpu // max_num_img_per_gpu):    
-#            ddpm21cm.sample(
-#                params=params, 
-#                num_new_img_per_gpu=max_num_img_per_gpu,
-#                )
-#        if num_new_img_per_gpu % max_num_img_per_gpu:
-#            ddpm21cm.sample(
-#                params=params, 
-#                num_new_img_per_gpu=num_new_img_per_gpu % max_num_img_per_gpu,
-#                )
-#
-#    if dist.is_initialized():
-#        print(f"🚥 cuda:{rank}/{global_rank} dist.destroy_process_group started at {datetime.now().strftime('%d-%H:%M:%S.%f')} 🚥")#, flush=True)
-#        dist.barrier()
-#        torch.cuda.empty_cache()
-#        torch.cuda.synchronize()
-#        dist.destroy_process_group()
-#        print(f"✅ cuda:{rank}/{global_rank} dist.destroy_process_group completed at {datetime.now().strftime('%d-%H:%M:%S.%f')} ✅")#, flush=True)
-#
-#    if dist.is_initialized():
-#        print(f"❌ cuda:{rank}/{global_rank} dist.destroy_process_group failed! ❌")
-
 
 
 if __name__ == "__main__":
@@ -880,6 +828,8 @@ if __name__ == "__main__":
             (4.8, 131.341),
         ]
         generate_samples(config, num_new_img_per_gpu, max_num_img_per_gpu, params_pairs)
+    else:
+        print(f'os.path.exists(config.resume) = {os.path.exists(config.resume)}')
 
     if dist.is_initialized():
         dist.barrier()
@@ -887,4 +837,3 @@ if __name__ == "__main__":
         torch.cuda.empty_cache()
         torch.cuda.synchronize()
         #dist.destroy_process_group()
-        #print(f"✅ cuda:{os.environ['LOCAL_RANK']}|{os.environ['RANK']} dist.destroy_process_group completed at {datetime.now().strftime('%d-%H:%M:%S.%f')} ✅")#, flush=True)

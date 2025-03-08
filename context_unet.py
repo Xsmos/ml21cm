@@ -234,34 +234,45 @@ class QKVAttention(nn.Module):
     def __init__(self, n_heads):
         super().__init__()
         self.n_heads = n_heads
-        # print("QKVAttention, self.n_heads =", self.n_heads)
         
     def forward(self, qkv, encoder_kv=None):
         bs, width, length = qkv.shape
         assert width % (3*self.n_heads) == 0
         ch = width // (3*self.n_heads)
 
-        # print("QKVAttention", bs, self.n_heads, ch, length)
-        #print("qkv.shape =", qkv.shape, 'bs =', bs, 'width =', width, 'length =', length, 'n_heads =', self.n_heads, 'ch =', ch)
-        q, k, v = qkv.reshape(bs*self.n_heads, ch*3, length).split(ch, dim=1)
-        #print("q.shape, k.shape, v.shape =", q.shape, k.shape, v.shape)
-
-        #q, k, v = qkv.transpose(-1,-2).split(ch, dim=-1)
+        #q, k, v = qkv.reshape(bs*self.n_heads, ch*3, length).split(ch, dim=1)
+        qu, ku, vu = qkv.reshape(bs*self.n_heads, ch*3, length).transpose(-1,-2).split(ch, dim=-1)
+        #qc, kc, vc = qkv.reshape(bs*self.n_heads, length, ch*3).split(ch, dim=-1)
 
         if encoder_kv is not None:
+            print("encoder_kv is not None")
             assert encoder_kv.shape[1] == self.n_heads * ch * 2
             ek, ev = encoder_kv.reshape(bs*self.n_heads, ch*2, -1).split(ch, dim=1)
             k = torch.cat([ek,k], dim=-1)
             v = torch.cat([ev,v], dim=-1)
 
+        ## method 1
         #scale = 1 / math.sqrt(math.sqrt(ch))
         #weight = torch.einsum("bct,bcs->bts", q*scale, k*scale)
-        #weight = torch.softmax(weight.float(), dim=-1)
+        #weight = torch.softmax(weight.float(), dim=-1).type(weight.dtype)
         #a = torch.einsum("bts,bcs->bct", weight, v)
+        #return_a = a.reshape(bs, -1, length)
 
-        out = F.scaled_dot_product_attention(q,k,v)#.transpose(-1,-2)
-        #print("out.shape =", out.shape, "a.shape =", a.shape)
-        return out.reshape(bs, -1, length)
+        ## method 2
+        #out = F.scaled_dot_product_attention(q,k,v)
+        #return_out = out.reshape(bs, -1, length)
+
+        # method 3
+        outu = F.scaled_dot_product_attention(qu,ku,vu).transpose(-1,-2)
+        return_outu = outu.reshape(bs, -1, length)
+
+        ## method 4
+        #outc = F.scaled_dot_product_attention(qc, kc, vc).permute(0, 2, 1)
+        #return_outc = outc.reshape(bs, -1, length)
+
+        #torch.distributed.breakpoint()
+
+        return return_outu
 
 class AttentionBlock(nn.Module):
     def __init__(

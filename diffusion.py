@@ -430,6 +430,8 @@ class DDPM21CM:
         self.ranges_dict = config.ranges_dict
         self.scaler = GradScaler()
 
+        self.transform_vmap = torch.vmap(self.transform, in_dims=0)
+
     def load(self):
         num_workers = len(os.sched_getaffinity(0))//self.config.world_size
         min_num_workers = min(1,num_workers)
@@ -446,7 +448,6 @@ class DDPM21CM:
             num_workers=min_num_workers,
             str_len = self.config.str_len,
             )
-        #print(f"cuda:{torch.cuda.current_device()}|{self.config.global_rank}: Dataset4h5 loaded by {min_num_workers} workers ✅")
 
         dataloader_start = time()
         self.dataloader = DataLoader(
@@ -467,17 +468,13 @@ class DDPM21CM:
 
         del dataset
 
-    def transform(self, img, idx):
+    def transform(self, img):
         #flip along x or y or both
-        flip_xy = [i+1 for i in range(2) if getrandbits(1)]
-        img[idx] = torch.flip(img[idx], dims=flip_xy) 
+        flip_xy = [dim + 1 for dim in range(2) if getrandbits(1)]
+        img = torch.flip(img, dims=flip_xy) 
         # flip diagonally 
         if getrandbits(1):
-            #img = img.transpose(2,3)
-            img[idx] = img[idx].clone().transpose(1,2)
-            #print(f"transform: img.shape={img.shape}, idx={idx}, flip_xy={flip_xy}, w/ transpose")
-        #else:
-            #print(f"transform: img.shape={img.shape}, idx={idx}, flip_xy={flip_xy}, w/o tranpose")
+            img = img.transpose(-2,-3) #.contiguous()
         return img
 
     def train(self):
@@ -513,11 +510,8 @@ class DDPM21CM:
             epoch_start = time()
 
             for i, (x, c) in enumerate(self.dataloader):
-                #print(f"i={i}")
                 if self.config.dim == 3:
-                    #x = self.transform(x)
-                    for idx in range(len(x)):
-                        x = self.transform(x, idx)
+                    x = self.transform_vmap(x)
 
                 x = x.to(self.config.device)#.to(self.config.dtype)
                 # autocast forward propogation
@@ -859,7 +853,7 @@ if __name__ == "__main__":
     config.dim = len(config.stride) #args.dim
     #print(config.stride, config.dim)
     config.num_redshift = args.num_redshift
-    config.img_shape = (config.channel, config.HII_DIM, config.HII_DIM) if config.dim == 2 else (config.channel, config.HII_DIM, config.HII_DIM, config.num_redshift)
+    config.img_shape = (config.channel, config.HII_DIM, config.num_redshift) if config.dim == 2 else (config.channel, config.HII_DIM, config.HII_DIM, config.num_redshift)
     config.num_res_blocks = args.num_res_blocks
 
     config.run_name = os.environ.get("SLURM_JOB_ID", datetime.now().strftime("%d%H%M%S")) # the unique name of each experiment

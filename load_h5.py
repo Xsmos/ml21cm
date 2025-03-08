@@ -41,7 +41,7 @@ class Dataset4h5(Dataset):
         rescale=True, 
         drop_prob = 0, 
         dim=2, 
-        transform=True, 
+        transform=False, 
         ranges_dict=None, 
         num_workers=1,#len(os.sched_getaffinity(0))//torch.cuda.device_count(),
         startat=0,
@@ -143,12 +143,11 @@ class Dataset4h5(Dataset):
                 concurrent_end = time()
                 print(f" {socket.gethostbyname(socket.gethostname())} cuda:{torch.cuda.current_device()}/{self.global_rank}, {start_idx} images {self.images.shape} & params {self.params.shape} loaded after {concurrent_start-concurrent_init_start:.3f}/{concurrent_end-concurrent_start:.3f}s ".center(self.str_len, '-'))
 
-        transform_start = time()
         if self.transform:
+            transform_start = time()
             self.images = self.flip_rotate(self.images)
-        # print(f"images transformed:", self.images.shape)
-        transform_end = time()
-        print(f"images transformed after {transform_end-transform_start:.3f}s")
+            transform_end = time()
+            print(f"images transformed after {transform_end-transform_start:.3f}s")
 
     def read_data_chunk(self, f, idx, device, concurrent_init_end, executor_start):
         # process = psutil.Process(pid)

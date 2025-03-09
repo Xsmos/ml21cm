@@ -38,6 +38,8 @@ from matplotlib.ticker import LogFormatter
 from matplotlib.ticker import FormatStrFormatter
 
 from typing import List
+import argparse
+
 # print("before spawn")
 multiprocessing.set_start_method('spawn', force=True)
 # print("after spawn")
@@ -124,7 +126,15 @@ cmap = get_eor_cmap(vmin, vmax)
 #def plot_grid(samples, c, row=4, col=13, idx=0, los=None, savename=None, figsize=(16, 4.5)): # (64,64)
 #def plot_grid(samples, c, row=8, col=6, idx=0, los=None, savename=None, figsize=(16, 4.5)): # (64,256)
 def plot_grid(samples, c, row=8, col=12, idx=0, los=None, savename=None, figsize=(16, 4.5)): # (64,128)
-    # plt.figure(dpi=200, figsize=(16, 5.5))
+    if samples.shape[-1] == 64:
+        row, col = 4, 13
+    elif samples.shape[-1] == 128:
+        row, col = 8, 12
+    elif samples.shape[-1] == 256:
+        row, col = 8, 6
+    elif samples.shape[-1] == 1024:
+        row, col = 9, 2
+
     fig, axes = plt.subplots(row, col, figsize=figsize, dpi=100)#, constrained_layout=True)
     plt.subplots_adjust(wspace=0, hspace=-.15)
     axes = axes.flatten()
@@ -296,19 +306,19 @@ def x2Tb(x):
 def load_x_ml(fname_pattern0, fname_pattern1, ema = 0):
     # num = 7200
     x_ml = []
-    fnames = [fname for fname in os.listdir("../outputs") if fname_pattern0 in fname and fname_pattern1 in fname]
-    print("fname pattern:", fname_pattern0, fname_pattern1, "; len(fnames) =", len(fnames))
+    fnames = [fname for fname in os.listdir("../outputs") if fname_pattern0 in fname and fname_pattern1 in fname and f'-ema{ema}' in fname]
+    print("fname pattern:", fname_pattern0, fname_pattern1, "; len(fnames) =", len(fnames), ";\nfnames[0] =", fnames[0])
     # print("fname:",fnames)
     # print()
     for fname in fnames:
-        if ema and 'ema1' not in fname:
-            continue
-        if not ema and 'ema1' in fname:
-            continue
-            
+    #    if ema and 'ema1' not in fname:
+    #        continue
+    #    if not ema and 'ema1' in fname:
+    #        continue
         data = np.load(os.path.join("../outputs", fname))
         # print(fname)
         x_ml.append(data)
+
     x_ml = np.concatenate(x_ml, axis=0)
     x_ml = rescale(x_ml)
     x_ml = torch.from_numpy(x_ml)
@@ -751,119 +761,129 @@ def evaluate(
     node: int = 8,
     jobID: int = 35912978,
     epoch: int = 120,
+    use_ema: int = 0,
     ):
 
     print(f"device = {device}")
     config = f"device_count{device_count}-node{node}-{jobID}-epoch{epoch}"
 
-    x0_ml = load_x_ml(f"Tvir4.400-zeta131.341", config)
-    x1_ml = load_x_ml(f"Tvir5.600-zeta19.037", config)
-    x2_ml = load_x_ml(f"Tvir4.699-zeta30.000", config)
-    x3_ml = load_x_ml(f"Tvir5.477-zeta200.000", config)
-    x4_ml = load_x_ml(f"Tvir4.800-zeta131.341", config)
+    for ema in range(use_ema+1):
+        print('🚀')
+        save_name = f"{jobID}_ema{ema}"
 
-    print(f"x0_ml.shape = {x0_ml.shape}")
-    dim = x0_ml[0,0].ndim 
-    if dim == 2:
-        num_image, _, HII_DIM, num_redshift = x0_ml.shape
-    elif dim == 3:
-        num_image, _, HII_DIM, _, num_redshift = x0_ml.shape
+        x0_ml = load_x_ml(f"Tvir4.400-zeta131.341", config, ema = ema)
+        x1_ml = load_x_ml(f"Tvir5.600-zeta19.037", config, ema = ema)
+        x2_ml = load_x_ml(f"Tvir4.699-zeta30.000", config, ema = ema)
+        x3_ml = load_x_ml(f"Tvir5.477-zeta200.000", config, ema = ema)
+        x4_ml = load_x_ml(f"Tvir4.800-zeta131.341", config, ema = ema)
 
-    x0, c0, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir4.4-zeta131.341-0812-104709.h5',num_image=num_image,num_redshift=num_redshift,dim=dim)
-    x1, c1, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir5.6-zeta19.037-0812-104704.h5',num_image=num_image,num_redshift=num_redshift,dim=dim)
-    x2, c2, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir4.699-zeta30-0812-104322.h5',num_image=num_image,num_redshift=num_redshift,dim=dim)
-    x3, c3, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir5.477-zeta200-0812-104013.h5',num_image=num_image,num_redshift=num_redshift,dim=dim)
-    x4, c4, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir4.8-zeta131.341-0812-103813.h5',num_image=num_image,num_redshift=num_redshift,dim=dim)
+        print(f"x0_ml.shape = {x0_ml.shape}")
+        dim = x0_ml[0,0].ndim 
+        if dim == 2:
+            num_image, _, HII_DIM, num_redshift = x0_ml.shape
+        elif dim == 3:
+            num_image, _, HII_DIM, _, num_redshift = x0_ml.shape
 
-    if 'grid' in what:
-        plot_grid(x0, c=c0, los=los, savename = '21cmfast')
-        plot_grid(x1, c=c1, los=los, savename = '21cmfast')
-        plot_grid(x2, c=c2, los=los, savename = '21cmfast')
-        plot_grid(x3, c=c3, los=los, savename = '21cmfast')
-        plot_grid(x4, c=c4, los=los, savename = '21cmfast')
+        x0, c0, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir4.4-zeta131.341-0812-104709.h5',num_image=num_image,num_redshift=num_redshift,dim=dim)
+        x1, c1, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir5.6-zeta19.037-0812-104704.h5',num_image=num_image,num_redshift=num_redshift,dim=dim)
+        x2, c2, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir4.699-zeta30-0812-104322.h5',num_image=num_image,num_redshift=num_redshift,dim=dim)
+        x3, c3, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir5.477-zeta200-0812-104013.h5',num_image=num_image,num_redshift=num_redshift,dim=dim)
+        x4, c4, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir4.8-zeta131.341-0812-103813.h5',num_image=num_image,num_redshift=num_redshift,dim=dim)
 
-        plot_grid(x0_ml, c=c0, los=los, savename = jobID)
-        plot_grid(x1_ml, c=c1, los=los, savename = jobID)
-        plot_grid(x2_ml, c=c2, los=los, savename = jobID)
-        plot_grid(x3_ml, c=c3, los=los, savename = jobID)
-        plot_grid(x4_ml, c=c4, los=los, savename = jobID)
+        if 'grid' in what:
+            #plot_grid(x0, c=c0, los=los, savename = '21cmfast')
+            #plot_grid(x1, c=c1, los=los, savename = '21cmfast')
+            #plot_grid(x2, c=c2, los=los, savename = '21cmfast')
+            #plot_grid(x3, c=c3, los=los, savename = '21cmfast')
+            #plot_grid(x4, c=c4, los=los, savename = '21cmfast')
 
-    if 'global_signal' in what:
-        plot_global_signal(
-            [   
-                (x0,x0_ml),#[...,-1])
-                (x1,x1_ml),#[...,-1])
-                (x2,x2_ml),#[...,-1])
-                (x3,x3_ml),#[...,-1])
-                (x4,x4_ml),#[...,-1])
+            plot_grid(x0_ml, c=c0, los=los, savename = save_name)
+            plot_grid(x1_ml, c=c1, los=los, savename = save_name)
+            plot_grid(x2_ml, c=c2, los=los, savename = save_name)
+            plot_grid(x3_ml, c=c3, los=los, savename = save_name)
+            plot_grid(x4_ml, c=c4, los=los, savename = save_name)
+
+        if 'global_signal' in what:
+            plot_global_signal(
+                [   
+                    (x0,x0_ml),#[...,-1])
+                    (x1,x1_ml),#[...,-1])
+                    (x2,x2_ml),#[...,-1])
+                    (x3,x3_ml),#[...,-1])
+                    (x4,x4_ml),#[...,-1])
+                    ],
+                params = [
+                    c0[0], 
+                    c1[0],
+                    c2[0],
+                    c3[0], 
+                    c4[0],
                 ],
-            params = [
-                c0[0], 
-                c1[0],
-                c2[0],
-                c3[0], 
-                c4[0],
-            ],
-            los = los,
-            savename = jobID,
-            # sigma_level=100,
-            )
-    if 'power_spectrum' in what:
-        plot_power_spectrum(
-            [
-                #(x0, x0_ml),
-                #(x1, x1_ml),
-                #(x2, x2_ml),
-                #(x3, x3_ml),
-                #(x4, x4_ml),
-                (x0[...,-1], x0_ml[...,-1]),
-                (x1[...,-1], x1_ml[...,-1]),
-                (x2[...,-1], x2_ml[...,-1]),
-                (x3[...,-1], x3_ml[...,-1]),
-                (x4[...,-1], x4_ml[...,-1]),
-            ],
-            params = [
-                c0[0], 
-                c1[0],
-                c2[0], 
-                c3[0], 
-                c4[0],
-            ],
-            los = los,
-            savename = jobID,
-            # sigma_level=95，
-            )
+                los = los,
+                savename = save_name,
+                # sigma_level=100,
+                )
+        if 'power_spectrum' in what:
+            plot_power_spectrum(
+                [
+                    (x0, x0_ml),
+                    (x1, x1_ml),
+                    (x2, x2_ml),
+                    (x3, x3_ml),
+                    (x4, x4_ml),
+                    #(x0[...,-1], x0_ml[...,-1]),
+                    #(x1[...,-1], x1_ml[...,-1]),
+                    #(x2[...,-1], x2_ml[...,-1]),
+                    #(x3[...,-1], x3_ml[...,-1]),
+                    #(x4[...,-1], x4_ml[...,-1]),
+                ],
+                params = [
+                    c0[0], 
+                    c1[0],
+                    c2[0], 
+                    c3[0], 
+                    c4[0],
+                ],
+                los = los,
+                savename = save_name,
+                # sigma_level=95，
+                )
 
-    if 'scatter_transform' in what:
-        plot_scattering_transform_2(
-            [
-                # (x0[...,0,512:512+64],x0_ml[...,0,512:512+64]),
-                # (x1[...,0,512:512+64],x1_ml[...,0,512:512+64]),
-                # (x2[...,0,512:512+64],x2_ml[...,0,512:512+64]),
-                # (x3[...,0,512:512+64],x3_ml[...,0,512:512+64]),
-                # (x4[...,0,512:512+64],x4_ml[...,0,512:512+64]),
-                (x0[...,-1],x0_ml[...,-1]),
-                (x1[...,-1],x1_ml[...,-1]),
-                (x2[...,-1],x2_ml[...,-1]),
-                (x3[...,-1],x3_ml[...,-1]),
-                (x4[...,-1],x4_ml[...,-1]),
-            ],
-            params = [
-                c0[0], 
-                c1[0],
-                c2[0], 
-                c3[0], 
-                c4[0],
-            ],
-            los = los,
-            savename = jobID,
-            )
+        if 'scatter_transform' in what:
+            plot_scattering_transform_2(
+                [
+                    (x0[...,:64],x0_ml[...,:64]),
+                    (x1[...,:64],x1_ml[...,:64]),
+                    (x2[...,:64],x2_ml[...,:64]),
+                    (x3[...,:64],x3_ml[...,:64]),
+                    (x4[...,:64],x4_ml[...,:64]),
+                    #(x0[...,-1],x0_ml[...,-1]),
+                    #(x1[...,-1],x1_ml[...,-1]),
+                    #(x2[...,-1],x2_ml[...,-1]),
+                    #(x3[...,-1],x3_ml[...,-1]),
+                    #(x4[...,-1],x4_ml[...,-1]),
+                ],
+                params = [
+                    c0[0], 
+                    c1[0],
+                    c2[0], 
+                    c3[0], 
+                    c4[0],
+                ],
+                los = los,
+                savename = save_name,
+                )
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-j", "--jobID", type=int, required=True)
+    args = parser.parse_args()
+
     evaluate(
             what = ['grid', 'global_signal', 'power_spectrum', 'scatter_transform'],
             device_count = 4,
             node = 4,
-            jobID = 36525513,
-            epoch = 360,
+            jobID = args.jobID,
+            epoch = 120,
+            use_ema = 1,
             )

@@ -7,7 +7,7 @@
 #SBATCH --gpus-per-node=4
 #SBATCH --ntasks-per-node=1
 #SBATCH --gpu-bind=none
-#SBATCH -t 6:00:00
+#SBATCH -t 8:00:00
 #SBATCH -o logs/%x-%j
 #SBATCH --mail-type=BEGIN,END,FAIL
 
@@ -61,7 +61,7 @@ srun --gpus-per-node=4 --ntasks-per-node=1 --gpu-bind=none torchrun \
         --ema 1 \
         --gradient_accumulation_steps 32 \
         --train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
-        #--resume ./outputs/model-N1600-device_count4-node4-36401694-epoch200.pt \
+        #--resume ./outputs/model-N1600-device_count4-node4-36674041-epoch120.pt \
         #--guide_w 0 \
         #--model_channels 128 \
         #--sample 1 \

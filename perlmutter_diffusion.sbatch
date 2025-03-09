@@ -54,9 +54,9 @@ srun --gpus-per-node=4 --ntasks-per-node=1 --gpu-bind=none torchrun \
         --max_num_img_per_gpu 8 \
         --lrate 1e-5 \
         --num_redshift 1024 \
-        --channel_mult 1 2 3 4 \
+        --channel_mult 1 1 2 4 \
         --n_epoch 120 \
-        --stride 2 2 \
+        --stride 2 4 \
         --num_res_blocks 3 \
         --ema 1 \
         --gradient_accumulation_steps 32 \

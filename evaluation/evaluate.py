@@ -126,15 +126,15 @@ cmap = get_eor_cmap(vmin, vmax)
 #def plot_grid(samples, c, row=4, col=13, idx=0, los=None, savename=None, figsize=(16, 4.5)): # (64,64)
 #def plot_grid(samples, c, row=8, col=6, idx=0, los=None, savename=None, figsize=(16, 4.5)): # (64,256)
 def plot_grid(samples, c, row=8, col=12, idx=0, los=None, savename=None, figsize=(16, 4.5)): # (64,128)
-    if samples.shape[-1] == 64:
-        row, col = 4, 13
-    elif samples.shape[-1] == 128:
-        row, col = 8, 12
-    elif samples.shape[-1] == 256:
-        row, col = 8, 6
-    elif samples.shape[-1] == 1024:
-        row, col = 9, 2
-
+    #if samples.shape[-1] == 64:
+    #    row, col = 4, 13
+    #elif samples.shape[-1] == 128:
+    #    row, col = 8, 12
+    #elif samples.shape[-1] == 256:
+    #    row, col = 8, 6
+    #elif samples.shape[-1] == 1024:
+    #    row, col = 9, 2
+    print(f"plot_grid: samples.shape = {samples.shape}")
     fig, axes = plt.subplots(row, col, figsize=figsize, dpi=100)#, constrained_layout=True)
     plt.subplots_adjust(wspace=0, hspace=-.15)
     axes = axes.flatten()
@@ -790,6 +790,15 @@ def evaluate(
         x3, c3, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir5.477-zeta200-0812-104013.h5',num_image=num_image,num_redshift=num_redshift,dim=dim)
         x4, c4, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir4.8-zeta131.341-0812-103813.h5',num_image=num_image,num_redshift=num_redshift,dim=dim)
 
+        if x0.shape[-1] == 64:
+            row, col = 4, 13
+        elif x0.shape[-1] == 128:
+            row, col = 8, 12
+        elif x0.shape[-1] == 256:
+            row, col = 8, 6
+        elif x0.shape[-1] == 1024:
+            row, col = 9, 2
+
         if 'grid' in what:
             #plot_grid(x0, c=c0, los=los, savename = '21cmfast')
             #plot_grid(x1, c=c1, los=los, savename = '21cmfast')
@@ -797,11 +806,17 @@ def evaluate(
             #plot_grid(x3, c=c3, los=los, savename = '21cmfast')
             #plot_grid(x4, c=c4, los=los, savename = '21cmfast')
 
-            plot_grid(x0_ml, c=c0, los=los, savename = save_name)
-            plot_grid(x1_ml, c=c1, los=los, savename = save_name)
-            plot_grid(x2_ml, c=c2, los=los, savename = save_name)
-            plot_grid(x3_ml, c=c3, los=los, savename = save_name)
-            plot_grid(x4_ml, c=c4, los=los, savename = save_name)
+            #plot_grid(x0_ml, c=c0, los=los, savename = save_name, row=row, col=col)
+            #plot_grid(x1_ml, c=c1, los=los, savename = save_name, row=row, col=col)
+            #plot_grid(x2_ml, c=c2, los=los, savename = save_name, row=row, col=col)
+            #plot_grid(x3_ml, c=c3, los=los, savename = save_name, row=row, col=col)
+            #plot_grid(x4_ml, c=c4, los=los, savename = save_name, row=row, col=col)
+
+            plot_grid(torch.cat((x0[:row//2 * col], x0_ml), dim=0), c=c0, los=los, savename = save_name, row=row, col=col)
+            plot_grid(torch.cat((x1[:row//2 * col], x1_ml), dim=0), c=c1, los=los, savename = save_name, row=row, col=col)
+            plot_grid(torch.cat((x2[:row//2 * col], x2_ml), dim=0), c=c2, los=los, savename = save_name, row=row, col=col)
+            plot_grid(torch.cat((x3[:row//2 * col], x3_ml), dim=0), c=c3, los=los, savename = save_name, row=row, col=col)
+            plot_grid(torch.cat((x4[:row//2 * col], x4_ml), dim=0), c=c4, los=los, savename = save_name, row=row, col=col)
 
         if 'global_signal' in what:
             plot_global_signal(

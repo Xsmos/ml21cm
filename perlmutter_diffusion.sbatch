@@ -7,7 +7,7 @@
 #SBATCH --gpus-per-node=4
 #SBATCH --ntasks-per-node=1
 #SBATCH --gpu-bind=none
-#SBATCH -t 8:00:00
+#SBATCH -t 16:00:00
 #SBATCH -o logs/%x-%j
 #SBATCH --mail-type=BEGIN,END,FAIL
 
@@ -53,10 +53,10 @@ srun --gpus-per-node=4 --ntasks-per-node=1 --gpu-bind=none torchrun \
         --num_new_img_per_gpu 8 \
         --max_num_img_per_gpu 8 \
         --lrate 1e-5 \
-        --num_redshift 1024 \
+        --num_redshift 64 \
         --channel_mult 1 1 2 4 \
         --n_epoch 120 \
-        --stride 2 4 \
+        --stride 2 2 4 \
         --num_res_blocks 3 \
         --ema 1 \
         --gradient_accumulation_steps 32 \

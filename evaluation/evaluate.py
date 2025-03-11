@@ -578,6 +578,13 @@ def calculate_reduced_S2(x_pairs, params, J=5, L=4, M=64, N=64):
     for i, (x0, x1) in enumerate(x_pairs):
         #print(f"#{i}: x0.shape = {x0.shape}, x1.shape = {x1.shape}")
         # get jthetas and S
+        if x0.ndim == 4:
+            x0 = x0[...,:64]
+            x1 = x1[...,:64]
+        elif x0.ndim == 5:
+            x0 = x0[...,0,:64]
+            x1 = x1[...,0,:64]
+
         if i == 0:
             S = Scattering2D(J, (M, N), L=L, out_type='list').to(device)
             jthetas = []
@@ -790,27 +797,32 @@ def evaluate(
         x3, c3, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir5.477-zeta200-0812-104013.h5',num_image=num_image,num_redshift=num_redshift,dim=dim)
         x4, c4, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir4.8-zeta131.341-0812-103813.h5',num_image=num_image,num_redshift=num_redshift,dim=dim)
 
-        if x0.shape[-1] == 64:
-            row, col = 4, 13
-        elif x0.shape[-1] == 128:
-            row, col = 8, 12
-        elif x0.shape[-1] == 256:
-            row, col = 8, 6
-        elif x0.shape[-1] == 1024:
-            row, col = 9, 2
+        x_pairs = [
+                (x0, x0_ml),
+                (x1, x1_ml),
+                (x2, x2_ml),
+                (x3, x3_ml),
+                (x4, x4_ml),
+                ]
+
+        params = [
+                c0[0],
+                c1[0],
+                c2[0],
+                c3[0],
+                c4[0],
+                ]
 
         if 'grid' in what:
-            #plot_grid(x0, c=c0, los=los, savename = '21cmfast')
-            #plot_grid(x1, c=c1, los=los, savename = '21cmfast')
-            #plot_grid(x2, c=c2, los=los, savename = '21cmfast')
-            #plot_grid(x3, c=c3, los=los, savename = '21cmfast')
-            #plot_grid(x4, c=c4, los=los, savename = '21cmfast')
 
-            #plot_grid(x0_ml, c=c0, los=los, savename = save_name, row=row, col=col)
-            #plot_grid(x1_ml, c=c1, los=los, savename = save_name, row=row, col=col)
-            #plot_grid(x2_ml, c=c2, los=los, savename = save_name, row=row, col=col)
-            #plot_grid(x3_ml, c=c3, los=los, savename = save_name, row=row, col=col)
-            #plot_grid(x4_ml, c=c4, los=los, savename = save_name, row=row, col=col)
+            if x0.shape[-1] == 64:
+                row, col = 4, 13
+            elif x0.shape[-1] == 128:
+                row, col = 8, 12
+            elif x0.shape[-1] == 256:
+                row, col = 8, 6
+            elif x0.shape[-1] == 1024:
+                row, col = 9, 2
 
             plot_grid(torch.cat((x0[:row//2 * col], x0_ml), dim=0), c=c0, los=los, savename = save_name, row=row, col=col)
             plot_grid(torch.cat((x1[:row//2 * col], x1_ml), dim=0), c=c1, los=los, savename = save_name, row=row, col=col)
@@ -820,74 +832,30 @@ def evaluate(
 
         if 'global_signal' in what:
             plot_global_signal(
-                [   
-                    (x0,x0_ml),#[...,-1])
-                    (x1,x1_ml),#[...,-1])
-                    (x2,x2_ml),#[...,-1])
-                    (x3,x3_ml),#[...,-1])
-                    (x4,x4_ml),#[...,-1])
-                    ],
-                params = [
-                    c0[0], 
-                    c1[0],
-                    c2[0],
-                    c3[0], 
-                    c4[0],
-                ],
-                los = los,
-                savename = save_name,
-                # sigma_level=100,
-                )
+                    x_pairs = x_pairs,
+                    params = params,
+                    los = los,
+                    savename = save_name,
+                    # sigma_level=100,
+                    )
+
         if 'power_spectrum' in what:
             plot_power_spectrum(
-                [
-                    (x0, x0_ml),
-                    (x1, x1_ml),
-                    (x2, x2_ml),
-                    (x3, x3_ml),
-                    (x4, x4_ml),
-                    #(x0[...,-1], x0_ml[...,-1]),
-                    #(x1[...,-1], x1_ml[...,-1]),
-                    #(x2[...,-1], x2_ml[...,-1]),
-                    #(x3[...,-1], x3_ml[...,-1]),
-                    #(x4[...,-1], x4_ml[...,-1]),
-                ],
-                params = [
-                    c0[0], 
-                    c1[0],
-                    c2[0], 
-                    c3[0], 
-                    c4[0],
-                ],
-                los = los,
-                savename = save_name,
-                # sigma_level=95，
-                )
+                    x_pairs = x_pairs,
+                    params = params,
+                    los = los,
+                    savename = save_name,
+                    # sigma_level=100,
+                    )
 
         if 'scatter_transform' in what:
             plot_scattering_transform_2(
-                [
-                    (x0[...,:64],x0_ml[...,:64]),
-                    (x1[...,:64],x1_ml[...,:64]),
-                    (x2[...,:64],x2_ml[...,:64]),
-                    (x3[...,:64],x3_ml[...,:64]),
-                    (x4[...,:64],x4_ml[...,:64]),
-                    #(x0[...,-1],x0_ml[...,-1]),
-                    #(x1[...,-1],x1_ml[...,-1]),
-                    #(x2[...,-1],x2_ml[...,-1]),
-                    #(x3[...,-1],x3_ml[...,-1]),
-                    #(x4[...,-1],x4_ml[...,-1]),
-                ],
-                params = [
-                    c0[0], 
-                    c1[0],
-                    c2[0], 
-                    c3[0], 
-                    c4[0],
-                ],
-                los = los,
-                savename = save_name,
-                )
+                    x_pairs = x_pairs,
+                    params = params,
+                    los = los,
+                    savename = save_name,
+                    # sigma_level=100,
+                    )
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -900,5 +868,5 @@ if __name__ == '__main__':
             node = 4,
             jobID = args.jobID,
             epoch = 120,
-            use_ema = 1,
+            use_ema = 0,
             )

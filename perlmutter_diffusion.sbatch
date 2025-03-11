@@ -1,13 +1,13 @@
 #!/bin/bash
 #SBATCH -A m4717 
 #SBATCH -J diffusion
-#SBATCH -C gpu #&hbm80g
+#SBATCH -C gpu&hbm80g
 #SBATCH -q regular #debug #shared #
 #SBATCH -N4
 #SBATCH --gpus-per-node=4
 #SBATCH --ntasks-per-node=1
 #SBATCH --gpu-bind=none
-#SBATCH -t 16:00:00
+#SBATCH -t 48:00:00
 #SBATCH -o logs/%x-%j
 #SBATCH --mail-type=BEGIN,END,FAIL
 
@@ -58,10 +58,10 @@ srun --gpus-per-node=4 --ntasks-per-node=1 --gpu-bind=none torchrun \
         --n_epoch 120 \
         --stride 2 2 4 \
         --num_res_blocks 3 \
-        --ema 1 \
         --gradient_accumulation_steps 32 \
         --train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
         #--resume ./outputs/model-N1600-device_count4-node4-36674041-epoch120.pt \
+        #--ema 1 \
         #--guide_w 0 \
         #--model_channels 128 \
         #--sample 1 \

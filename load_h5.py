@@ -29,6 +29,18 @@ import psutil
 # from huggingface_hub import create_repo, upload_folder
 import socket
 
+ranges_dict = dict(
+    params = {
+        0: [4, 6], # ION_Tvir_MIN
+        1: [10, 250], # HII_EFF_FACTOR
+        },
+    images = {
+        ## 0: [-338, 54],#[0, 80], # brightness_temp
+        0: [-36.840145, 50.21427],
+        #0: [-387, 86],
+        }
+    )
+
 class Dataset4h5(Dataset):
     def __init__(
         self,
@@ -42,7 +54,7 @@ class Dataset4h5(Dataset):
         drop_prob = 0, 
         dim=2, 
         transform=False, 
-        ranges_dict=None, 
+        #ranges_dict=None,
         num_workers=1,#len(os.sched_getaffinity(0))//torch.cuda.device_count(),
         startat=0,
         # shuffle=False,
@@ -63,6 +75,7 @@ class Dataset4h5(Dataset):
         self.num_workers = num_workers
         self.startat = startat 
         self.str_len = str_len
+        self.ranges_dict = ranges_dict
 
         self.load_h5()
         if rescale:
@@ -70,7 +83,6 @@ class Dataset4h5(Dataset):
             self.images = self.rescale(self.images, ranges=ranges_dict['images'], to=[-1,1])
             self.params = self.rescale(self.params, ranges=ranges_dict['params'], to=[0,1])
             rescale_end = time()
-            # print(f"rescaling costs {rescale_end-rescale_start:.3f} s")
             print(f"images & params rescaled to [{self.images.min()}, {self.images.max()}] & [{self.params.min()}, {self.params.max()}] after {rescale_end-rescale_start:.3f}s")
 
         # from_numpy_start = time()
@@ -79,10 +91,8 @@ class Dataset4h5(Dataset):
         # from_numpy_end = time()
         # print(f"torch.from_numpy costs {from_numpy_end-from_numpy_start:.3f} s")
 
-        # rescale_start = time()
         cond_filter = torch.bernoulli(torch.ones(len(self.params),1)-self.drop_prob).repeat(1,self.params.shape[1]).numpy()
         self.params = torch.from_numpy(self.params*cond_filter)
-        # rescale_end = time()
 
     def load_h5(self):
         with h5py.File(self.dir_name, 'r') as f:
@@ -195,31 +205,13 @@ class Dataset4h5(Dataset):
         return img
 
     def rescale(self, value, ranges, to: list):
-        # print("value.ndim =", np.ndim(value))
-        # print('value.shape =', value.shape)
-        # ranges = self.ranges_dict[np.ndim(value)]
-        # if np.ndim(value)==2:
-        #     # print(f"rescale params of shape {value.shape}")
-        #     ranges = \
-        #         {
-        #             0: [4, 6], # ION_Tvir_MIN
-        #             1: [10, 250], # HII_EFF_FACTOR
-        #             # 1: [np.log10(10), np.log10(250)], # HII_EFF_FACTOR
-        #         }
-        #     # value[:,1] = np.log10(value[:,1])
-        # # elif np.ndim(value)==5:  
-        # else:  
-        #     # value = np.array(value)
-        #     # print(f"rescale images of shape {np.shape(value)}")
-        #     ranges = \
-        #         {
-        #             0: [0, 80], # brightness_temp
-        #         }
         # print(f"value.min = {value.min()}, value.max = {value.max()}")
         for i in range(np.shape(value)[1]):
-            value[:,i] = (value[:,i] - ranges[i][0]) / (ranges[i][1]-ranges[i][0])
-            # print(f"i = {i}, value.min = {value[:,i].min()}, value.max = {value[:,i].max()}")
-        value = value * (to[1]-to[0]) + to[0]
+            if to == [0,1]:
+                value[:,i] = (value[:,i] - ranges[i][0]) / (ranges[i][1]-ranges[i][0])
+            elif to == [-1,1]:
+                value[:,i] = (value[:,i] - ranges[i][0]) / ranges[i][1]
+        #value = value * (to[1]-to[0]) + to[0]
         return value 
 
     def __getitem__(self, index):

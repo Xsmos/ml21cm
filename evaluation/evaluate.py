@@ -10,7 +10,7 @@ parent_dir = os.path.abspath(os.path.join(os.getcwd(), '..'))
 print(f"sys.path.append(parent_dir): {parent_dir}")
 sys.path.append(parent_dir)
 
-from load_h5 import Dataset4h5
+from load_h5 import Dataset4h5, ranges_dict
 import matplotlib.pyplot as plt
 import numpy as np
 from torch.utils.data import DataLoader
@@ -44,16 +44,16 @@ import argparse
 multiprocessing.set_start_method('spawn', force=True)
 # print("after spawn")
 
-ranges_dict = dict(
-    params = {
-        0: [4, 6], # ION_Tvir_MIN
-        1: [10, 250], # HII_EFF_FACTOR
-        },
-    images = {
-        0: [-387, 86], # brightness_temp
-        # 0: [-338, 54], # brightness_temp
-        }
-    )
+#ranges_dict = dict(
+#    params = {
+#        0: [4, 6], # ION_Tvir_MIN
+#        1: [10, 250], # HII_EFF_FACTOR
+#        },
+#    images = {
+#        0: [-387, 86], # brightness_temp
+#        # 0: [-338, 54], # brightness_temp
+#        }
+#    )
 
 
 # In[2]:
@@ -292,7 +292,8 @@ def x2Pk(x):
 
 
 def rescale(x, ranges=ranges_dict['images']):
-    x = (x + 1) / 2 * (ranges[0][1]-ranges[0][0]) + ranges[0][0]
+    #x = (x + 1) / 2 * (ranges[0][1]-ranges[0][0]) + ranges[0][0]
+    x = x * ranges[0][1] + ranges[0][0]
     return x
     
 def x2Tb(x):

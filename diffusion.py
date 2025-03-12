@@ -30,7 +30,7 @@ from pathlib import Path
 #print("accelerate:", accelerate.__version__, accelerate.__path__)#, accelerate.__file__)
 from huggingface_hub import create_repo, upload_folder
 
-from load_h5 import Dataset4h5
+from load_h5 import Dataset4h5, ranges_dict
 from context_unet import ContextUnet
 
 from huggingface_hub import notebook_login
@@ -228,16 +228,16 @@ class TrainConfig:
     channel = 1
     img_shape = (channel, HII_DIM, num_redshift) if dim == 2 else (channel, HII_DIM, HII_DIM, num_redshift)
 
-    ranges_dict = dict(
-        params = {
-            0: [4, 6], # ION_Tvir_MIN
-            1: [10, 250], # HII_EFF_FACTOR
-            },
-        images = {
-            # 0: [-338, 54],#[0, 80], # brightness_temp
-            0: [-387, 86],
-            }
-        )
+    #ranges_dict = dict(
+    #    params = {
+    #        0: [4, 6], # ION_Tvir_MIN
+    #        1: [10, 250], # HII_EFF_FACTOR
+    #        },
+    #    images = {
+    #        # 0: [-338, 54],#[0, 80], # brightness_temp
+    #        0: [-387, 86],
+    #        }
+    #    )
 
     num_timesteps = 1000#1000 # 1000, 500; DDPM time steps
     # n_sample = 24 # 64, the number of samples in sampling process
@@ -408,7 +408,7 @@ class DDPM21CM:
                 self.ema_model = copy.deepcopy(self.nn_model.module).eval().requires_grad_(False).to(self.ddpm.device)
                 print(f"🌱 {config.run_name} cuda:{torch.cuda.current_device()}|{self.config.global_rank} initialized ema_model randomly with {sum(x.numel() for x in self.ema_model.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🌱".center(self.config.str_len,'+'))
 
-        self.ranges_dict = config.ranges_dict
+        self.ranges_dict = ranges_dict
         self.scaler = GradScaler()
 
         self.transform_vmap = torch.vmap(self.transform, in_dims=0)
@@ -423,9 +423,10 @@ class DDPM21CM:
             HII_DIM=self.config.HII_DIM, 
             num_redshift=self.config.num_redshift,
             startat=self.config.startat,
+            rescale=True,
             #drop_prob=self.config.drop_prob, 
             dim=self.config.dim,
-            ranges_dict=self.ranges_dict,
+            #ranges_dict=self.ranges_dict,
             num_workers=min_num_workers,
             str_len = self.config.str_len,
             )

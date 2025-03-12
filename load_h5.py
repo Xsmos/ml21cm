@@ -82,8 +82,9 @@ class Dataset4h5(Dataset):
             rescale_start = time()
             self.images = self.rescale(self.images, ranges=ranges_dict['images'], to=[-1,1])
             self.params = self.rescale(self.params, ranges=ranges_dict['params'], to=[0,1])
-            rescale_end = time()
-            print(f"images & params rescaled to [{self.images.min()}, {self.images.max()}] & [{self.params.min()}, {self.params.max()}] after {rescale_end-rescale_start:.3f}s")
+            #rescale_end = time()
+            print(f"images & params rescaled to [{self.images.min():.4f}, {self.images.max():.4f}] (mean={self.images.mean():.4f}, std={self.images.std():.4f}) & [{self.params.min():.4e}, {self.params.max():.4f}] after {time()-rescale_start:.4f}s")
+            #print(f"images & params rescaled to [{self.images.min():.4f}, {self.images.max():.4f}] (mean={self.images.mean():.4f}, median={np.median(self.images):.4f}, std={self.images.std():.4f}) & [{self.params.min():.4e}, {self.params.max():.4f}] after {time()-rescale_start:.4f}s")
 
         # from_numpy_start = time()
         self.len = len(self.params)

@@ -765,7 +765,7 @@ if __name__ == "__main__":
     parser.add_argument("--autocast", type=int, required=False, default=1)
     parser.add_argument("--use_checkpoint", type=int, required=False, default=1)
     parser.add_argument("--dropout", type=float, required=False, default=0)
-    parser.add_argument("--lrate", type=float, required=False, default=1e-4)
+    parser.add_argument("--lrate", type=float, required=False, default=1e-5)
     parser.add_argument("--dim", type=int, required=False, default=3)
     parser.add_argument("--num_redshift", type=int, required=False, default=64)
     parser.add_argument("--num_res_blocks", type=int, required=False, default=1)

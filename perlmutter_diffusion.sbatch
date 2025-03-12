@@ -51,16 +51,16 @@ srun --gpus-per-node=4 --ntasks-per-node=1 --gpu-bind=none torchrun \
         --num_image 1600 \
         --batch_size 2 \
         --num_new_img_per_gpu 8 \
-        --max_num_img_per_gpu 8 \
-        --lrate 1e-5 \
-        --num_redshift 64 \
+        --max_num_img_per_gpu 2 \
+        --num_redshift 1024 \
         --channel_mult 1 1 2 4 \
         --n_epoch 120 \
         --stride 2 2 4 \
-        --num_res_blocks 3 \
+        --num_res_blocks 1 \
         --gradient_accumulation_steps 32 \
         --train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
         #--resume ./outputs/model-N1600-device_count4-node4-36674041-epoch120.pt \
+        #--lrate 1e-5 \
         #--ema 1 \
         #--guide_w 0 \
         #--model_channels 128 \

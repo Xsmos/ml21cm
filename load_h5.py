@@ -36,7 +36,7 @@ ranges_dict = dict(
         },
     images = {
         ## 0: [-338, 54],#[0, 80], # brightness_temp
-        0: [-36.840145, 50.21427],
+        0: [-36.840145, 50.21427 * 2],
         #0: [-387, 86],
         }
     )
@@ -83,7 +83,7 @@ class Dataset4h5(Dataset):
             self.images = self.rescale(self.images, ranges=ranges_dict['images'], to=[-1,1])
             self.params = self.rescale(self.params, ranges=ranges_dict['params'], to=[0,1])
             #rescale_end = time()
-            print(f"images & params rescaled to [{self.images.min():.4f}, {self.images.max():.4f}] (mean={self.images.mean():.4f}, std={self.images.std():.4f}) & [{self.params.min():.4e}, {self.params.max():.4f}] after {time()-rescale_start:.4f}s")
+            print(f"images & params rescaled to [{self.images.min():.4f}, {self.images.max():.4f}] (mean={self.images.mean():.4f}, std={self.images.std():.4f}) & [{self.params.min():.4e}, {self.params.max():.6f}] after {time()-rescale_start:.2f}s")
             #print(f"images & params rescaled to [{self.images.min():.4f}, {self.images.max():.4f}] (mean={self.images.mean():.4f}, median={np.median(self.images):.4f}, std={self.images.std():.4f}) & [{self.params.min():.4e}, {self.params.max():.4f}] after {time()-rescale_start:.4f}s")
 
         # from_numpy_start = time()

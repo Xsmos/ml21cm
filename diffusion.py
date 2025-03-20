@@ -393,20 +393,21 @@ class DDPM21CM:
             checkpoint = torch.load(config.resume, map_location=map_loc)
 
             self.nn_model.module.load_state_dict(checkpoint['unet_state_dict'])
-            self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            self.lr_scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
-            self.start_epoch = checkpoint['epoch'] + 1
-            self.global_step = checkpoint['global_step']
-            print(f"🍀 {config.run_name} cuda:{torch.cuda.current_device()}|{self.config.global_rank} resumed nn_model from {config.resume} with {sum(x.numel() for x in self.nn_model.module.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🍀".center(self.config.str_len,'+'))#, flush=True)
+            if not config.reset_epoch:
+                self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+                self.lr_scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+                self.start_epoch = checkpoint['epoch'] + 1
+                self.global_step = checkpoint['global_step']
+            print(f"🍀 {config.run_name} cuda:{torch.cuda.current_device()}|{self.config.global_rank} resumed nn_model from {config.resume} with {sum(x.numel() for x in self.nn_model.module.parameters())*1e-6:.2f}M parameters 🍀".center(self.config.str_len,'+'))#, flush=True)
             if config.ema:
                 self.ema_model.load_state_dict(checkpoint['ema_unet_state_dict'])
-                print(f"🍀 {config.run_name} cuda:{torch.cuda.current_device()}|{self.config.global_rank} resumed ema_model from {config.resume} with {sum(x.numel() for x in self.ema_model.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🍀".center(self.config.str_len,'+'))
+                print(f"🍀 {config.run_name} cuda:{torch.cuda.current_device()}|{self.config.global_rank} resumed ema_model from {config.resume} with {sum(x.numel() for x in self.ema_model.parameters())*1e-6:.2f}M parameters 🍀".center(self.config.str_len,'+'))
 
         else:
-            print(f"🌱 {config.run_name} cuda:{torch.cuda.current_device()}|{self.config.global_rank} initialized nn_model randomly with {sum(x.numel() for x in self.nn_model.module.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🌱".center(self.config.str_len,'+'))#, flush=True)
+            print(f"🌱 {config.run_name} cuda:{torch.cuda.current_device()}|{self.config.global_rank} initialized nn_model randomly with {sum(x.numel() for x in self.nn_model.module.parameters())*1e-6:.2f}M parameters 🌱".center(self.config.str_len,'+'))#, flush=True)
             if config.ema:
                 self.ema_model = copy.deepcopy(self.nn_model.module).eval().requires_grad_(False).to(self.ddpm.device)
-                print(f"🌱 {config.run_name} cuda:{torch.cuda.current_device()}|{self.config.global_rank} initialized ema_model randomly with {sum(x.numel() for x in self.ema_model.parameters())} parameters, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🌱".center(self.config.str_len,'+'))
+                print(f"🌱 {config.run_name} cuda:{torch.cuda.current_device()}|{self.config.global_rank} initialized ema_model randomly with {sum(x.numel() for x in self.ema_model.parameters())*1e-6:.2f}M parameters 🌱".center(self.config.str_len,'+'))
 
         self.ranges_dict = ranges_dict
         self.scaler = GradScaler()
@@ -756,6 +757,7 @@ if __name__ == "__main__":
     parser.add_argument("--train", type=str, required=False, help="whether to train the model", default=False)
     parser.add_argument("--sample", type=int, required=False, help="whether to sample", default=1)
     parser.add_argument("--resume", type=str, required=False, help="filename of the model to resume", default=False)
+    parser.add_argument("--reset-epoch", "--restart-epoch-zero", action="store_true", help="If set, resumes training from a checkpoint but resets the epoch counter to 0.")
     parser.add_argument("--num_new_img_per_gpu", type=int, required=False, default=4)
     parser.add_argument("--max_num_img_per_gpu", type=int, required=False, default=2)
     parser.add_argument("--gradient_accumulation_steps", type=int, required=False, default=1) # as tested, higher value leads to slower training and higher loss in the end
@@ -795,6 +797,7 @@ if __name__ == "__main__":
     config.dropout = args.dropout
     config.lrate = args.lrate
     config.resume = args.resume
+    config.reset_epoch = args.reset_epoch
     config.guide_w = args.guide_w
     config.ema = args.ema
     #config.sample = args.sample
@@ -831,7 +834,7 @@ if __name__ == "__main__":
         ]
         generate_samples(config, num_new_img_per_gpu, max_num_img_per_gpu, params_pairs)
     else:
-        print(f'os.path.exists(config.resume) = {os.path.exists(config.resume)}')
+        print(f'🆘 os.path.exists({config.resume}) = {os.path.exists(config.resume)} 🆘')
 
     if dist.is_initialized():
         dist.barrier()

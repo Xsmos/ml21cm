@@ -59,7 +59,7 @@ srun --gpus-per-node=4 --ntasks-per-node=1 --gpu-bind=none torchrun \
         --num_res_blocks 1 \
         --gradient_accumulation_steps 16 \
         --train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
-        --resume ./outputs/model-N1600-device_count4-node4-36915598-epoch120.pt \
+        --resume ./outputs/model-N800-device_count4-node8-37041433-epoch120.pt \
         --reset-epoch \
         #--lrate 1e-5 \
         #--ema 1 \

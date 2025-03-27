@@ -866,7 +866,7 @@ if __name__ == '__main__':
     evaluate(
             what = ['grid', 'global_signal', 'power_spectrum', 'scatter_transform'],
             device_count = 4,
-            node = 4,
+            node = 8,
             jobID = args.jobID,
             epoch = 120,
             use_ema = 0,

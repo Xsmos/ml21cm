@@ -123,21 +123,17 @@ vmax = 30#Tb_all.max()
 # print(vmin, vmax)
 cmap = get_eor_cmap(vmin, vmax)
 
-#def plot_grid(samples, c, row=4, col=13, idx=0, los=None, savename=None, figsize=(16, 4.5)): # (64,64)
-#def plot_grid(samples, c, row=8, col=6, idx=0, los=None, savename=None, figsize=(16, 4.5)): # (64,256)
 def plot_grid(samples, c, row=8, col=12, idx=0, los=None, savename=None, figsize=(16, 4.5)): # (64,128)
-    #if samples.shape[-1] == 64:
-    #    row, col = 4, 13
-    #elif samples.shape[-1] == 128:
-    #    row, col = 8, 12
-    #elif samples.shape[-1] == 256:
-    #    row, col = 8, 6
-    #elif samples.shape[-1] == 1024:
-    #    row, col = 9, 2
     print(f"plot_grid: samples.shape = {samples.shape}")
+
     fig, axes = plt.subplots(row, col, figsize=figsize, dpi=100)#, constrained_layout=True)
-    plt.subplots_adjust(wspace=0, hspace=-.15)
+    plt.subplots_adjust(wspace=0, hspace=-0.001)
     axes = axes.flatten()
+
+    for ax in axes[row//2*col:]:  # 选择第 row//2 行的所有列
+        pos = ax.get_position()
+        ax.set_position([pos.x0, pos.y0 - 0.003, pos.width, pos.height])  # 手动下移
+
     #print(samples.shape)
     for i in range(row*col):
         if i >= samples.shape[0]:
@@ -167,12 +163,6 @@ def plot_grid(samples, c, row=8, col=12, idx=0, los=None, savename=None, figsize
     plt.close()
     gc.collect()
     
-# plot_grid(x0, c=c0, los=los)
-# plot_grid(x1, c=c1, los=los)
-# plot_grid(x2, c=c2, los=los)
-# plot_grid(x3, c=c3, los=los)
-# plot_grid(x4, c=c4, los=los)
-
 import cv2
 import glob
 import os
@@ -764,7 +754,7 @@ def plot_scattering_transform_2(x_pairs, params, los, sigma_level=68.27, alpha=0
 
 
 def evaluate(
-    what: List[str] = ['grid', 'global_signal', 'power_spectrum', 'scatter_transform'],
+    what2plot: List[str] = ['grid', 'global_signal', 'power_spectrum', 'scatter_transform'],
     device_count: int = 4,
     node: int = 8,
     jobID: int = 35912978,
@@ -814,7 +804,7 @@ def evaluate(
                 c4[0],
                 ]
 
-        if 'grid' in what:
+        if 'grid' in what2plot:
 
             if x0.shape[-1] == 64:
                 row, col = 4, 13
@@ -831,7 +821,7 @@ def evaluate(
             plot_grid(torch.cat((x3[:row//2 * col], x3_ml), dim=0), c=c3, los=los, savename = save_name, row=row, col=col)
             plot_grid(torch.cat((x4[:row//2 * col], x4_ml), dim=0), c=c4, los=los, savename = save_name, row=row, col=col)
 
-        if 'global_signal' in what:
+        if 'global_signal' in what2plot:
             plot_global_signal(
                     x_pairs = x_pairs,
                     params = params,
@@ -840,7 +830,7 @@ def evaluate(
                     # sigma_level=100,
                     )
 
-        if 'power_spectrum' in what:
+        if 'power_spectrum' in what2plot:
             plot_power_spectrum(
                     x_pairs = x_pairs,
                     params = params,
@@ -849,7 +839,7 @@ def evaluate(
                     # sigma_level=100,
                     )
 
-        if 'scatter_transform' in what:
+        if 'scatter_transform' in what2plot:
             plot_scattering_transform_2(
                     x_pairs = x_pairs,
                     params = params,
@@ -864,7 +854,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     evaluate(
-            what = ['grid', 'global_signal', 'power_spectrum', 'scatter_transform'],
+            what2plot = ['grid', 'global_signal', 'power_spectrum', 'scatter_transform'],
             device_count = 4,
             node = 8,
             jobID = args.jobID,

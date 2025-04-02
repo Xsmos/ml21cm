@@ -3,7 +3,7 @@
 #SBATCH -J diffusion
 #SBATCH -C gpu&hbm80g
 #SBATCH -q regular #debug #shared #
-#SBATCH -N8
+#SBATCH -N4
 #SBATCH --gpus-per-node=4
 #SBATCH --ntasks-per-node=1
 #SBATCH --gpu-bind=none
@@ -16,7 +16,7 @@ cat $0
 mkdir -p logs
 echo "$(printf '%0.s🚥 ' {1..30})"
 
-module load pytorch #/2.0.1
+module load pytorch #/2.3.1
 which python
 which torchrun
 conda env list
@@ -39,6 +39,8 @@ echo SLURM_NNODES=$SLURM_NNODES
 echo SLURM_GPUS_PER_NODE=$SLURM_GPUS_PER_NODE
 echo SLURM_GPUS=$SLURM_GPUS
 echo MASTER_ADDR:MASTER_PORT=$MASTER_ADDR:$MASTER_PORT
+echo SLURM_CPUS_PER_TASK=$SLURM_CPUS_PER_TASK
+echo SLURM_TRES_PER_TASK=$SLURM_TRES_PER_TASK
 #env | grep SLURM_
 echo "$(printf '%0.s🚥 ' {1..30})"
 
@@ -48,18 +50,18 @@ srun --gpus-per-node=4 --ntasks-per-node=1 --gpu-bind=none torchrun \
     --rdzv_backend=c10d \
     --rdzv_endpoint=$MASTER_ADDR:$MASTER_PORT \
     diffusion.py \
-        --num_image 800 \
+        --num_image 1600 \
         --batch_size 2 \
         --num_new_img_per_gpu 2 \
         --max_num_img_per_gpu 2 \
         --num_redshift 1024 \
         --channel_mult 1 1 2 4 \
-        --n_epoch 120 \
+        --n_epoch 60 \
         --stride 2 2 4 \
         --num_res_blocks 1 \
         --gradient_accumulation_steps 16 \
         --train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
-        --resume ./outputs/model-N800-device_count4-node8-37041433-epoch120.pt \
+        --resume ./outputs/model-N800-device_count4-node8-37176406-epoch120.pt \
         --reset-epoch \
         #--lrate 1e-5 \
         #--ema 1 \

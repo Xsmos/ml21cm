@@ -227,12 +227,12 @@ class Dataset4h5(Dataset):
         # images = images.reshape(-1, 1)
 
         if os.path.exists(scale_path):
-            print(f"🍀 cuda:{torch.cuda.current_device()}/{self.global_rank} loading power_transformer from {scale_path} 🍀")
             pt = joblib.load(scale_path)
+            print(f"🍀 cuda:{torch.cuda.current_device()}/{self.global_rank} loaded power_transformer from {scale_path} 🍀")
             images[:] = pt.transform(images)
         else:
-            print(f"🌱 cuda:{torch.cuda.current_device()}/{self.global_rank} fitting power_transformer 🌱")
             pt = PowerTransformer(method='yeo-johnson', standardize=True)
+            print(f"🌱 cuda:{torch.cuda.current_device()}/{self.global_rank} fitting power_transformer 🌱")
             images[:] = pt.fit_transform(images)
             joblib.dump(pt, scale_path)
 

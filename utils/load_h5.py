@@ -89,7 +89,7 @@ class Dataset4h5(Dataset):
             self.images = self.ImagesScaler(self.images, scale_path=scale_path)
             # self.images = self.MinMaxScaler(self.images, ranges=ranges_dict['images'], to=[-1,1])
             #scale_end = time()
-            print(f"images & params scaled to [{self.images.min():.4f}, {self.images.max():.4f}] (mean={self.images.mean():.4f}, std={self.images.std():.4f}) & [{self.params.min():.4e}, {self.params.max():.6f}] after {time()-scale_start:.2f}s")
+            print(f"images & params scaled to [{self.images.min():.4f}, {self.images.max():.4f}] (mean={self.images.mean():.4f}, median={np.median(self.images):.4f}, std={self.images.std():.4f}) & [{self.params.min():.4e}, {self.params.max():.6f}] after {time()-scale_start:.2f}s")
 
         # from_numpy_start = time()
         self.len = len(self.params)

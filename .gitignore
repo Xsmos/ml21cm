@@ -14,4 +14,4 @@ data/
 error-*
 logs/
 wandb/
-evaluation/*.png
+*.png

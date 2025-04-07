@@ -26,6 +26,9 @@ from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 from matplotlib.legend_handler import HandlerLine2D, HandlerTuple
 from kymatio.torch import Scattering2D
+from sklearn.preprocessing import PowerTransformer
+import joblib
+
 import gc
 # print("before summary writer")
 # from torch.utils.tensorboard import SummaryWriter
@@ -59,10 +62,10 @@ multiprocessing.set_start_method('spawn', force=True)
 # In[2]:
 
 
-def load_h5_as_tensor(dir_name='LEN128-DIM64-CUB8.h5', num_image=256, num_redshift=32, HII_DIM=64, rescale=False, dim=3, startat=0):
+def load_h5_as_tensor(dir_name='LEN128-DIM64-CUB8.h5', num_image=256, num_redshift=32, HII_DIM=64, scale_path=False, dim=3, startat=0):
     # print("dataset = Dataset4h5(")
     dir_name = os.path.join(os.environ['SCRATCH'], dir_name)
-    dataset = Dataset4h5(dir_name, num_image=num_image, num_redshift=num_redshift, HII_DIM=HII_DIM, rescale=rescale, dim=dim, startat=startat)
+    dataset = Dataset4h5(dir_name, num_image=num_image, num_redshift=num_redshift, HII_DIM=HII_DIM, scale_path=scale_path, dim=dim, startat=startat)
 
     # print("with h5py.File(dir_name)")
     with h5py.File(dir_name) as f:
@@ -281,10 +284,10 @@ def x2Pk(x):
     return k_vals, Pk_vals_all
 
 
-def rescale(x, ranges=ranges_dict['images']):
-    #x = (x + 1) / 2 * (ranges[0][1]-ranges[0][0]) + ranges[0][0]
-    x = x * ranges[0][1] + ranges[0][0]
-    return x
+# def rescale(x, ranges=ranges_dict['images']):
+#     #x = (x + 1) / 2 * (ranges[0][1]-ranges[0][0]) + ranges[0][0]
+#     x = x * ranges[0][1] + ranges[0][0]
+#     return x
     
 def x2Tb(x):
     #print('x.shape =', x.shape, 'x.ndim =', x.ndim)
@@ -311,7 +314,9 @@ def load_x_ml(fname_pattern0, fname_pattern1, ema = 0):
         x_ml.append(data)
 
     x_ml = np.concatenate(x_ml, axis=0)
-    x_ml = rescale(x_ml)
+    pt = joblib.load(f"../utils/power_transformer.pkl")
+    x_ml = pt.inverse_transform(x_ml)
+    # x_ml = rescale(x_ml)
     x_ml = torch.from_numpy(x_ml)
     print(f"loaded x_ml.shape = {x_ml.shape}")
     return x_ml

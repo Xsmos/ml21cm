@@ -256,7 +256,7 @@ class TrainConfig:
     # device = "cuda" if torch.cuda.is_available() else "cpu"
     lrate = 1e-4
     lr_warmup_steps = 0#5#00
-    output_dir = "./outputs/"
+    output_dir = "./training/outputs/"
     save_name = os.path.join(output_dir, 'model')
     # save_period = 1 #10 # the period of saving model
     # cond = True # if training using the conditional information

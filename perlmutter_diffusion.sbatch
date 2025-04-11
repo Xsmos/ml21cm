@@ -8,12 +8,12 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --gpu-bind=none
 #SBATCH -t 48:00:00
-#SBATCH -o logs/%x-%j
+#SBATCH -o training/logs/%x-%j
 #SBATCH --mail-type=BEGIN,END,FAIL
 
+mkdir -p training/logs
 date
 cat $0
-mkdir -p logs
 echo "$(printf '%0.s🚥 ' {1..30})"
 
 module load pytorch/2.3.1

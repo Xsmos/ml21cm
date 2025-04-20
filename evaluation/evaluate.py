@@ -10,7 +10,7 @@ parent_dir = os.path.abspath(os.path.join(os.getcwd(), '..'))
 print(f"sys.path.append(parent_dir): {parent_dir}")
 sys.path.append(parent_dir)
 
-from load_h5 import Dataset4h5, ranges_dict
+from utils.load_h5 import Dataset4h5, ranges_dict
 import matplotlib.pyplot as plt
 import numpy as np
 from torch.utils.data import DataLoader
@@ -297,10 +297,10 @@ def x2Tb(x):
         Tb = x[:,0].mean(axis=(1,2))
     return Tb
 
-def load_x_ml(fname_pattern0, fname_pattern1, ema = 0):
+def load_x_ml(fname_pattern0, fname_pattern1, ema = 0, outputs_dir = "../training/outputs"):
     # num = 7200
     x_ml = []
-    fnames = [fname for fname in os.listdir("../outputs") if fname_pattern0 in fname and fname_pattern1 in fname and f'-ema{ema}' in fname]
+    fnames = [fname for fname in os.listdir(outputs_dir) if fname_pattern0 in fname and fname_pattern1 in fname and f'-ema{ema}' in fname]
     print("fname pattern:", fname_pattern0, fname_pattern1, "; len(fnames) =", len(fnames), ";\nfnames[0] =", fnames[0])
     # print("fname:",fnames)
     # print()
@@ -309,15 +309,16 @@ def load_x_ml(fname_pattern0, fname_pattern1, ema = 0):
     #        continue
     #    if not ema and 'ema1' in fname:
     #        continue
-        data = np.load(os.path.join("../outputs", fname))
+        data = np.load(os.path.join(outputs_dir, fname))
         # print(fname)
         x_ml.append(data)
 
     x_ml = np.concatenate(x_ml, axis=0)
-    pt = joblib.load(f"../utils/power_transformer.pkl")
-    x_ml = pt.inverse_transform(x_ml)
+    pt = joblib.load(f"../utils/power_transformer_25600.pkl")
+    original_shape = x_ml.shape
+    x_ml = pt.inverse_transform(x_ml.reshape(-1, original_shape[-1]))
     # x_ml = rescale(x_ml)
-    x_ml = torch.from_numpy(x_ml)
+    x_ml = torch.from_numpy(x_ml.reshape(*original_shape))
     print(f"loaded x_ml.shape = {x_ml.shape}")
     return x_ml
 

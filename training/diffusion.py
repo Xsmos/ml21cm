@@ -430,6 +430,7 @@ class DDPM21CM:
             #ranges_dict=self.ranges_dict,
             num_workers=min_num_workers,
             str_len = self.config.str_len,
+            squish = self.config.squish,
             )
 
         dataloader_start = time()
@@ -469,6 +470,26 @@ class DDPM21CM:
         #torch.distributed.breakpoint()
         return img
 
+    def squish(self, x, Ak):
+        start_time = time()
+        A, k = Ak
+        if k == 0:
+            y = A * x
+        else:
+            y = A * torch.tanh(x/k)
+        #print(f"squish = {Ak}; cuda:{torch.cuda.current_device()}|{self.config.global_rank}; {time()-start_time:.3f} sec")
+        return y
+
+    def inverse_squish(self, y, Ak):
+        start_time = time()
+        A, k = Ak
+        if k == 0:
+            x = 1/A * y
+        else:
+            x = k * np.arctanh(y/A)
+        print(f"inverse_squish = {Ak}: {time()-start_time:.3f} sec, {y.min()=}, {y.max()=}, {x.min()=}, {x.max()=}")
+        return x
+
     def train(self):
         ###################      
         ## training loop ##
@@ -503,8 +524,8 @@ class DDPM21CM:
 
             for i, (x, c) in enumerate(self.dataloader):
                 x = self.transform_vmap(x)
-
                 x = x.to(self.config.device)#.to(self.config.dtype)
+                x = self.squish(x, Ak=self.config.squish)
                 # autocast forward propogation
                 with autocast(enabled=self.config.autocast):
                     xt, noise, ts = self.ddpm.add_noise(x)
@@ -639,15 +660,20 @@ class DDPM21CM:
                     nn_model=self.nn_model.module, 
                     params=params_normalized.to(self.config.device), 
                     device=self.config.device, 
-                    guide_w=self.config.guide_w
+                    guide_w=self.config.guide_w,
                     )
+                x_last = self.inverse_squish(x_last, self.config.squish)
+                #x_entire = self.inverse_squish(x_entire, self.config.squish)
+
                 if self.config.ema:
                     x_last_ema, x_entire_ema = self.ddpm.sample(
                         nn_model=self.ema_model, 
                         params=params_normalized.to(self.config.device), 
                         device=self.config.device, 
-                        guide_w=self.config.guide_w
+                        guide_w=self.config.guide_w,
                         )
+                    x_last_ema = self.inverse_squish(x_last_ema, self.config.squish)
+                    #x_entire_ema = self.inverse_squish(x_entire_ema, self.config.squish)
 
         if save:    
             # np.save(os.path.join(self.config.output_dir, f"{self.config.run_name}{'ema' if ema else ''}.npy"), x_last)
@@ -774,6 +800,7 @@ if __name__ == "__main__":
     parser.add_argument("--num_res_blocks", type=int, required=False, default=1)
     parser.add_argument("--model_channels", type=int, required=False, default=128)
     parser.add_argument("--stride", type=int, nargs="+", required=False, default=(2,2,1))
+    parser.add_argument("--squish", type=float, nargs="+", required=False, default=(1,1))
     parser.add_argument("--guide_w", type=int, required=False, default=0)
     parser.add_argument("--ema", type=int, required=False, default=0)
     parser.add_argument("--scale_path", required=True, type=str, help="scale for the model")
@@ -808,6 +835,8 @@ if __name__ == "__main__":
     config.dim = len(config.stride) #args.dim
     #print(config.stride, config.dim)
     config.num_redshift = args.num_redshift
+    config.squish = args.squish
+
     config.img_shape = (config.channel, config.HII_DIM, config.num_redshift) if config.dim == 2 else (config.channel, config.HII_DIM, config.HII_DIM, config.num_redshift)
     config.num_res_blocks = args.num_res_blocks
 

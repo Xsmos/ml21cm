@@ -64,6 +64,7 @@ class Dataset4h5(Dataset):
         startat=0,
         # shuffle=False,
         str_len = 120,
+        squish = [1,1],
         ):
         super().__init__()
         
@@ -86,14 +87,14 @@ class Dataset4h5(Dataset):
         if scale_path:
             scale_start = time()
             self.params = self.MinMaxScaler(self.params, ranges=ranges_dict['params'], to=[0,1])
-            self.images = self.ImagesScaler(self.images, scale_path=scale_path)
+            self.images = self.ImagesScaler(self.images, scale_path=scale_path, squish=squish)
             # self.images = self.MinMaxScaler(self.images, ranges=ranges_dict['images'], to=[-1,1])
             #scale_end = time()
-            print(f"images & params scaled to [{self.images.min():.4f}, {self.images.max():.4f}] (mean={self.images.mean():.4f}, median={np.median(self.images):.4f}, std={self.images.std():.4f}) & [{self.params.min():.4e}, {self.params.max():.6f}] after {time()-scale_start:.2f}s")
+            print(f"images & params scaled to [{self.images.min():.4f}, {self.images.max():.4f}] (mean={self.images.mean():.4f}, median={torch.median(self.images):.4f}, std={self.images.std():.4f}) & [{self.params.min():.4e}, {self.params.max():.6f}] after {time()-scale_start:.2f}s")
 
         # from_numpy_start = time()
         self.len = len(self.params)
-        self.images = torch.from_numpy(self.images)
+        #self.images = torch.from_numpy(self.images)
         # from_numpy_end = time()
         # print(f"torch.from_numpy costs {from_numpy_end-from_numpy_start:.3f} s")
 
@@ -221,23 +222,31 @@ class Dataset4h5(Dataset):
         #value = value * (to[1]-to[0]) + to[0]
         return value 
     
-    def ImagesScaler(self, images, scale_path):
+    #def squish(self, x, Ak=[1,1]):
+    #    #print(f"squish = {Ak}")
+    #    A, k = Ak
+    #    if k == 0:
+    #        return A * x
+    #    else:
+    #        return A * torch.tanh(x/k)
+
+    def ImagesScaler(self, images, scale_path, squish):
         original_shape = images.shape
         images = images.reshape(-1, original_shape[-1])
         # images = images.reshape(-1, 1)
-
+        start_time = time()
         if os.path.exists(scale_path):
             pt = joblib.load(scale_path)
-            print(f"🍀 cuda:{torch.cuda.current_device()}/{self.global_rank} loaded power_transformer from {scale_path} 🍀")
             images[:] = pt.transform(images)
+            print(f"🍀 cuda:{torch.cuda.current_device()}/{self.global_rank} scaled by power_transformer loaded from {scale_path} after {time()-start_time:.3f} sec 🍀")
         else:
             pt = PowerTransformer(method='yeo-johnson', standardize=True)
-            print(f"🌱 cuda:{torch.cuda.current_device()}/{self.global_rank} fitting power_transformer 🌱")
             images[:] = pt.fit_transform(images)
+            print(f"🌱 cuda:{torch.cuda.current_device()}/{self.global_rank} fitted power_transformer after {time()-start_time:.3f} sec 🌱")
             joblib.dump(pt, scale_path)
 
-        images = images.reshape(*original_shape)
-        return images
+        images = torch.from_numpy(images.reshape(*original_shape))
+        return images #self.squish(images, Ak=squish)
 
     def __getitem__(self, index):
         return self.images[index], self.params[index]

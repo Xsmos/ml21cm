@@ -862,8 +862,8 @@ if __name__ == '__main__':
     evaluate(
             what2plot = ['grid', 'global_signal', 'power_spectrum', 'scatter_transform'],
             device_count = 4,
-            node = 8,
+            node = 4,
             jobID = args.jobID,
-            epoch = 120,
+            epoch = 60,
             use_ema = 0,
             )

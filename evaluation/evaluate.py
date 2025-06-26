@@ -262,12 +262,13 @@ def x2Pk(x):
     print(f"x2Pk, x.shape = {x.shape}")
     Pk_vals_all = []
     for i in range(x.shape[0]):
+        startat=512
         if x.ndim == 4:
             # density_field = x[i,0,:,x.shape[-1]//2:x.shape[-1]//2+64]
-            density_field = x[i,0,:,:64]
+            density_field = x[i,0,:,startat:startat+64]
         elif x.ndim == 5:
             # density_field = x[i,0,:,:,x.shape[-1]//2:x.shape[-1]//2+64]
-            density_field = x[i,0,:,:,:64]
+            density_field = x[i,0,:,0,startat:startat+64]
         if density_field.ndim == 3:
             Nx, Ny, Nz = density_field.shape
             box_size = 128#(128.0, 128.0, 1024.0) #512#
@@ -575,12 +576,13 @@ def calculate_reduced_S2(x_pairs, params, J=5, L=4, M=64, N=64):
     for i, (x0, x1) in enumerate(x_pairs):
         #print(f"#{i}: x0.shape = {x0.shape}, x1.shape = {x1.shape}")
         # get jthetas and S
+        startat=512
         if x0.ndim == 4:
-            x0 = x0[...,:64]
-            x1 = x1[...,:64]
+            x0 = x0[...,startat:startat+64]
+            x1 = x1[...,startat:startat+64]
         elif x0.ndim == 5:
-            x0 = x0[...,0,:64]
-            x1 = x1[...,0,:64]
+            x0 = x0[...,0,startat:startat+64]
+            x1 = x1[...,0,startat:startat+64]
 
         if i == 0:
             S = Scattering2D(J, (M, N), L=L, out_type='list').to(device)

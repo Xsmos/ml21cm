@@ -53,7 +53,7 @@ srun --gpus-per-node=$SLURM_GPUS_ON_NODE --ntasks-per-node=1 --gpu-bind=none tor
     training/diffusion.py \
         --num_image 800 \
         --batch_size 2 \
-        --num_new_img_per_gpu 2 \
+        --num_new_img_per_gpu 4 \
         --max_num_img_per_gpu 2 \
         --num_redshift 1024 \
         --channel_mult 1 1 2 4 \
@@ -75,4 +75,5 @@ srun --gpus-per-node=$SLURM_GPUS_ON_NODE --ntasks-per-node=1 --gpu-bind=none tor
         #--use_checkpoint 1 \
         #--dropout 0 \
 
+date
 sacct -j $SLURM_JOB_ID --format=JobID,JobName,Start,End,Elapsed

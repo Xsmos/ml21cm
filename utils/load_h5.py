@@ -28,7 +28,7 @@ import psutil
 # from accelerate import notebook_launcher, Accelerator
 # from huggingface_hub import create_repo, upload_folder
 import socket
-from sklearn.preprocessing import PowerTransformer
+from sklearn.preprocessing import PowerTransformer, QuantileTransformer
 import joblib
 # import json
 # from scipy import stats
@@ -230,23 +230,51 @@ class Dataset4h5(Dataset):
     #    else:
     #        return A * torch.tanh(x/k)
 
+
     def ImagesScaler(self, images, scale_path, squish):
         original_shape = images.shape
         images = images.reshape(-1, original_shape[-1])
-        # images = images.reshape(-1, 1)
         start_time = time()
-        if os.path.exists(scale_path):
-            pt = joblib.load(scale_path)
-            images[:] = pt.transform(images)
-            print(f"🍀 cuda:{torch.cuda.current_device()}/{self.global_rank} scaled by power_transformer loaded from {scale_path} after {time()-start_time:.3f} sec 🍀")
+    
+        # 根据 scale_path 中的关键词决定使用哪种 transformer
+        if "PowerTransformer" in scale_path:
+            transformer_cls = PowerTransformer
+            transformer_args = dict(method='yeo-johnson', standardize=True)
+        elif "QuantileTransformer" in scale_path:
+            transformer_cls = QuantileTransformer
+            transformer_args = dict(output_distribution='normal', random_state=0, subsample=int(2e6))
         else:
-            pt = PowerTransformer(method='yeo-johnson', standardize=True)
-            images[:] = pt.fit_transform(images)
-            print(f"🌱 cuda:{torch.cuda.current_device()}/{self.global_rank} fitted power_transformer after {time()-start_time:.3f} sec 🌱")
-            joblib.dump(pt, scale_path)
-
+            raise ValueError("scale_path 必须包含 'PowerTransformer' 或 'QuantileTransformer' 以决定使用哪种归一化方法。")
+    
+        if os.path.exists(scale_path):
+            preprocessor = joblib.load(scale_path)
+            images[:] = preprocessor.transform(images)
+            print(f"🍀 cuda:{torch.cuda.current_device()}/{self.global_rank} scaled by {scale_path} after {time()-start_time:.3f} sec 🍀")
+        else:
+            preprocessor = transformer_cls(**transformer_args)
+            images[:] = preprocessor.fit_transform(images)
+            print(f"🌱 cuda:{torch.cuda.current_device()}/{self.global_rank} fitted {scale_path} after {time()-start_time:.3f} sec 🌱")
+            joblib.dump(preprocessor, scale_path)
+    
         images = torch.from_numpy(images.reshape(*original_shape))
-        return images #self.squish(images, Ak=squish)
+        return images
+    
+    # def ImagesScaler(self, images, scale_path, squish):
+    #     original_shape = images.shape
+    #     images = images.reshape(-1, original_shape[-1])
+    #     start_time = time()
+    #     if os.path.exists(scale_path):
+    #         preprocessor = joblib.load(scale_path)
+    #         images[:] = preprocessor.transform(images)
+    #         print(f"🍀 cuda:{torch.cuda.current_device()}/{self.global_rank} scaled by power_transformer loaded from {scale_path} after {time()-start_time:.3f} sec 🍀")
+    #     else:
+    #         preprocessor = PowerTransformer(method='yeo-johnson', standardize=True)
+    #         images[:] = preprocessor.fit_transform(images)
+    #         print(f"🌱 cuda:{torch.cuda.current_device()}/{self.global_rank} fitted power_transformer after {time()-start_time:.3f} sec 🌱")
+    #         joblib.dump(preprocessor, scale_path)
+
+    #     images = torch.from_numpy(images.reshape(*original_shape))
+    #     return images
 
     def __getitem__(self, index):
         return self.images[index], self.params[index]

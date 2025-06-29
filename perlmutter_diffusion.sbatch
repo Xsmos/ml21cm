@@ -1,5 +1,4 @@
 #!/bin/bash
-#SBATCH -A m4717 
 #SBATCH -J diffusion
 #SBATCH -C gpu&hbm80g
 #SBATCH -q regular #debug #shared #
@@ -16,7 +15,7 @@ date
 cat $0
 echo "$(printf '%0.s🚥 ' {1..30})"
 
-module load pytorch/2.3.1
+module load pytorch #/2.3.1
 which python
 which torchrun
 conda env list
@@ -63,9 +62,10 @@ srun --gpus-per-node=$SLURM_GPUS_ON_NODE --ntasks-per-node=1 --gpu-bind=none tor
         --gradient_accumulation_steps 16 \
         --train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
         --reset-epoch \
-        --scale_path "./utils/PowerTransformer_25600.pkl" \
-        --squish 0.25 2 \
+        --squish 1 0 \
         --resume ./training/outputs/model-N800-device_count4-node8-38521645-epoch120.pt \
+        --scale_path "./utils/QuantileTransformer_25600.pkl" \
+        #--scale_path "./utils/PowerTransformer_25600.pkl" \
         #--lrate 1e-5 \
         #--ema 1 \
         #--guide_w 0 \

@@ -344,6 +344,7 @@ def plot_global_signal(x_pairs, params, los, sigma_level=68.27, alpha=0.2, inter
         ax[0].errorbar(los[1,:Tb0_perc.shape[-1]][::interval], y1[::interval], yerr=[yerr_lower[::interval], yerr_upper[::interval]], linestyle='-', c=f"C{i}", marker='|', markersize=1, linewidth=lw)#, label='diffusion')
 
         ax[0].plot(los[1,:Tb0_perc.shape[-1]], y0, linestyle=':', c=f"C{i}", lw=3*lw)
+        #print(f"⚠️ {i=}; {Tb0_perc.shape[-1]=}; {y0.shape=}; {y1.shape=}; {y0[-1]=}; {y1[-1]=}; {np.isnan(y0).sum()=}; {np.isnan(y1).sum()=}")
         ax[1].plot(los[1,:Tb0_perc.shape[-1]][abs(y0)>y_eps], ((y1-y0)/abs(y0))[abs(y0)>y_eps], label=f'{np.array(params[i])}', c=f"C{i}", lw=lw)
 
         sigma0 = 0.5*(Tb0_perc[1]-Tb0_perc[0])
@@ -352,6 +353,7 @@ def plot_global_signal(x_pairs, params, los, sigma_level=68.27, alpha=0.2, inter
         
         ax[3].plot(los[1,:Tb0_perc.shape[-1]][sigma0>1.5*y_eps], (sigma1/sigma0-1)[sigma0>1.5*y_eps], c=f"C{i}", lw=lw)
 
+    #ax[0].set_yscale('symlog')
     ax[0].set_ylabel(r'$\langle T_b \rangle$ [mK]')
     ax[0].grid()
     

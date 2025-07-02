@@ -41,8 +41,7 @@ echo SLURM_GPUS_ON_NODE=$SLURM_GPUS_ON_NODE
 echo MASTER_ADDR:MASTER_PORT=$MASTER_ADDR:$MASTER_PORT
 echo SLURM_CPUS_PER_TASK=$SLURM_CPUS_PER_TASK
 echo SLURM_TRES_PER_TASK=$SLURM_TRES_PER_TASK
-#env | grep SLURM_
-#echo SLURM_GPUS=$SLURM_GPUS
+
 echo "$(printf '%0.s🚥 ' {1..30})"
 srun --gpus-per-node=$SLURM_GPUS_ON_NODE --ntasks-per-node=1 --gpu-bind=none torchrun \
     --nnodes=$SLURM_NNODES \

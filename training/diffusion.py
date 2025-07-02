@@ -82,95 +82,71 @@ def ddp_setup():
     torch.cuda.set_device(local_rank)
     #return local_rank, global_rank, world_size 
 
+def cosine_beta_schedule(beta_1, beta_T, timesteps, s=0.008):
+    steps = timesteps + 1
+    x = torch.linspace(0, timesteps, steps)
+    alphas_cumprod = torch.cos(((x / timesteps) + s) / (1 + s) * math.pi * 0.5) ** 2
+    alphas_cumprod = alphas_cumprod / alphas_cumprod[0]  # normalize
+    betas = 1 - (alphas_cumprod[1:] / alphas_cumprod[:-1])
+    return torch.clip(betas, beta_1, beta_T)
+    #return torch.clip(betas, 0.0001, 0.9999)
+
 class DDPMScheduler(nn.Module):
     def __init__(self, betas: tuple, num_timesteps: int, img_shape: list, device='cpu', config=None):#, dtype=torch.float16,
         super().__init__()
-        #self.dtype = dtype#torch.float16 if self.use_fp16 else torch.float32
         
         beta_1, beta_T = betas
         assert 0 < beta_1 <= beta_T <= 1, "ensure 0 < beta_1 <= beta_T <= 1"
         self.device = device
         self.num_timesteps = num_timesteps
         self.img_shape = img_shape
-        self.beta_t = torch.linspace(beta_1, beta_T, self.num_timesteps) #* (beta_T-beta_1) + beta_1
-        #self.beta_t = self.beta_t.to(self.dtype)
-        self.beta_t = self.beta_t.to(self.device)
+        self.beta_t = cosine_beta_schedule(beta_1, beta_T, self.num_timesteps).to(self.device)
+        #self.beta_t = torch.linspace(beta_1, beta_T, self.num_timesteps) #* (beta_T-beta_1) + beta_1
+        #self.beta_t = self.beta_t.to(self.device)
 
-        # self.drop_prob = drop_prob
-        # self.cond = cond
         self.alpha_t = 1 - self.beta_t
-        # self.bar_alpha_t = torch.exp(torch.cumsum(torch.log(self.alpha_t), dim=0))
         self.bar_alpha_t = torch.cumprod(self.alpha_t, dim=0)
-        # self.use_fp16 = use_fp16
         self.config = config
 
     def add_noise(self, clean_images):
         shape = clean_images.shape
         expand = torch.ones(len(shape)-1, dtype=int)
-        # ts_expand = ts.view(ts.shape[0], *expand.tolist())
-        # expand = [1 for i in range(len(shape)-1)]
 
         noise = torch.randn_like(clean_images).to(self.device)
         ts = torch.randint(0, self.num_timesteps, (shape[0],)).to(self.device)
                 
-        # test_expand = test.view(test.shape[0],*expand)
-        # extend_dim = [None for i in range(shape.dim()-1)]
         noisy_images = (
             clean_images * torch.sqrt(self.bar_alpha_t[ts]).view(shape[0], *expand.tolist())
             + noise * torch.sqrt(1-self.bar_alpha_t[ts]).view(shape[0], *expand.tolist())
             )
-        # print(x_t.shape)
 
         return noisy_images, noise, ts
 
     def sample(self, nn_model, params, device, guide_w = 0):
         n_sample = len(params) #params.shape[0]
-        # print("params.shape[0], len(params)", params.shape[0], len(params))
         x_i = torch.randn(n_sample, *self.img_shape)#.to(self.dtype)
         x_i = x_i.to(device)
-        #print(f"#1 x_i.device = {x_i.device}")
-        # print("x_i.shape =", x_i.shape)
-        # print("x_i.shape =", x_i.shape)
         if guide_w != -1:
             c_i = params
-            #uncond_tokens = torch.zeros(int(n_sample), params.shape[1]).to(device)
-            # uncond_tokens = torch.tensor(np.float32(np.array([0,0]))).to(device)
-            # uncond_tokens = uncond_tokens.repeat(int(n_sample),1)
-            #c_i = torch.cat((c_i, uncond_tokens), 0)
-            #c_i = c_i.to(self.dtype)
 
         x_i_entire = [] # keep track of generated steps in case want to plot something
-        # print("self.num_timesteps =", self.num_timesteps)
-        # for i in range(self.num_timesteps, 0, -1):
-        # print(f'sampling!!!')
 
         pbar_sample = tqdm(total=self.num_timesteps, file=sys.stderr, disable=True)
         pbar_sample.set_description(f"cuda:{torch.cuda.current_device()}|{self.config.global_rank} sampling")
         for i in reversed(range(0, self.num_timesteps)):
-            # print(f'sampling timestep {i:4d}',end='\r')
             t_is = torch.tensor([i]).to(device)
             t_is = t_is.repeat(n_sample)
-            #t_is = t_is.to(self.dtype)
 
             z = torch.randn(n_sample, *self.img_shape).to(device) if i > 0 else torch.tensor(0.)
-            #z = z.to(self.dtype)
 
             if guide_w == -1:
-                # eps = nn_model(x_i, t_is, return_dict=False)[0]
                 eps = nn_model(x_i, t_is)#.to(self.dtype)
-                # x_i = 1/torch.sqrt(self.alpha_t[i])*(x_i-eps*self.beta_t[i]/torch.sqrt(1-self.bar_alpha_t[i])) + torch.sqrt(self.beta_t[i])*z
             else:
                 eps = nn_model(x_i, t_is, c_i)#.to(self.dtype)
-            # print("x_i.shape =", x_i.shape)
-            #print(f"before, x_i.dtype = {x_i.dtype}, beta_t.dtype = {self.beta_t.dtype}, eps.dtype = {eps.dtype}, alpha_t.dtype = {self.alpha_t.dtype}, z.dtype = {z.dtype}")
             x_i = 1/torch.sqrt(self.alpha_t[i])*(x_i-eps*self.beta_t[i]/torch.sqrt(1-self.bar_alpha_t[i])) + torch.sqrt(self.beta_t[i])*z
-            #print(f"after, x_i.dtype = {x_i.dtype}, beta_t.dtype = {self.beta_t.dtype}, eps.dtype = {eps.dtype}, alpha_t.dtype = {self.alpha_t.dtype}, z.dtype = {z.dtype}")
 
             pbar_sample.update(1)
             
-            # store only part of the intermediate steps
-            # if i%20==0:# or i==0:# or i<8:
-            #     x_i_entire.append(x_i.detach().cpu().numpy())
         x_i_entire = np.array(x_i_entire)
         x_i = x_i.detach().cpu().numpy()
         return x_i, x_i_entire
@@ -339,7 +315,8 @@ def get_gpu_info(device):
 class DDPM21CM:
     def __init__(self, config):
         self.config = config
-        self.ddpm = DDPMScheduler(betas=(1e-4, 0.02), num_timesteps=config.num_timesteps, img_shape=config.img_shape, device=config.device, config=config,)#, dtype=config.dtype
+        self.ddpm = DDPMScheduler(betas=(0.0001, 0.9999), num_timesteps=config.num_timesteps, img_shape=config.img_shape, device=config.device, config=config,)#, dtype=config.dtype
+        #self.ddpm = DDPMScheduler(betas=(1e-4, 0.02), num_timesteps=config.num_timesteps, img_shape=config.img_shape, device=config.device, config=config,)#, dtype=config.dtype
 
         # initialize the unet
         self.nn_model = ContextUnet(

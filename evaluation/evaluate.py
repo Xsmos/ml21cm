@@ -325,6 +325,8 @@ def load_x_ml(fname_pattern0, fname_pattern1, ema = 0, outputs_dir = "../trainin
 
 
 def plot_global_signal(x_pairs, params, los, sigma_level=68.27, alpha=0.2, interval = 10, lw = 0.6, y_eps = 0.2, savename=None):
+    low = (100 - sigma) / 2
+    high = 100 - low
     fig, ax = plt.subplots(4,1, sharex=True, figsize=(8,6), dpi=100, gridspec_kw={'height_ratios': [1.5,.5,.5,.5]})
     
     for i, (x0, x1) in enumerate(x_pairs):
@@ -335,10 +337,10 @@ def plot_global_signal(x_pairs, params, los, sigma_level=68.27, alpha=0.2, inter
         y0 = np.median(Tb0, axis=0)
         y1 = np.median(Tb1, axis=0)
 
-        Tb0_perc = np.percentile(Tb0, [100-sigma_level, sigma_level], axis=0)
+        Tb0_perc = np.percentile(Tb0, [low, high], axis=0)
         ax[0].fill_between(los[1,:Tb0_perc.shape[-1]], Tb0_perc[0], Tb0_perc[1], alpha=alpha, facecolor=f"C{i}", edgecolor='black')
         # ax[0].plot(los[1], Tb0[:4].T, lw=0.5)
-        Tb1_perc = np.percentile(Tb1, [100-sigma_level, sigma_level], axis=0)
+        Tb1_perc = np.percentile(Tb1, [low, high], axis=0)
         yerr_lower = y1 - Tb1_perc[0]
         yerr_upper = Tb1_perc[1] - y1
         ax[0].errorbar(los[1,:Tb0_perc.shape[-1]][::interval], y1[::interval], yerr=[yerr_lower[::interval], yerr_upper[::interval]], linestyle='-', c=f"C{i}", marker='|', markersize=1, linewidth=lw)#, label='diffusion')
@@ -422,7 +424,8 @@ def plot_global_signal(x_pairs, params, los, sigma_level=68.27, alpha=0.2, inter
 
 
 def plot_power_spectrum(x_pairs, params, los, sigma_level=68.27, alpha=0.2, redshift=None, savename=None):
-    
+    low = (100 - sigma) / 2
+    high = 100 - low
     fig, ax = plt.subplots(4,1, sharex=True, figsize=(8,6), dpi=100)
     
     for i, (x0, x1) in enumerate(x_pairs):
@@ -431,12 +434,12 @@ def plot_power_spectrum(x_pairs, params, los, sigma_level=68.27, alpha=0.2, reds
         y0 = np.median(Pk0, axis=0)
         y1 = np.median(Pk1, axis=0)
         
-        Pk0_perc = np.percentile(Pk0, [100-sigma_level, sigma_level], axis=0)
+        Pk0_perc = np.percentile(Pk0, [low, high], axis=0)
         ax[0].fill_between(k_vals, Pk0_perc[0], Pk0_perc[1], alpha=alpha, facecolor=f"C{i}", edgecolor='black')
 
         ax[0].plot(k_vals, y0, linestyle=':', c=f"C{i}")#, label='sim')
 
-        Pk1_perc = np.percentile(Pk1, [100-sigma_level, sigma_level], axis=0)
+        Pk1_perc = np.percentile(Pk1, [low, high], axis=0)
         yerr_lower = y1 - Pk1_perc[0]
         yerr_upper = Pk1_perc[1] - y1
         ax[0].errorbar(k_vals, y1, yerr=[yerr_lower, yerr_upper], linestyle='-', c=f"C{i}", marker='|', markersize=1, linewidth=1)#, label='diffusion')
@@ -663,6 +666,8 @@ def average_S2_over_l(x_pairs, params, J, L, M, N):
 
 
 def plot_scattering_transform_2(x_pairs, params, los, sigma_level=68.27, alpha=0.2, J=5, L=4, M=64, N=64, savename=None):
+    low = (100 - sigma) / 2
+    high = 100 - low
     # S2_reduced, jthetas_reduced = calculate_reduced_S2(x_pairs, params, J, L, M, N)
     S2, j1j2 = average_S2_over_l(x_pairs, params, J, L, M, N)
     #print("S2.shape, j1j2.shape =", S2.shape, j1j2.shape)
@@ -683,13 +688,10 @@ def plot_scattering_transform_2(x_pairs, params, los, sigma_level=68.27, alpha=0
         # print(y0.shape)
         ax[0].plot(np.arange(y0.shape[0]), y0, lw=1, c=f"C{i}", linestyle=':')
         # plt.plot(np.median(S2_ml, axis=0), lw=1)
-
-        S2_sim_perc = np.percentile(S2_sim, [100-sigma_level, sigma_level], axis=0)
-        # S2_ml_perc = np.percentile(S2_ml, [100-sigma_level, sigma_level], axis=0)
+        S2_sim_perc = np.percentile(S2_sim, [low, high], axis=0)
         ax[0].fill_between(np.arange(S2_sim.shape[1]), S2_sim_perc[0], S2_sim_perc[1], alpha=alpha, facecolor=f"C{i}", edgecolor='black')
-        # plt.fill_between(np.arange(S2_ml.shape[1]), S2_ml_perc[0], S2_ml_perc[1], alpha=alpha)
 
-        S2_ml_perc = np.percentile(S2_ml, [100-sigma_level, sigma_level], axis=0)
+        S2_ml_perc = np.percentile(S2_ml, [low, high], axis=0)
         yerr_lower = y1 - S2_ml_perc[0]
         yerr_upper = S2_ml_perc[1] - y1
         ax[0].errorbar(np.arange(y1.shape[0]), y1, yerr=[yerr_lower, yerr_upper], linestyle='-', c=f"C{i}", marker='|', markersize=1, linewidth=1)#, label='diffusion')

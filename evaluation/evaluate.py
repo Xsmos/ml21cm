@@ -325,7 +325,7 @@ def load_x_ml(fname_pattern0, fname_pattern1, ema = 0, outputs_dir = "../trainin
 
 
 def plot_global_signal(x_pairs, params, los, sigma_level=68.27, alpha=0.2, interval = 10, lw = 0.6, y_eps = 0.2, savename=None):
-    low = (100 - sigma) / 2
+    low = (100 - sigma_level) / 2
     high = 100 - low
     fig, ax = plt.subplots(4,1, sharex=True, figsize=(8,6), dpi=100, gridspec_kw={'height_ratios': [1.5,.5,.5,.5]})
     
@@ -424,7 +424,7 @@ def plot_global_signal(x_pairs, params, los, sigma_level=68.27, alpha=0.2, inter
 
 
 def plot_power_spectrum(x_pairs, params, los, sigma_level=68.27, alpha=0.2, redshift=None, savename=None):
-    low = (100 - sigma) / 2
+    low = (100 - sigma_level) / 2
     high = 100 - low
     fig, ax = plt.subplots(4,1, sharex=True, figsize=(8,6), dpi=100)
     
@@ -666,7 +666,7 @@ def average_S2_over_l(x_pairs, params, J, L, M, N):
 
 
 def plot_scattering_transform_2(x_pairs, params, los, sigma_level=68.27, alpha=0.2, J=5, L=4, M=64, N=64, savename=None):
-    low = (100 - sigma) / 2
+    low = (100 - sigma_level) / 2
     high = 100 - low
     # S2_reduced, jthetas_reduced = calculate_reduced_S2(x_pairs, params, J, L, M, N)
     S2, j1j2 = average_S2_over_l(x_pairs, params, J, L, M, N)

@@ -315,8 +315,8 @@ def get_gpu_info(device):
 class DDPM21CM:
     def __init__(self, config):
         self.config = config
-        self.ddpm = DDPMScheduler(betas=(0.0001, 0.9999), num_timesteps=config.num_timesteps, img_shape=config.img_shape, device=config.device, config=config,)#, dtype=config.dtype
-        #self.ddpm = DDPMScheduler(betas=(1e-4, 0.02), num_timesteps=config.num_timesteps, img_shape=config.img_shape, device=config.device, config=config,)#, dtype=config.dtype
+        #self.ddpm = DDPMScheduler(betas=(0.0001, 0.9999), num_timesteps=config.num_timesteps, img_shape=config.img_shape, device=config.device, config=config,)#, dtype=config.dtype
+        self.ddpm = DDPMScheduler(betas=(1e-4, 0.02), num_timesteps=config.num_timesteps, img_shape=config.img_shape, device=config.device, config=config,)#, dtype=config.dtype
 
         # initialize the unet
         self.nn_model = ContextUnet(

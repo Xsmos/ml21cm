@@ -100,9 +100,14 @@ class DDPMScheduler(nn.Module):
         self.device = device
         self.num_timesteps = num_timesteps
         self.img_shape = img_shape
-        self.beta_t = cosine_beta_schedule(beta_1, beta_T, self.num_timesteps).to(self.device)
-        #self.beta_t = torch.linspace(beta_1, beta_T, self.num_timesteps) #* (beta_T-beta_1) + beta_1
-        #self.beta_t = self.beta_t.to(self.device)
+
+        if config.beta_schedule == 'cosine':
+            self.beta_t = cosine_beta_schedule(beta_1, beta_T, self.num_timesteps).to(self.device)
+        elif config.beta_schedule == 'linear':
+            self.beta_t = torch.linspace(beta_1, beta_T, self.num_timesteps).to(self.device)
+        else:
+            raise ValueError(f"Unknown beta_schedule: {config.beta_schedule}. Choose 'cosine' or 'linear'.")
+        print(f"⚠️ {config.beta_schedule=}: beta_t.shape = {self.beta_t.shape}, beta_t.min() = {self.beta_t.min()}, beta_t.max() = {self.beta_t.max()}")
 
         self.alpha_t = 1 - self.beta_t
         self.bar_alpha_t = torch.cumprod(self.alpha_t, dim=0)
@@ -781,6 +786,7 @@ if __name__ == "__main__":
     parser.add_argument("--guide_w", type=int, required=False, default=0)
     parser.add_argument("--ema", type=int, required=False, default=0)
     parser.add_argument("--scale_path", required=True, type=str, help="scale for the model")
+    parser.add_argument("--beta_schedule", required=True, type=str)
 
     args = parser.parse_args()
 
@@ -806,6 +812,7 @@ if __name__ == "__main__":
     config.guide_w = args.guide_w
     config.ema = args.ema
     config.scale_path = args.scale_path
+    config.beta_schedule = args.beta_schedule
     #config.sample = args.sample
 
     config.stride = args.stride #(2,2) if config.dim == 2 else (2,2,1)

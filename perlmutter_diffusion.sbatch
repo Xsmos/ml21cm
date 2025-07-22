@@ -64,7 +64,7 @@ srun --gpus-per-node=$SLURM_GPUS_ON_NODE --ntasks-per-node=1 --gpu-bind=none tor
         --squish 1 1 \
         --scale_path "./utils/PowerTransformer_25600.pkl" \
         --beta_schedule "linear" \
-        --amp_loss_weight 0.1 \
+        --amp_loss_weight 0 \
         #--resume ./training/outputs/model-N800-device_count4-node8-40010823-epoch120.pt \
         #--scale_path "./utils/QuantileTransformer_25600.pkl" \
         #--lrate 1e-5 \

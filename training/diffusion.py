@@ -543,14 +543,15 @@ class DDPM21CM:
                     #print(f"ep = {ep}, noise_pred.shape = {noise_pred.shape}")
                     loss = F.mse_loss(noise, noise_pred)
 
-                    x0_hat = self.ddpm.predict_x0(xt, ts, noise_pred)
-                    amp_pred = x0_hat.mean(axis=(1,2,3)) if self.config.dim == 3 else x0_hat.mean(axis=(1,2))
-                    amp_real = x.mean(axis=(1,2,3)) if self.config.dim == 3 else x.mean(axis=(1,2))
-                    loss += F.mse_loss(amp_pred, amp_real) * self.config.amp_loss_weight if self.config.amp_loss_weight > 0 else 0
-                    loss /= 1+self.config.amp_loss_weight # normalize loss by amp_loss_weight
-                    # print(f"⚠️ {x0_hat.shape=}; {amp_pred.shape=}, {amp_real.shape=}, {loss.item()=}, {self.config.amp_loss_weight=}")
+                    if self.config.amp_loss_weight > 0:
+                        x0_hat = self.ddpm.predict_x0(xt, ts, noise_pred)
+                        amp_pred = x0_hat.mean(axis=(1,2,3)) if self.config.dim == 3 else x0_hat.mean(axis=(1,2))
+                        amp_real = x.mean(axis=(1,2,3)) if self.config.dim == 3 else x.mean(axis=(1,2))
+                        loss += F.mse_loss(amp_pred, amp_real) * self.config.amp_loss_weight
+                        loss /= 1+self.config.amp_loss_weight # normalize loss by amp_loss_weight
+                        # print(f"⚠️ {x0_hat.shape=}; {amp_pred.shape=}, {amp_real.shape=}, {loss.item()=}, {self.config.amp_loss_weight=}")
 
-                    loss = loss / self.config.gradient_accumulation_steps
+                    loss /= self.config.gradient_accumulation_steps
 
                     #print(f"ep = {ep}, loss = {loss}")
                     if torch.isnan(loss).any():

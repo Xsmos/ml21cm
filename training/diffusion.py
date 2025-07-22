@@ -156,6 +156,28 @@ class DDPMScheduler(nn.Module):
         x_i = x_i.detach().cpu().numpy()
         return x_i, x_i_entire
 
+    def predict_x0(self, x_t: torch.Tensor, t: torch.Tensor, noise_pred: torch.Tensor) -> torch.Tensor:
+        """
+        Compute predicted x_0 (clean data) from noisy sample x_t and predicted noise ε_θ(x_t, t).
+
+        Args:
+            x_t (torch.Tensor): Noisy input at timestep t, shape (B, C, X, Y, Z)
+            t (torch.Tensor): Timesteps, shape (B,)
+            noise_pred (torch.Tensor): Predicted noise ε_θ, shape same as x_t
+
+        Returns:
+            x0_hat (torch.Tensor): Predicted x_0, shape same as x_t
+        """
+        shape = x_t.shape
+        expand = torch.ones(len(shape)-1, dtype=int)
+
+        bar_alpha_t = self.bar_alpha_t[t].view(shape[0], *expand.tolist()).to(x_t.device)  # shape (B, 1, 1, 1, 1)
+        sqrt_bar_alpha_t = bar_alpha_t.sqrt()
+        sqrt_one_minus_bar_alpha_t = (1.0 - bar_alpha_t).sqrt()
+
+        x0_hat = (x_t - sqrt_one_minus_bar_alpha_t * noise_pred) / sqrt_bar_alpha_t
+        return x0_hat
+
 
 class EMA:
     def __init__(self, beta):
@@ -520,6 +542,14 @@ class DDPM21CM:
                     
                     #print(f"ep = {ep}, noise_pred.shape = {noise_pred.shape}")
                     loss = F.mse_loss(noise, noise_pred)
+
+                    x0_hat = self.ddpm.predict_x0(xt, ts, noise_pred)
+                    amp_pred = x0_hat.mean(axis=(1,2,3)) if self.config.dim == 3 else x0_hat.mean(axis=(1,2))
+                    amp_real = x.mean(axis=(1,2,3)) if self.config.dim == 3 else x.mean(axis=(1,2))
+                    loss += F.mse_loss(amp_pred, amp_real) * self.config.amp_loss_weight if self.config.amp_loss_weight > 0 else 0
+                    loss /= 1+self.config.amp_loss_weight # normalize loss by amp_loss_weight
+                    # print(f"⚠️ {x0_hat.shape=}; {amp_pred.shape=}, {amp_real.shape=}, {loss.item()=}, {self.config.amp_loss_weight=}")
+
                     loss = loss / self.config.gradient_accumulation_steps
 
                     #print(f"ep = {ep}, loss = {loss}")
@@ -787,6 +817,7 @@ if __name__ == "__main__":
     parser.add_argument("--ema", type=int, required=False, default=0)
     parser.add_argument("--scale_path", required=True, type=str, help="scale for the model")
     parser.add_argument("--beta_schedule", required=True, type=str)
+    parser.add_argument("--amp_loss_weight", type=float, required=False, default=0.0, help="weight for the amp loss")
 
     args = parser.parse_args()
 
@@ -813,6 +844,7 @@ if __name__ == "__main__":
     config.ema = args.ema
     config.scale_path = args.scale_path
     config.beta_schedule = args.beta_schedule
+    config.amp_loss_weight = args.amp_loss_weight
     #config.sample = args.sample
 
     config.stride = args.stride #(2,2) if config.dim == 2 else (2,2,1)

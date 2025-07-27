@@ -817,7 +817,7 @@ if __name__ == "__main__":
     parser.add_argument("--guide_w", type=int, required=False, default=0)
     parser.add_argument("--ema", type=int, required=False, default=0)
     parser.add_argument("--scale_path", required=True, type=str, help="scale for the model")
-    parser.add_argument("--beta_schedule", required=True, type=str)
+    parser.add_argument("--beta_schedule", required=False, default='linear', type=str)
     #parser.add_argument("--amp_loss_weight", type=float, required=False, default=0.0, help="weight for the amp loss")
 
     args = parser.parse_args()

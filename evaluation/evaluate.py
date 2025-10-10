@@ -62,10 +62,10 @@ multiprocessing.set_start_method('spawn', force=True)
 # In[2]:
 
 
-def load_h5_as_tensor(dir_name='LEN128-DIM64-CUB8.h5', num_image=256, num_redshift=32, HII_DIM=64, scale_path=False, dim=3, startat=0):
+def load_h5_as_tensor(dir_name='LEN128-DIM64-CUB8.h5', num_image=256, num_redshift=1024, HII_DIM=64, z_step=1, scale_path=False, dim=3, startat=0):
     # print("dataset = Dataset4h5(")
     dir_name = os.path.join(os.environ['SCRATCH'], dir_name)
-    dataset = Dataset4h5(dir_name, num_image=num_image, num_redshift=num_redshift, HII_DIM=HII_DIM, scale_path=scale_path, dim=dim, startat=startat)
+    dataset = Dataset4h5(dir_name, num_image=num_image, num_redshift=num_redshift, HII_DIM=HII_DIM, z_step=z_step, scale_path=scale_path, dim=dim, startat=startat)
 
     # print("with h5py.File(dir_name)")
     with h5py.File(dir_name) as f:
@@ -262,7 +262,7 @@ def x2Pk(x):
     print(f"x2Pk, x.shape = {x.shape}")
     Pk_vals_all = []
     for i in range(x.shape[0]):
-        startat=512
+        startat=x.shape[-1]//2 - 32
         if x.ndim == 4:
             # density_field = x[i,0,:,x.shape[-1]//2:x.shape[-1]//2+64]
             density_field = x[i,0,:,startat:startat+64]
@@ -315,7 +315,7 @@ def load_x_ml(fname_pattern0, fname_pattern1, ema = 0, outputs_dir = "../trainin
         x_ml.append(data)
 
     x_ml = np.concatenate(x_ml, axis=0)
-    pt = joblib.load(f"../utils/power_transformer_25600.pkl")
+    pt = joblib.load(f"../utils/PowerTransformer_25600_z512.pkl")
     original_shape = x_ml.shape
     x_ml = pt.inverse_transform(x_ml.reshape(-1, original_shape[-1]))
     # x_ml = rescale(x_ml)
@@ -581,7 +581,7 @@ def calculate_reduced_S2(x_pairs, params, J=5, L=4, M=64, N=64):
     for i, (x0, x1) in enumerate(x_pairs):
         #print(f"#{i}: x0.shape = {x0.shape}, x1.shape = {x1.shape}")
         # get jthetas and S
-        startat=512
+        startat=x0.shape[-1]//2 - 32
         if x0.ndim == 4:
             x0 = x0[...,startat:startat+64]
             x1 = x1[...,startat:startat+64]
@@ -793,12 +793,14 @@ def evaluate(
             num_image, _, HII_DIM, num_redshift = x0_ml.shape
         elif dim == 3:
             num_image, _, HII_DIM, _, num_redshift = x0_ml.shape
+        
+        z_step = 1024 // num_redshift
 
-        x0, c0, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir4.4-zeta131.341-0812-104709.h5',num_image=num_image,num_redshift=num_redshift,dim=dim)
-        x1, c1, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir5.6-zeta19.037-0812-104704.h5',num_image=num_image,num_redshift=num_redshift,dim=dim)
-        x2, c2, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir4.699-zeta30-0812-104322.h5',num_image=num_image,num_redshift=num_redshift,dim=dim)
-        x3, c3, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir5.477-zeta200-0812-104013.h5',num_image=num_image,num_redshift=num_redshift,dim=dim)
-        x4, c4, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir4.8-zeta131.341-0812-103813.h5',num_image=num_image,num_redshift=num_redshift,dim=dim)
+        x0, c0, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir4.4-zeta131.341-0812-104709.h5',num_image=num_image,dim=dim,z_step=z_step)
+        x1, c1, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir5.6-zeta19.037-0812-104704.h5',num_image=num_image,dim=dim,z_step=z_step)
+        x2, c2, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir4.699-zeta30-0812-104322.h5',num_image=num_image,dim=dim,z_step=z_step)
+        x3, c3, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir5.477-zeta200-0812-104013.h5',num_image=num_image,dim=dim,z_step=z_step)
+        x4, c4, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir4.8-zeta131.341-0812-103813.h5',num_image=num_image,dim=dim,z_step=z_step)
 
         x_pairs = [
                 (x0, x0_ml),
@@ -822,8 +824,8 @@ def evaluate(
                 row, col = 4, 13
             elif x0.shape[-1] == 128:
                 row, col = 8, 12
-            elif x0.shape[-1] == 256:
-                row, col = 8, 6
+            elif x0.shape[-1] == 512:
+                row, col = 9, 4
             elif x0.shape[-1] == 1024:
                 row, col = 9, 2
 
@@ -868,7 +870,7 @@ if __name__ == '__main__':
     evaluate(
             what2plot = ['grid', 'global_signal', 'power_spectrum', 'scatter_transform'],
             device_count = 4,
-            node = 8,
+            node = 4,
             jobID = args.jobID,
             epoch = 120,
             use_ema = 0,

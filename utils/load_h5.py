@@ -55,6 +55,7 @@ class Dataset4h5(Dataset):
         idx='range', 
         num_redshift=512, 
         HII_DIM=64, 
+        z_step=1,
         scale_path=True, 
         drop_prob = 0, 
         dim=2, 
@@ -75,6 +76,7 @@ class Dataset4h5(Dataset):
         # self.shuffle = shuffle
         self.num_redshift = num_redshift
         self.HII_DIM = HII_DIM
+        self.z_step = z_step
         self.drop_prob = drop_prob
         self.dim = dim
         self.transform = transform
@@ -177,11 +179,11 @@ class Dataset4h5(Dataset):
         with h5py.File(self.dir_name, 'r') as f:
             images_start = time()
             if self.dim == 2:
-                #images = f[self.field][idx, :self.HII_DIM, :self.HII_DIM, self.startat][:,None]
-                images = f[self.field][idx, 0, :self.HII_DIM, self.startat:self.startat+self.num_redshift][:,None]
-                # images = f[self.field][idx,:self.HII_DIM,:self.HII_DIM,-3][:,None]
+                # images = f[self.field][idx, 0, :self.HII_DIM, self.startat:self.startat+self.num_redshift][:,None]
+                images = f[self.field][idx, 0, :self.HII_DIM, self.startat:self.startat+self.num_redshift:self.z_step][:,None]
             elif self.dim == 3:
-                images = f[self.field][idx, :self.HII_DIM, :self.HII_DIM, self.startat:self.startat+self.num_redshift][:,None]
+                # images = f[self.field][idx, :self.HII_DIM, :self.HII_DIM, self.startat:self.startat+self.num_redshift][:,None]
+                images = f[self.field][idx, :self.HII_DIM, :self.HII_DIM, self.startat:self.startat+self.num_redshift:self.z_step][:,None]
             images_end = time()
             pid = os.getpid()
             cpu_num = psutil.Process(pid).cpu_num()

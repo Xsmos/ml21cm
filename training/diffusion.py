@@ -225,11 +225,12 @@ class TrainConfig:
     batch_size = 1#1#10#50#10#50#20#50#1#2#50#20#2#100 # 10
     n_epoch = 100#30#50#20#1#50#10#1#50#1#50#5#50#5#50#100#50#100#30#120#5#4# 10#50#20#20#2#5#25 # 120
     HII_DIM = 64
+    z_step = 1
     num_redshift = HII_DIM #1024
     startat = 0 #512 #-num_redshift
 
     channel = 1
-    img_shape = (channel, HII_DIM, num_redshift) if dim == 2 else (channel, HII_DIM, HII_DIM, num_redshift)
+    # img_shape = (channel, HII_DIM, num_redshift) if dim == 2 else (channel, HII_DIM, HII_DIM, num_redshift)
 
     #ranges_dict = dict(
     #    params = {
@@ -348,7 +349,7 @@ class DDPM21CM:
         # initialize the unet
         self.nn_model = ContextUnet(
             n_param=config.n_param, 
-            image_size=config.HII_DIM, 
+            image_size=config.HII_DIM,#//config.z_step, 
             dim=config.dim, 
             stride=config.stride, 
             channel_mult=config.channel_mult, 
@@ -426,6 +427,7 @@ class DDPM21CM:
             num_image=self.config.num_image,
             idx = 'range',#"random",#
             HII_DIM=self.config.HII_DIM, 
+            z_step=self.config.z_step,
             num_redshift=self.config.num_redshift,
             startat=self.config.startat,
             scale_path=self.config.scale_path,
@@ -801,6 +803,7 @@ if __name__ == "__main__":
     parser.add_argument("--max_num_img_per_gpu", type=int, required=False, default=2)
     parser.add_argument("--gradient_accumulation_steps", type=int, required=False, default=1) # as tested, higher value leads to slower training and higher loss in the end
     parser.add_argument("--num_image", type=int, required=False, default=32)
+    parser.add_argument("--z_step", type=int, required=False, default=1)
     parser.add_argument("--n_epoch", type=int, required=False, default=50)
     parser.add_argument("--batch_size", type=int, required=False, default=2)
     parser.add_argument("--channel_mult", type=float, nargs="+", required=False, default=(1,2,2,2,4))
@@ -831,6 +834,7 @@ if __name__ == "__main__":
     config = TrainConfig()
     config.gradient_accumulation_steps = args.gradient_accumulation_steps
     config.num_image = args.num_image
+    config.z_step = args.z_step
     config.n_epoch = args.n_epoch
     config.batch_size = args.batch_size
     config.channel_mult = args.channel_mult
@@ -854,7 +858,20 @@ if __name__ == "__main__":
     config.num_redshift = args.num_redshift
     config.squish = args.squish
 
-    config.img_shape = (config.channel, config.HII_DIM, config.num_redshift) if config.dim == 2 else (config.channel, config.HII_DIM, config.HII_DIM, config.num_redshift)
+    if config.dim == 2:
+        config.img_shape = (
+            config.channel, 
+            config.HII_DIM, 
+            config.num_redshift//config.z_step
+            )  
+    else:
+        config.img_shape = (
+            config.channel, 
+            config.HII_DIM, 
+            config.HII_DIM, 
+            config.num_redshift//config.z_step
+            )
+    
     config.num_res_blocks = args.num_res_blocks
 
     config.run_name = os.environ.get("SLURM_JOB_ID", datetime.now().strftime("%d%H%M%S")) # the unique name of each experiment

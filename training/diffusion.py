@@ -107,7 +107,7 @@ class DDPMScheduler(nn.Module):
             self.beta_t = torch.linspace(beta_1, beta_T, self.num_timesteps).to(self.device)
         else:
             raise ValueError(f"Unknown beta_schedule: {config.beta_schedule}. Choose 'cosine' or 'linear'.")
-        print(f"⚠️ {config.beta_schedule=}: beta_t.shape = {self.beta_t.shape}, beta_t.min() = {self.beta_t.min()}, beta_t.max() = {self.beta_t.max()}")
+        # print(f"⚠️ {config.beta_schedule=}: beta_t.shape = {self.beta_t.shape}, beta_t.min() = {self.beta_t.min()}, beta_t.max() = {self.beta_t.max()}")
 
         self.alpha_t = 1 - self.beta_t
         self.bar_alpha_t = torch.cumprod(self.alpha_t, dim=0)

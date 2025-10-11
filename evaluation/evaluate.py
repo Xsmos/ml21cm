@@ -61,29 +61,23 @@ multiprocessing.set_start_method('spawn', force=True)
 
 # In[2]:
 
-
-def load_h5_as_tensor(dir_name='LEN128-DIM64-CUB8.h5', num_image=256, num_redshift=1024, HII_DIM=64, z_step=1, scale_path=False, dim=3, startat=0):
-    # print("dataset = Dataset4h5(")
+def load_h5_as_tensor(dir_name='LEN128-DIM64-CUB8.h5', num_image=256, num_redshift=1024, HII_DIM=64, z_step=1, scale_path=False, dim=3, startat=0, pt_fname=None, transform=False):
     dir_name = os.path.join(os.environ['SCRATCH'], dir_name)
     dataset = Dataset4h5(dir_name, num_image=num_image, num_redshift=num_redshift, HII_DIM=HII_DIM, z_step=z_step, scale_path=scale_path, dim=dim, startat=startat)
 
-    # print("with h5py.File(dir_name)")
     with h5py.File(dir_name) as f:
-        # print(f.keys())
-        # print(f['params'])
-        # print(f['redshifts_distances'])
         los = f['redshifts_distances'][:,startat:startat+dataset.num_redshift]
 
-    # print("dataloader = DataLoader(")
     dataloader = DataLoader(dataset, batch_size=800)
     
-    # print("x, c = next(iter(dataloader))")
     x, c = next(iter(dataloader))
-    # print("x.shape =", x.shape)
-    # print("c.shape =", c.shape)
-    #print("x.min() =", x.min())
-    #print("x.max() =", x.max())
-    #print(f"loaded x.shape = {x.shape}")
+
+    if 'sim' in transform and (pt_fname is not None):
+        original_shape = x.shape
+        pt = joblib.load(pt_fname)
+        x = pt.transform(x.reshape(-1, original_shape[-1]))
+        x = torch.from_numpy(x.reshape(*original_shape))
+
     return x, c, los
 
 
@@ -160,7 +154,7 @@ def plot_grid(samples, c, row=8, col=12, idx=0, los=None, savename=None, figsize
     if savename is None:
         plt.show()
     else:
-        savename = f"Tvir_zeta-{c[0][0]:.3f}_{c[0][1]:.3f}_{savename}.png"
+        savename = f"Tvir_zeta-{c[0][0]:.3f}_{c[0][1]:.3f}_{savename}.pdf"
         plt.savefig(savename, bbox_inches='tight',)
         print(f"Image saved to {savename}")
     plt.close()
@@ -172,7 +166,7 @@ import os
 
 def png2mp4(
     image_folder = ".",  # 你的图片所在的目录
-    image_format = "x0_*.png",  # 你的图片格式
+    image_format = "x0_*.pdf",  # 你的图片格式
     output_video = "x0.mp4",  # 生成的视频文件
 ):
     # 读取所有匹配的 PNG 图片（按文件名排序）
@@ -298,7 +292,7 @@ def x2Tb(x):
         Tb = x[:,0].mean(axis=(1,2))
     return Tb
 
-def load_x_ml(fname_pattern0, fname_pattern1, ema = 0, outputs_dir = "../training/outputs"):
+def load_x_ml(fname_pattern0, fname_pattern1, ema = 0, outputs_dir = "../training/outputs", pt_fname=None, transform=False):
     # num = 7200
     x_ml = []
     fnames = [fname for fname in os.listdir(outputs_dir) if fname_pattern0 in fname and fname_pattern1 in fname and f'-ema{ema}' in fname]
@@ -315,16 +309,18 @@ def load_x_ml(fname_pattern0, fname_pattern1, ema = 0, outputs_dir = "../trainin
         x_ml.append(data)
 
     x_ml = np.concatenate(x_ml, axis=0)
-    pt = joblib.load(f"../utils/PowerTransformer_25600_z512.pkl")
     original_shape = x_ml.shape
-    x_ml = pt.inverse_transform(x_ml.reshape(-1, original_shape[-1]))
-    # x_ml = rescale(x_ml)
+
+    if 'ml' in transform and (pt_fname is not None):
+        pt = joblib.load(pt_fname)
+        x_ml = pt.inverse_transform(x_ml.reshape(-1, original_shape[-1]))
+
     x_ml = torch.from_numpy(x_ml.reshape(*original_shape))
     print(f"loaded x_ml.shape = {x_ml.shape}")
     return x_ml
 
 
-def plot_global_signal(x_pairs, params, los, sigma_level=68.27, alpha=0.2, interval = 10, lw = 0.6, y_eps = 0.2, savename=None):
+def plot_global_signal(x_pairs, params, los, sigma_level=68.27, alpha=0.2, interval = 10, lw = 0.6, y_eps = 0, savename=None):
     low = (100 - sigma_level) / 2
     high = 100 - low
     fig, ax = plt.subplots(4,1, sharex=True, figsize=(8,6), dpi=100, gridspec_kw={'height_ratios': [1.5,.5,.5,.5]})
@@ -375,10 +371,14 @@ def plot_global_signal(x_pairs, params, los, sigma_level=68.27, alpha=0.2, inter
         legend_elements + ax1_handles, 
         legend_labels + ax1_labels, 
         handler_map={tuple: HandlerTuple(ndivide=None)}, 
+        fontsize=8,
     )
 
     ax[1].set_ylabel(r"$\epsilon_{rel}$")
-    ax[1].set_yscale("symlog", linthresh=0.1)
+    # ax[1].set_yscale("symlog", linthresh=0.1)
+    ax[1].set_ylim(-1.5, 1.5)
+    ax[2].set_ylim(-1.5, 1.5)
+    ax[3].set_ylim(-1.5, 1.5)
 
     ax[1].grid()
     
@@ -415,7 +415,7 @@ def plot_global_signal(x_pairs, params, los, sigma_level=68.27, alpha=0.2, inter
     if savename == None:
         plt.show()
     else:
-        savename = f"global_Tb_{savename}.png"
+        savename = f"global_Tb_{savename}.pdf"
         plt.savefig(savename, bbox_inches='tight',)
         print(f'Image saved to {savename}')
 
@@ -501,7 +501,7 @@ def plot_power_spectrum(x_pairs, params, los, sigma_level=68.27, alpha=0.2, reds
     if savename == None:
         plt.show()
     else:
-        savename = f"power_spectrum_{savename}.png"
+        savename = f"power_spectrum_{savename}.pdf"
         plt.savefig(savename, bbox_inches='tight',)
         print(f'Image saved to {savename}')
 
@@ -547,11 +547,8 @@ def sort_S2_by_l(S2, jthetas, L):
 
 
 def calculate_sorted_S2(x, S, J, L, jthetas):
+    x = x.to(S.filters[0].dtype) if hasattr(S, 'filters') else x.to(torch.float32)
     S_all = np.mean(S(x.to(device))[:,0].cpu().numpy(), axis=(2,3))
-    # print("calculate_sorted_S2, S2.shape =", S_all.shape)
-    # print("calculate_sorted_S2, jthetas.shape =", jthetas.shape)
-    # print("calculate_sorted_S2, jthetas[21:41] =", jthetas[21:41])
-    # print("calculate_sorted_S2, jthetas[-1] =", jthetas[-1])
 
     ############################################################
     for j1 in range(J-1):
@@ -592,7 +589,8 @@ def calculate_reduced_S2(x_pairs, params, J=5, L=4, M=64, N=64):
         if i == 0:
             S = Scattering2D(J, (M, N), L=L, out_type='list').to(device)
             jthetas = []
-            for dicts in S(x0.to(device)):
+            x0 = x0.to(S.filters[0].dtype) if hasattr(S, 'filters') else x0.to(torch.float32)
+            for dicts in S(x0.to(device, dtype=S.filters[0].dtype if hasattr(S, 'filters') else torch.float32)):
                 jthetas.append([dicts['j'], dicts['theta']])
             # print(jthetas[0])
             # print(jthetas[1])
@@ -760,7 +758,7 @@ def plot_scattering_transform_2(x_pairs, params, los, sigma_level=68.27, alpha=0
     if savename == None:
         plt.show()
     else:
-        savename = f"scattering_coefficients_{savename}.png"
+        savename = f"scattering_coefficients_{savename}.pdf"
         plt.savefig(savename, bbox_inches='tight',)
         print(f'Image saved to {savename}')
 
@@ -772,20 +770,24 @@ def evaluate(
     jobID: int = 35912978,
     epoch: int = 120,
     use_ema: int = 0,
+    z_step: int = 1,
+    transform: str = 'ml',
     ):
 
-    print(f"device = {device}")
+    pt_fname = f"../utils/PowerTransformer_25600_z{1024//z_step}.pkl"
+    print(f"✅ {pt_fname=}; device = {device}")
+
     config = f"device_count{device_count}-node{node}-{jobID}-epoch{epoch}"
 
     for ema in range(use_ema+1):
-        print('🚀')
+        # print('🚀')
         save_name = f"{jobID}_ema{ema}"
 
-        x0_ml = load_x_ml(f"Tvir4.400-zeta131.341", config, ema = ema)
-        x1_ml = load_x_ml(f"Tvir5.600-zeta19.037", config, ema = ema)
-        x2_ml = load_x_ml(f"Tvir4.699-zeta30.000", config, ema = ema)
-        x3_ml = load_x_ml(f"Tvir5.477-zeta200.000", config, ema = ema)
-        x4_ml = load_x_ml(f"Tvir4.800-zeta131.341", config, ema = ema)
+        x0_ml = load_x_ml(f"Tvir4.400-zeta131.341", config, pt_fname=pt_fname, transform=transform)
+        x1_ml = load_x_ml(f"Tvir5.600-zeta19.037", config, pt_fname=pt_fname, transform=transform)
+        x2_ml = load_x_ml(f"Tvir4.699-zeta30.000", config, pt_fname=pt_fname, transform=transform)
+        x3_ml = load_x_ml(f"Tvir5.477-zeta200.000", config, pt_fname=pt_fname, transform=transform)
+        x4_ml = load_x_ml(f"Tvir4.800-zeta131.341", config, pt_fname=pt_fname, transform=transform)
 
         print(f"x0_ml.shape = {x0_ml.shape}")
         dim = x0_ml[0,0].ndim 
@@ -794,13 +796,13 @@ def evaluate(
         elif dim == 3:
             num_image, _, HII_DIM, _, num_redshift = x0_ml.shape
         
-        z_step = 1024 // num_redshift
+        # z_step = 1024 // num_redshift
 
-        x0, c0, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir4.4-zeta131.341-0812-104709.h5',num_image=num_image,dim=dim,z_step=z_step)
-        x1, c1, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir5.6-zeta19.037-0812-104704.h5',num_image=num_image,dim=dim,z_step=z_step)
-        x2, c2, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir4.699-zeta30-0812-104322.h5',num_image=num_image,dim=dim,z_step=z_step)
-        x3, c3, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir5.477-zeta200-0812-104013.h5',num_image=num_image,dim=dim,z_step=z_step)
-        x4, c4, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir4.8-zeta131.341-0812-103813.h5',num_image=num_image,dim=dim,z_step=z_step)
+        x0, c0, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir4.4-zeta131.341-0812-104709.h5',num_image=num_image,dim=dim,z_step=z_step,pt_fname=pt_fname, transform=transform)
+        x1, c1, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir5.6-zeta19.037-0812-104704.h5',num_image=num_image,dim=dim,z_step=z_step,pt_fname=pt_fname, transform=transform)
+        x2, c2, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir4.699-zeta30-0812-104322.h5',num_image=num_image,dim=dim,z_step=z_step,pt_fname=pt_fname, transform=transform)
+        x3, c3, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir5.477-zeta200-0812-104013.h5',num_image=num_image,dim=dim,z_step=z_step,pt_fname=pt_fname, transform=transform)
+        x4, c4, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir4.8-zeta131.341-0812-103813.h5',num_image=num_image,dim=dim,z_step=z_step,pt_fname=pt_fname, transform=transform)
 
         x_pairs = [
                 (x0, x0_ml),
@@ -865,6 +867,8 @@ def evaluate(
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("-j", "--jobID", type=int, required=True)
+    parser.add_argument("-z", "--z_step", type=int, default=1)
+    parser.add_argument("-t", "--transform", type=str, default='ml', choices=['ml', 'sim'])
     args = parser.parse_args()
 
     evaluate(
@@ -874,4 +878,6 @@ if __name__ == '__main__':
             jobID = args.jobID,
             epoch = 120,
             use_ema = 0,
+            z_step = args.z_step,
+            transform = args.transform if 'transform' in args else 'ml',
             )

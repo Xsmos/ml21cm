@@ -15,3 +15,4 @@ error-*
 logs/
 wandb/
 *.png
+*.pdf

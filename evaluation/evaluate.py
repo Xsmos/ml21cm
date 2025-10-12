@@ -75,7 +75,7 @@ def load_h5_as_tensor(dir_name='LEN128-DIM64-CUB8.h5', num_image=256, num_redshi
     if 'sim' in transform and (pt_fname is not None):
         original_shape = x.shape
         pt = joblib.load(pt_fname)
-        x = pt.transform(x.reshape(-1, original_shape[-1]))
+        x = pt.transform(x.reshape(-1, 1))#original_shape[-1]))
         x = torch.from_numpy(x.reshape(*original_shape))
 
     return x, c, los
@@ -313,14 +313,14 @@ def load_x_ml(fname_pattern0, fname_pattern1, ema = 0, outputs_dir = "../trainin
 
     if 'ml' in transform and (pt_fname is not None):
         pt = joblib.load(pt_fname)
-        x_ml = pt.inverse_transform(x_ml.reshape(-1, original_shape[-1]))
+        x_ml = pt.inverse_transform(x_ml.reshape(-1, 1))#original_shape[-1]))
 
     x_ml = torch.from_numpy(x_ml.reshape(*original_shape))
     print(f"loaded x_ml.shape = {x_ml.shape}")
     return x_ml
 
 
-def plot_global_signal(x_pairs, params, los, sigma_level=68.27, alpha=0.2, interval = 10, lw = 0.6, y_eps = 0, savename=None):
+def plot_global_signal(x_pairs, params, los, sigma_level=68.27, alpha=0.2, interval = 3, lw = 0.6, y_eps = 0, savename=None):
     low = (100 - sigma_level) / 2
     high = 100 - low
     fig, ax = plt.subplots(4,1, sharex=True, figsize=(8,6), dpi=100, gridspec_kw={'height_ratios': [1.5,.5,.5,.5]})
@@ -774,7 +774,8 @@ def evaluate(
     transform: str = 'ml',
     ):
 
-    pt_fname = f"../utils/PowerTransformer_25600_z{1024//z_step}.pkl"
+    pt_fname = f"../utils/PowerTransformer_25600_z1.pkl"
+    # pt_fname = f"../utils/PowerTransformer_25600_z{1024//z_step}.pkl"
     print(f"✅ {pt_fname=}; device = {device}")
 
     config = f"device_count{device_count}-node{node}-{jobID}-epoch{epoch}"
@@ -843,7 +844,7 @@ def evaluate(
                     params = params,
                     los = los,
                     savename = save_name,
-                    # sigma_level=100,
+                    sigma_level=95
                     )
 
         if 'power_spectrum' in what2plot:

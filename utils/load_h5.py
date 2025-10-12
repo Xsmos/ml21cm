@@ -235,7 +235,7 @@ class Dataset4h5(Dataset):
 
     def ImagesScaler(self, images, scale_path, squish):
         original_shape = images.shape
-        images = images.reshape(-1, original_shape[-1])
+        images = images.reshape(-1, 1)#original_shape[-1])
         start_time = time()
     
         # 根据 scale_path 中的关键词决定使用哪种 transformer

@@ -1,12 +1,12 @@
 #!/bin/bash
 #SBATCH -J diffusion
-#SBATCH -C gpu&hbm80g
+#SBATCH -C gpu #&hbm80g
 #SBATCH -q regular #debug #shared #
 #SBATCH -N8
 #SBATCH --gpus-per-node=4
 #SBATCH --ntasks-per-node=1
 #SBATCH --gpu-bind=none
-#SBATCH -t 8:00:00
+#SBATCH -t 1-0:00:00
 #SBATCH -o training/logs/%x-%j
 #SBATCH --mail-type=BEGIN,END,FAIL
 
@@ -56,7 +56,7 @@ srun --gpus-per-node=$SLURM_GPUS_ON_NODE --ntasks-per-node=1 --gpu-bind=none tor
         --num_redshift 1024 \
         --channel_mult 1 1 2 4 \
         --n_epoch 120 \
-        --stride 2 4 \
+        --stride 2 2 4 \
         --num_res_blocks 1 \
         --gradient_accumulation_steps 16 \
         --train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \

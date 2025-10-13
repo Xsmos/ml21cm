@@ -868,7 +868,7 @@ def evaluate(
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("-j", "--jobID", type=int, required=True)
-    parser.add_argument("-z", "--z_step", type=int, default=1)
+    parser.add_argument("-z", "--z_step", type=int, default=2)
     parser.add_argument("-t", "--transform", type=str, default='ml', choices=['ml', 'sim'])
     args = parser.parse_args()
 

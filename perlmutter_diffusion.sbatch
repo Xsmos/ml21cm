@@ -60,7 +60,7 @@ srun --gpus-per-node=$SLURM_GPUS_ON_NODE --ntasks-per-node=1 --gpu-bind=none tor
         --num_res_blocks 1 \
         --gradient_accumulation_steps 16 \
         --train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
-        --squish .1 1 \
+        --squish .1 0 \
         --scale_path "./utils/PowerTransformer_25600_z1.pkl" \
         --z_step 2 \
         --reset-epoch \

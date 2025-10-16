@@ -844,7 +844,7 @@ def evaluate(
                     params = params,
                     los = los,
                     savename = save_name,
-                    sigma_level=95
+                    # sigma_level=95
                     )
 
         if 'power_spectrum' in what2plot:
@@ -875,7 +875,7 @@ if __name__ == '__main__':
     evaluate(
             what2plot = ['grid', 'global_signal', 'power_spectrum', 'scatter_transform'],
             device_count = 4,
-            node = 4,
+            node = 8,
             jobID = args.jobID,
             epoch = 120,
             use_ema = 0,

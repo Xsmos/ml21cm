@@ -2,7 +2,7 @@
 #SBATCH -J diffusion
 #SBATCH -C gpu&hbm80g
 #SBATCH -q regular #debug #shared #
-#SBATCH -N8
+#SBATCH -N10
 #SBATCH --gpus-per-node=4
 #SBATCH --ntasks-per-node=1
 #SBATCH --gpu-bind=none
@@ -49,7 +49,7 @@ srun --gpus-per-node=$SLURM_GPUS_ON_NODE --ntasks-per-node=1 --gpu-bind=none tor
     --rdzv_backend=c10d \
     --rdzv_endpoint=$MASTER_ADDR:$MASTER_PORT \
     training/diffusion.py \
-        --num_image 800 \
+        --num_image 640 \
         --batch_size 2 \
         --num_new_img_per_gpu 4 \
         --max_num_img_per_gpu 2 \
@@ -64,8 +64,8 @@ srun --gpus-per-node=$SLURM_GPUS_ON_NODE --ntasks-per-node=1 --gpu-bind=none tor
         --scale_path "./utils/PowerTransformer_25600_z1.pkl" \
         --z_step 1 \
         --reset-epoch \
-        #--resume ./training/outputs/model-N800-device_count4-node8-40010823-epoch120.pt \
         #--model_channels 128 \
+        #--resume ./training/outputs/model-N800-device_count4-node8-40010823-epoch120.pt \
         #--sample 1 \
         #--autocast 1 \
         #--use_checkpoint 1 \

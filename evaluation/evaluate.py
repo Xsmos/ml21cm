@@ -256,7 +256,7 @@ def x2Pk(x):
     print(f"x2Pk, x.shape = {x.shape}")
     Pk_vals_all = []
     for i in range(x.shape[0]):
-        startat=x.shape[-1]//2 - 32
+        startat=x.shape[-1]//4 + 32
         if x.ndim == 4:
             # density_field = x[i,0,:,x.shape[-1]//2:x.shape[-1]//2+64]
             density_field = x[i,0,:,startat:startat+64]
@@ -456,6 +456,10 @@ def plot_power_spectrum(x_pairs, params, los, sigma_level=68.27, alpha=0.2, reds
     ax[0].set_ylabel(r'$\Delta^2(k)$ [mK$^2$]')
     ax[0].grid()
     
+    ax[1].set_ylim(-1.5, 1.5)
+    ax[2].set_ylim(-1.5, 1.5)
+    ax[3].set_ylim(-1.5, 1.5)
+
     legend_line1 = Line2D([0], [0], linestyle=':', color='black')
     legend_line2 = Line2D([0], [0], linestyle='-', color='black', marker='|', markersize=10)
 
@@ -578,7 +582,7 @@ def calculate_reduced_S2(x_pairs, params, J=5, L=4, M=64, N=64):
     for i, (x0, x1) in enumerate(x_pairs):
         #print(f"#{i}: x0.shape = {x0.shape}, x1.shape = {x1.shape}")
         # get jthetas and S
-        startat=x0.shape[-1]//2 - 32
+        startat=x0.shape[-1]//4 + 32
         if x0.ndim == 4:
             x0 = x0[...,startat:startat+64]
             x1 = x1[...,startat:startat+64]
@@ -716,6 +720,10 @@ def plot_scattering_transform_2(x_pairs, params, los, sigma_level=68.27, alpha=0
     ax[0].set_ylabel(r'$\log{S_2}$')
     ax[0].grid()
     j1j2_period = j1j2.shape[0]//L
+
+    ax[1].set_ylim(-1.5, 1.5)
+    ax[2].set_ylim(-1.5, 1.5)
+    ax[3].set_ylim(-1.5, 1.5)
 
     # plt.text()
     ax[0].vlines(np.arange(0-0.5, j1j2.shape[0]-0.5+j1j2_period,j1j2_period), ax[0].get_ylim()[0], ax[0].get_ylim()[1], colors='grey', alpha=0.8, linestyles=':')
@@ -868,14 +876,14 @@ def evaluate(
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("-j", "--jobID", type=int, required=True)
-    parser.add_argument("-z", "--z_step", type=int, default=2)
+    parser.add_argument("-z", "--z_step", type=int, default=1)
     parser.add_argument("-t", "--transform", type=str, default='ml', choices=['ml', 'sim'])
     args = parser.parse_args()
 
     evaluate(
             what2plot = ['grid', 'global_signal', 'power_spectrum', 'scatter_transform'],
             device_count = 4,
-            node = 8,
+            node = 10,
             jobID = args.jobID,
             epoch = 120,
             use_ema = 0,

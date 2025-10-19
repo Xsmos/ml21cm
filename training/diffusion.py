@@ -283,7 +283,7 @@ class TrainConfig:
     model_channels = 128
     # date = datetime.datetime.now().strftime("%m%d-%H%M")
     # run_name = f'{date}' # the unique name of each experiment
-    str_len = 128
+    str_len = 120
 # config = TrainConfig()
 # print("device =", config.device)
 

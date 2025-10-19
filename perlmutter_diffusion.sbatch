@@ -62,9 +62,9 @@ srun --gpus-per-node=$SLURM_GPUS_ON_NODE --ntasks-per-node=1 --gpu-bind=none tor
         --train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
         --squish .1 0 \
         --scale_path "./utils/PowerTransformer_25600_z1.pkl" \
-        --z_step 1 \
         --reset-epoch \
-        --model_channels 128 \
+        #--z_step 1 \
+        #--model_channels 128 \
         #--resume ./training/outputs/model-N800-device_count4-node8-40010823-epoch120.pt \
         #--sample 1 \
         #--autocast 1 \

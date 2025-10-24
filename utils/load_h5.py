@@ -250,8 +250,11 @@ class Dataset4h5(Dataset):
     
         if os.path.exists(scale_path):
             preprocessor = joblib.load(scale_path)
-            images[:] = preprocessor.transform(images)
-            print(f"🍀 cuda:{torch.cuda.current_device()}/{self.global_rank} scaled by {scale_path} after {time()-start_time:.3f} sec 🍀")
+            chunk_size = len(images) // 4
+            for i in range(0, len(images), chunk_size):
+                print(f"🌱 cuda:{self.global_rank} transformed {i/len(images)*100}% images. t={time()-start_time:.3f} sec 🌱")
+                images[i:i+chunk_size] = preprocessor.transform(images[i:i+chunk_size])
+            print(f"🍀 cuda:{torch.cuda.current_device()}/{self.global_rank} transformed by {scale_path} after {time()-start_time:.3f} sec 🍀")
         else:
             preprocessor = transformer_cls(**transformer_args)
             images[:] = preprocessor.fit_transform(images)
@@ -259,24 +262,7 @@ class Dataset4h5(Dataset):
             joblib.dump(preprocessor, scale_path)
     
         images = torch.from_numpy(images.reshape(*original_shape))
-        return images
-    
-    # def ImagesScaler(self, images, scale_path, squish):
-    #     original_shape = images.shape
-    #     images = images.reshape(-1, original_shape[-1])
-    #     start_time = time()
-    #     if os.path.exists(scale_path):
-    #         preprocessor = joblib.load(scale_path)
-    #         images[:] = preprocessor.transform(images)
-    #         print(f"🍀 cuda:{torch.cuda.current_device()}/{self.global_rank} scaled by power_transformer loaded from {scale_path} after {time()-start_time:.3f} sec 🍀")
-    #     else:
-    #         preprocessor = PowerTransformer(method='yeo-johnson', standardize=True)
-    #         images[:] = preprocessor.fit_transform(images)
-    #         print(f"🌱 cuda:{torch.cuda.current_device()}/{self.global_rank} fitted power_transformer after {time()-start_time:.3f} sec 🌱")
-    #         joblib.dump(preprocessor, scale_path)
-
-    #     images = torch.from_numpy(images.reshape(*original_shape))
-    #     return images
+        return images 
 
     def __getitem__(self, index):
         return self.images[index], self.params[index]

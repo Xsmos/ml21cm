@@ -256,7 +256,7 @@ def x2Pk(x):
     print(f"x2Pk, x.shape = {x.shape}")
     Pk_vals_all = []
     for i in range(x.shape[0]):
-        startat=x.shape[-1]//4 + 32
+        startat=x.shape[-1]//2 - 32
         if x.ndim == 4:
             # density_field = x[i,0,:,x.shape[-1]//2:x.shape[-1]//2+64]
             density_field = x[i,0,:,startat:startat+64]
@@ -584,7 +584,7 @@ def calculate_reduced_S2(x_pairs, params, J=5, L=4, M=64, N=64):
     for i, (x0, x1) in enumerate(x_pairs):
         #print(f"#{i}: x0.shape = {x0.shape}, x1.shape = {x1.shape}")
         # get jthetas and S
-        startat=x0.shape[-1]//4 + 32
+        startat=x0.shape[-1]//2 - 32
         if x0.ndim == 4:
             x0 = x0[...,startat:startat+64]
             x1 = x1[...,startat:startat+64]
@@ -800,7 +800,7 @@ def evaluate(
         x3_ml = load_x_ml(f"Tvir5.477-zeta200.000", config, pt_fname=pt_fname, transform=transform)
         x4_ml = load_x_ml(f"Tvir4.800-zeta131.341", config, pt_fname=pt_fname, transform=transform)
 
-        print(f"x0_ml.shape = {x0_ml.shape}")
+        print(f"⚠️ x0_ml.shape = {x0_ml.shape}")
         dim = x0_ml[0,0].ndim 
         if dim == 2:
             num_image, _, HII_DIM, num_redshift = x0_ml.shape
@@ -814,6 +814,7 @@ def evaluate(
         x2, c2, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir4.699-zeta30-0812-104322.h5',num_image=num_image,dim=dim,z_step=z_step,pt_fname=pt_fname, transform=transform)
         x3, c3, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir5.477-zeta200-0812-104013.h5',num_image=num_image,dim=dim,z_step=z_step,pt_fname=pt_fname, transform=transform)
         x4, c4, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir4.8-zeta131.341-0812-103813.h5',num_image=num_image,dim=dim,z_step=z_step,pt_fname=pt_fname, transform=transform)
+        print(f"⚠️ x0.shape = {x0.shape}")
 
         x_pairs = [
                 (x0, x0_ml),

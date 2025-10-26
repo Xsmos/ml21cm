@@ -875,9 +875,9 @@ def evaluate(
         save_name = f"{jobID}_ema{ema}"
 
         x0_ml = load_x_ml(f"Tvir4.400-zeta131.341", config, pt_fname=pt_fname, transform=transform)
-        x1_ml = load_x_ml(f"Tvir5.600-zeta19.037", config, pt_fname=pt_fname, transform=transform)
+        x1_ml = load_x_ml(f"Tvir5.477-zeta200.000", config, pt_fname=pt_fname, transform=transform)
         x2_ml = load_x_ml(f"Tvir4.699-zeta30.000", config, pt_fname=pt_fname, transform=transform)
-        x3_ml = load_x_ml(f"Tvir5.477-zeta200.000", config, pt_fname=pt_fname, transform=transform)
+        x3_ml = load_x_ml(f"Tvir5.600-zeta19.037", config, pt_fname=pt_fname, transform=transform)
         x4_ml = load_x_ml(f"Tvir4.800-zeta131.341", config, pt_fname=pt_fname, transform=transform)
 
         print(f"⚠️ x0_ml.shape = {x0_ml.shape}")
@@ -890,9 +890,9 @@ def evaluate(
         # z_step = 1024 // num_redshift
 
         x0, c0, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir4.4-zeta131.341-0812-104709.h5',num_image=num_image,dim=dim,z_step=z_step,pt_fname=pt_fname, transform=transform)
-        x1, c1, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir5.6-zeta19.037-0812-104704.h5',num_image=num_image,dim=dim,z_step=z_step,pt_fname=pt_fname, transform=transform)
+        x1, c1, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir5.477-zeta200-0812-104013.h5',num_image=num_image,dim=dim,z_step=z_step,pt_fname=pt_fname, transform=transform)
         x2, c2, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir4.699-zeta30-0812-104322.h5',num_image=num_image,dim=dim,z_step=z_step,pt_fname=pt_fname, transform=transform)
-        x3, c3, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir5.477-zeta200-0812-104013.h5',num_image=num_image,dim=dim,z_step=z_step,pt_fname=pt_fname, transform=transform)
+        x3, c3, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir5.6-zeta19.037-0812-104704.h5',num_image=num_image,dim=dim,z_step=z_step,pt_fname=pt_fname, transform=transform)
         x4, c4, los = load_h5_as_tensor('LEN128-DIM64-CUB16-Tvir4.8-zeta131.341-0812-103813.h5',num_image=num_image,dim=dim,z_step=z_step,pt_fname=pt_fname, transform=transform)
         print(f"⚠️ x0.shape = {x0.shape}")
 

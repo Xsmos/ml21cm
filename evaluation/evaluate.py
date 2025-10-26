@@ -12,6 +12,9 @@ sys.path.append(parent_dir)
 
 from utils.load_h5 import Dataset4h5, ranges_dict
 import matplotlib.pyplot as plt
+from matplotlib.patches import Rectangle
+from matplotlib.legend_handler import HandlerBase
+
 import numpy as np
 from torch.utils.data import DataLoader
 import h5py
@@ -28,7 +31,7 @@ from matplotlib.legend_handler import HandlerLine2D, HandlerTuple
 from kymatio.torch import Scattering2D
 from sklearn.preprocessing import PowerTransformer
 import joblib
-
+from tqdm import tqdm
 import gc
 # print("before summary writer")
 # from torch.utils.tensorboard import SummaryWriter
@@ -252,17 +255,17 @@ def calc_ps(field, L):
 # box_size = (128.0, 128.0, 1024.0)  # 盒子大小（单位Mpc/h），对应于 (Lx, Ly, Lz)
 # plt.figure(figsize=(6, 4), dpi=100)
 # k_vals_all = []
-def x2Pk(x):
+def x2Pk(x, z_idx=0):
     print(f"x2Pk, x.shape = {x.shape}")
     Pk_vals_all = []
     for i in range(x.shape[0]):
-        startat=x.shape[-1]//2 - 32
         if x.ndim == 4:
-            # density_field = x[i,0,:,x.shape[-1]//2:x.shape[-1]//2+64]
-            density_field = x[i,0,:,startat:startat+64]
+            # density_field = x[i,0]
+            density_field = x[i,0,:,z_idx:z_idx+64]
         elif x.ndim == 5:
-            # density_field = x[i,0,:,:,x.shape[-1]//2:x.shape[-1]//2+64]
-            density_field = x[i,0,:,0,startat:startat+64]
+            # density_field = x[i,0]
+            density_field = x[i,0,...,z_idx]
+            # density_field = x[i,0,:,0,z_idx:z_idx+64]
         if density_field.ndim == 3:
             Nx, Ny, Nz = density_field.shape
             box_size = 128#(128.0, 128.0, 1024.0) #512#
@@ -296,9 +299,11 @@ def load_x_ml(fname_pattern0, fname_pattern1, ema = 0, outputs_dir = "../trainin
     # num = 7200
     x_ml = []
     fnames = [fname for fname in os.listdir(outputs_dir) if fname_pattern0 in fname and fname_pattern1 in fname and f'-ema{ema}' in fname]
-    print("fname pattern:", fname_pattern0, fname_pattern1, "; len(fnames) =", len(fnames), ";\nfnames[0] =", fnames[0])
-    # print("fname:",fnames)
-    # print()
+    if len(fnames) == 0:
+        raise ValueError(f"No files found with patterns: {fname_pattern0}, {fname_pattern1} in {outputs_dir}")
+    else:
+        print("fname pattern:", fname_pattern0, fname_pattern1, "; len(fnames) =", len(fnames), ";\nfnames[0] =", fnames[0])
+
     for fname in fnames:
     #    if ema and 'ema1' not in fname:
     #        continue
@@ -319,6 +324,23 @@ def load_x_ml(fname_pattern0, fname_pattern1, ema = 0, outputs_dir = "../trainin
     print(f"loaded x_ml.shape = {x_ml.shape}")
     return x_ml
 
+
+# === 自定义 handler：让矩形和虚线重叠显示 ===
+class HandlerRectLine(HandlerBase):
+    def create_artists(self, legend, orig_handle, x0, y0, width, height, fontsize, trans):
+        # 画矩形
+        rect = Rectangle((x0, y0), width, height,
+                         facecolor=orig_handle.get('rect_fc', 'black'),
+                         edgecolor=orig_handle.get('rect_ec', 'black'),
+                         alpha=orig_handle.get('rect_alpha', 0.3),
+                         transform=trans)
+        # 画中间的虚线
+        line = Line2D([x0, x0 + width], [y0 + height/2, y0 + height/2],
+                      color=orig_handle.get('line_color', 'black'),
+                      linestyle=orig_handle.get('line_ls', ':'),
+                      linewidth=orig_handle.get('line_lw', 1.5),
+                      transform=trans)
+        return [rect, line]
 
 def plot_global_signal(x_pairs, params, los, sigma_level=68.27, alpha=0.2, lw = 0.6, y_eps = 0, savename=None):
     low = (100 - sigma_level) / 2
@@ -356,23 +378,33 @@ def plot_global_signal(x_pairs, params, los, sigma_level=68.27, alpha=0.2, lw = 
     #ax[0].set_yscale('symlog')
     ax[0].set_ylabel(r'$\langle T_b \rangle$ [mK]')
     ax[0].grid()
-    
+
+    # === 你已有的 legend 准备部分 ===
     ax1_handles, ax1_labels = ax[1].get_legend_handles_labels()
-    
-    legend_line1 = Line2D([0], [0], linestyle=':', color='black')
+
     legend_line2 = Line2D([0], [0], linestyle='-', color='black', marker='|', markersize=8)
-    
-    # 创建自定义图例条目
+
+    # 这里用 dict 来定义“矩形+虚线”组合
+    legend_handle_rectline = {
+        'rect_fc': 'black',
+        'rect_ec': 'black',
+        'rect_alpha': alpha,    # 你原来的透明度参数
+        'line_color': 'black',
+        'line_ls': ':',
+    }
+
     legend_elements = [
-        (Patch(facecolor='black', edgecolor='black', alpha=alpha),legend_line1), 
-        (legend_line2),
+        legend_handle_rectline,   # 会被 HandlerRectLine 处理，绘制叠加图例
+        legend_line2
     ]
+
     legend_labels = ['21cmfast', 'diffusion']
-    # 添加自定义图例
+
+    # === 添加图例 ===
     ax[0].legend(
-        legend_elements + ax1_handles, 
-        legend_labels + ax1_labels, 
-        handler_map={tuple: HandlerTuple(ndivide=None)}, 
+        legend_elements + ax1_handles,
+        legend_labels + ax1_labels,
+        handler_map={dict: HandlerRectLine()},  # 替代原来的 tuple handler
         fontsize=8,
     )
 
@@ -384,8 +416,8 @@ def plot_global_signal(x_pairs, params, los, sigma_level=68.27, alpha=0.2, lw = 
 
     ax[1].grid()
     
-    ax1_sec = ax[1].secondary_xaxis('top')
-    ax1_sec.set_xticklabels([])
+    # ax1_sec = ax[1].secondary_xaxis('top')
+    # ax1_sec.set_xticklabels([])
 
     ax[2].set_ylabel(r"$\epsilon_{std}$")
     
@@ -394,21 +426,21 @@ def plot_global_signal(x_pairs, params, los, sigma_level=68.27, alpha=0.2, lw = 
     ax[2].grid()
     ax[3].grid()
     
-    ax2_sec = ax[2].secondary_xaxis('top')
-    ax2_sec.set_xticklabels([])
+    # ax2_sec = ax[2].secondary_xaxis('top')
+    # ax2_sec.set_xticklabels([])
 
-    ax3_sec = ax[3].secondary_xaxis('top')
-    ax3_sec.set_xticklabels([])
+    # ax3_sec = ax[3].secondary_xaxis('top')
+    # ax3_sec.set_xticklabels([])
     ax[3].set_ylabel(r"$\epsilon_{\sigma}$")
     
-    ax_twin = ax[3].secondary_xaxis('bottom')               # 创建共享 y 轴的第二个 x 轴
-    ax_twin.set_xlim(ax[3].get_xlim())       # 设置副 x 轴的范围与主 x 轴相同
+    ax_twin = ax[0].secondary_xaxis('top')               # 创建共享 y 轴的第二个 x 轴
+    ax_twin.set_xlim(ax[0].get_xlim())       # 设置副 x 轴的范围与主 x 轴相同
     ax_twin.set_xlabel('redshift')           # 设置副 x 轴标签
     ax_twin.xaxis.set_major_locator(ticker.MaxNLocator(10))  # 这里5表示最多显示5个刻度
     ax_twin.set_xticks(ax_twin.get_xticks())                  # 设置刻度为 z 的值
     z_ticks = interp(ax_twin.get_xticks(), los[1], los[0])
     ax_twin.set_xticklabels([f"{ztick:.1f}" for ztick in z_ticks])
-    ax_twin.spines['bottom'].set_position(('outward', 40))  # 将副 x 轴向外移动 40 像素
+    ax_twin.spines['bottom'].set_position(('outward', 10))  # 将副 x 轴向外移动 40 像素
     
     for axis in ax:
         axis.tick_params(axis='y', labelsize=10)  # 设置所有子图的 y 轴刻度标签字体大小为 8
@@ -425,14 +457,14 @@ def plot_global_signal(x_pairs, params, los, sigma_level=68.27, alpha=0.2, lw = 
 # In[35]:
 
 
-def plot_power_spectrum(x_pairs, params, los, sigma_level=68.27, alpha=0.2, redshift=None, savename=None):
+def plot_power_spectrum(x_pairs, params, los, sigma_level=68.27, alpha=0.2, z_idx=0, savename=None):
     low = (100 - sigma_level) / 2
     high = 100 - low
     fig, ax = plt.subplots(4,1, sharex=True, figsize=(8,6), dpi=100)
     
     for i, (x0, x1) in enumerate(x_pairs):
-        k_vals, Pk0 = x2Pk(x0)
-        k_vals, Pk1 = x2Pk(x1)
+        k_vals, Pk0 = x2Pk(x0, z_idx=z_idx)
+        k_vals, Pk1 = x2Pk(x1, z_idx=z_idx)
         y0 = np.median(Pk0, axis=0)
         y1 = np.median(Pk1, axis=0)
         
@@ -454,7 +486,10 @@ def plot_power_spectrum(x_pairs, params, los, sigma_level=68.27, alpha=0.2, reds
         ax[3].plot(k_vals, (Pk1_perc[1]-Pk1_perc[0])/2/sigma-1, c=f"C{i}")
 
     ax[0].set_xscale('log')
+    # ax[0].set_ylim(0,10**5)
     ax[0].set_yscale('log')
+    ax[0].set_ylim(10**-1,10**5)
+
     ax[0].set_ylabel(r'$\Delta^2(k)$ [mK$^2$]')
     ax[0].grid()
     
@@ -462,18 +497,18 @@ def plot_power_spectrum(x_pairs, params, los, sigma_level=68.27, alpha=0.2, reds
     ax[2].set_ylim(-2,2)
     ax[3].set_ylim(-2,2)
 
-    legend_line1 = Line2D([0], [0], linestyle=':', color='black')
-    legend_line2 = Line2D([0], [0], linestyle='-', color='black', marker='|', markersize=10)
+    # legend_line1 = Line2D([0], [0], linestyle=':', color='black')
+    # legend_line2 = Line2D([0], [0], linestyle='-', color='black', marker='|', markersize=10)
 
-    # 创建自定义图例条目
-    legend_elements = [
-        (Patch(facecolor='black', edgecolor='black', alpha=alpha),legend_line1), 
-        (legend_line2),
-    ]
+    # # 创建自定义图例条目
+    # legend_elements = [
+    #     (Patch(facecolor='black', edgecolor='black', alpha=alpha),legend_line1), 
+    #     (legend_line2),
+    # ]
     # 添加自定义图例
-    ax[0].legend(legend_elements, ['21cmfast', 'diffusion'], handler_map={tuple: HandlerTuple(ndivide=None)})
+    # ax[0].legend(legend_elements, ['21cmfast', 'diffusion'], handler_map={tuple: HandlerTuple(ndivide=None)})
 
-    ax[0].set_title(r"power spectrum of $T_b$ at z = "+f"{los[0].mean():.2f}")
+    ax[0].set_title(r"power spectrum of $T_b$ at z = "+f"{los[0][z_idx]:.2f}")
         # plt.xlim(xmin=0.01)
         # ax[0].legend()
 
@@ -486,7 +521,7 @@ def plot_power_spectrum(x_pairs, params, los, sigma_level=68.27, alpha=0.2, reds
     ax[1].grid()
     ax1_sec = ax[1].secondary_xaxis('top')
     ax1_sec.set_xticklabels([])
-    ax[1].legend()
+    # ax[1].legend()
 
     ax[2].set_xscale('log')
     ax[2].set_ylabel(r"$\epsilon_{std}$")
@@ -507,7 +542,7 @@ def plot_power_spectrum(x_pairs, params, los, sigma_level=68.27, alpha=0.2, reds
     if savename == None:
         plt.show()
     else:
-        savename = f"power_spectrum_{savename}.pdf"
+        savename = f"power_spectrum_{savename}_{z_idx}.pdf"
         plt.savefig(savename, bbox_inches='tight',)
         print(f'Image saved to {savename}')
 
@@ -578,19 +613,19 @@ def calculate_sorted_S2(x, S, J, L, jthetas):
     # print(index_reduced.shape)
     return S2_sorted, jthetas_sorted
 
-def calculate_reduced_S2(x_pairs, params, J=5, L=4, M=64, N=64):
+def calculate_reduced_S2(x_pairs, params, J=5, L=4, M=64, N=64, z_idx=0):
     S2_reduced_list = []
     jthetas_reduced_list = []
     for i, (x0, x1) in enumerate(x_pairs):
         #print(f"#{i}: x0.shape = {x0.shape}, x1.shape = {x1.shape}")
         # get jthetas and S
-        startat=x0.shape[-1]//2 - 32
+        # z_idx=x0.shape[-1]//2 - 32
         if x0.ndim == 4:
-            x0 = x0[...,startat:startat+64]
-            x1 = x1[...,startat:startat+64]
+            x0 = x0[...,z_idx:z_idx+64]
+            x1 = x1[...,z_idx:z_idx+64]
         elif x0.ndim == 5:
-            x0 = x0[...,0,startat:startat+64]
-            x1 = x1[...,0,startat:startat+64]
+            x0 = x0[...,z_idx]
+            x1 = x1[...,z_idx]
 
         if i == 0:
             S = Scattering2D(J, (M, N), L=L, out_type='list').to(device)
@@ -598,17 +633,10 @@ def calculate_reduced_S2(x_pairs, params, J=5, L=4, M=64, N=64):
             x0 = x0.to(S.filters[0].dtype) if hasattr(S, 'filters') else x0.to(torch.float32)
             for dicts in S(x0.to(device, dtype=S.filters[0].dtype if hasattr(S, 'filters') else torch.float32)):
                 jthetas.append([dicts['j'], dicts['theta']])
-            # print(jthetas[0])
-            # print(jthetas[1])
-            # print(jthetas[2])
-            # print(jthetas[3])
-            # print(jthetas[-2])
-            # print(jthetas[-1])
+
             jthetas = np.array(jthetas, dtype=object)
             S = Scattering2D(J, (M, N), L=L).to(device)
-            # print("type(dicts[j])", type(dicts['j']), dicts['j'])
-        # print("plot_scattering_transform_2 jthetas.shape", jthetas.shape)
-        # print(jthetas[0], jthetas[1], jthetas[160])
+            
         S2_reduced_0, jthetas_reduced_0 = calculate_sorted_S2(x0, S, J, L, jthetas)
         S2_reduced_1, jthetas_reduced_1 = calculate_sorted_S2(x1, S, J, L, jthetas)
         # print("S2_reduced.shape =", S2_reduced.shape)
@@ -647,9 +675,9 @@ def average_single_S2_over_l(S2, jthetas, L=4):
         # S2_average.append(())
     return S2_combine, j1j2.astype(int)
 
-def average_S2_over_l(x_pairs, params, J, L, M, N):
+def average_S2_over_l(x_pairs, params, J, L, M, N, z_idx=0):
 
-    S2_list, jthetas_list = calculate_reduced_S2(x_pairs, params, J, L, M, N)
+    S2_list, jthetas_list = calculate_reduced_S2(x_pairs, params, J, L, M, N, z_idx)
 
     S2_average = []
     j1j2_average = []
@@ -669,15 +697,14 @@ def average_S2_over_l(x_pairs, params, J, L, M, N):
 # In[46]:
 
 
-def plot_scattering_transform_2(x_pairs, params, los, sigma_level=68.27, alpha=0.2, J=5, L=4, M=64, N=64, savename=None):
+def plot_scattering_transform_2(x_pairs, params, los, sigma_level=68.27, alpha=0.2, J=5, L=4, M=64, N=64, savename=None, z_idx=0):
     low = (100 - sigma_level) / 2
     high = 100 - low
-    # S2_reduced, jthetas_reduced = calculate_reduced_S2(x_pairs, params, J, L, M, N)
-    S2, j1j2 = average_S2_over_l(x_pairs, params, J, L, M, N)
+    S2, j1j2 = average_S2_over_l(x_pairs, params, J, L, M, N, z_idx)
     #print("S2.shape, j1j2.shape =", S2.shape, j1j2.shape)
     # plt.figure(dpi=200, figsize=(12,4))
     fig, ax = plt.subplots(4,1, sharex=True, figsize=(12,6), dpi=100)
-    ax[0].set_title(f"reduced scattering coefficients at z = {los[0].mean():.2f}")
+    ax[0].set_title(f"reduced scattering coefficients at z = {los[0][z_idx]:.2f}")
     # S2 = S2[..., :20]
     #print("S2.min() =", S2.min())
     S2 = np.log10(S2)
@@ -708,21 +735,22 @@ def plot_scattering_transform_2(x_pairs, params, los, sigma_level=68.27, alpha=0
         # ax[3].plot(np.arange(y0.shape[0]), (S2_sim_perc[1]-S2_sim_perc[0])/sigma-1, c=f"C{i}")
         ax[3].plot(np.arange(y0.shape[0]), (S2_ml_perc[1]-S2_ml_perc[0])/2/sigma-1, c=f"C{i}")
 
-    legend_line1 = Line2D([0], [0], linestyle=':', color='black')
-    legend_line2 = Line2D([0], [0], linestyle='-', color='black', marker='|', markersize=10)
+    # legend_line1 = Line2D([0], [0], linestyle=':', color='black')
+    # legend_line2 = Line2D([0], [0], linestyle='-', color='black', marker='|', markersize=10)
 
-    # 创建自定义图例条目
-    legend_elements = [
-        (Patch(facecolor='black', edgecolor='black', alpha=alpha),legend_line1), 
-        (legend_line2),
-    ]
+    # # 创建自定义图例条目
+    # legend_elements = [
+    #     (Patch(facecolor='black', edgecolor='black', alpha=alpha),legend_line1), 
+    #     (legend_line2),
+    # ]
     # 添加自定义图例
-    ax[0].legend(legend_elements, ['21cmfast', 'diffusion'], handler_map={tuple: HandlerTuple(ndivide=None)})
+    # ax[0].legend(legend_elements, ['21cmfast', 'diffusion'], handler_map={tuple: HandlerTuple(ndivide=None)})
 
     ax[0].set_ylabel(r'$\log{S_2}$')
     ax[0].grid()
     j1j2_period = j1j2.shape[0]//L
 
+    ax[0].set_ylim(-3,0)
     ax[1].set_ylim(-2,2)
     ax[2].set_ylim(-2,2)
     ax[3].set_ylim(-2,2)
@@ -735,7 +763,7 @@ def plot_scattering_transform_2(x_pairs, params, los, sigma_level=68.27, alpha=0
 
     ax1_sec = ax[1].secondary_xaxis('top')
     ax1_sec.set_xticklabels([])
-    ax[1].legend()
+    # ax[1].legend()
     ax[1].grid()
     ax[1].set_ylabel(r'$\epsilon_{rel}$')
 
@@ -768,17 +796,17 @@ def plot_scattering_transform_2(x_pairs, params, los, sigma_level=68.27, alpha=0
     if savename == None:
         plt.show()
     else:
-        savename = f"scattering_coefficients_{savename}.pdf"
+        savename = f"scattering_coefficients_{savename}_{z_idx}.pdf"
         plt.savefig(savename, bbox_inches='tight',)
         print(f'Image saved to {savename}')
 
 
 def evaluate(
     what2plot: List[str] = ['grid', 'global_signal', 'power_spectrum', 'scatter_transform'],
-    device_count: int = 4,
-    node: int = 8,
+    # device_count: int = 4,
+    # node: int = 8,
     jobID: int = 35912978,
-    epoch: int = 120,
+    # epoch: int = 120,
     use_ema: int = 0,
     z_step: int = 1,
     transform: str = 'ml',
@@ -788,7 +816,7 @@ def evaluate(
     # pt_fname = f"../utils/PowerTransformer_25600_z{1024//z_step}.pkl"
     print(f"✅ {pt_fname=}; device = {device}")
 
-    config = f"device_count{device_count}-node{node}-{jobID}-epoch{epoch}"
+    config = f"{jobID}"
 
     for ema in range(use_ema+1):
         # print('🚀')
@@ -857,24 +885,26 @@ def evaluate(
                     savename = save_name,
                     # sigma_level=95
                     )
+        for z_idx in [0]: #tqdm(range(0, num_redshift, HII_DIM), desc="Processing z slices", total=num_redshift // HII_DIM):
+            if 'power_spectrum' in what2plot:
+                plot_power_spectrum(
+                        x_pairs = x_pairs,
+                        params = params,
+                        los = los,
+                        savename = save_name,
+                        z_idx=z_idx,
+                        # sigma_level=100,
+                        )
 
-        if 'power_spectrum' in what2plot:
-            plot_power_spectrum(
-                    x_pairs = x_pairs,
-                    params = params,
-                    los = los,
-                    savename = save_name,
-                    # sigma_level=100,
-                    )
-
-        if 'scatter_transform' in what2plot:
-            plot_scattering_transform_2(
-                    x_pairs = x_pairs,
-                    params = params,
-                    los = los,
-                    savename = save_name,
-                    # sigma_level=100,
-                    )
+            if 'scatter_transform' in what2plot:
+                plot_scattering_transform_2(
+                        x_pairs = x_pairs,
+                        params = params,
+                        los = los,
+                        savename = save_name,
+                        z_idx=z_idx,
+                        # sigma_level=100,
+                        )
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -885,10 +915,10 @@ if __name__ == '__main__':
 
     evaluate(
             what2plot = ['grid', 'global_signal', 'power_spectrum', 'scatter_transform'],
-            device_count = 4,
-            node = 10,
+            # device_count = 4,
+            # node = 10,
             jobID = args.jobID,
-            epoch = 120,
+            # epoch = 120,
             use_ema = 0,
             z_step = args.z_step,
             transform = args.transform if 'transform' in args else 'ml',

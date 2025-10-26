@@ -480,10 +480,13 @@ def plot_power_spectrum(x_pairs, params, los, sigma_level=68.27, alpha=0.2, z_id
         
         ax[1].plot(k_vals, (y1-y0)/y0, label=f'{np.array(params[i])}', c=f"C{i}")
 
-        sigma = 0.5*(Pk0_perc[1]-Pk0_perc[0])
-        ax[2].plot(k_vals, (y1-y0)/sigma, label=f'{np.array(params[i])}', c=f"C{i}")
-
-        ax[3].plot(k_vals, (Pk1_perc[1]-Pk1_perc[0])/2/sigma-1, c=f"C{i}")
+        sigma0 = 0.5*(Pk0_perc[1]-Pk0_perc[0])
+        # if np.any(sigma0 == 0):
+        #     print(f"🆘 Warning: sigma0 has zero values for params {params[i]}, skipping those k values in epsilon_std plot for PT.")
+        #     sigma0 = np.where(sigma0 == 0, 1e-4, sigma0)  # 替换为一个很小的数，避免除以零
+        sigma1 = 0.5*(Pk1_perc[1]-Pk1_perc[0])
+        ax[2].plot(k_vals, (y1-y0)/sigma0, label=f'{np.array(params[i])}', c=f"C{i}")
+        ax[3].plot(k_vals, sigma1/sigma0-1, c=f"C{i}")
 
     ax[0].set_xscale('log')
     # ax[0].set_ylim(0,10**5)
@@ -729,11 +732,13 @@ def plot_scattering_transform_2(x_pairs, params, los, sigma_level=68.27, alpha=0
 
         ax[1].plot(np.arange(y0.shape[0]), ((y1-y0)/y0), label=f'{np.array(params[i])}', c=f"C{i}")
 
-        sigma = (S2_sim_perc[1]-S2_sim_perc[0])/2
-        ax[2].plot(np.arange(y0.shape[0]), (y1-y0)/sigma, label=f'{np.array(params[i])}', c=f"C{i}")
-
-        # ax[3].plot(np.arange(y0.shape[0]), (S2_sim_perc[1]-S2_sim_perc[0])/sigma-1, c=f"C{i}")
-        ax[3].plot(np.arange(y0.shape[0]), (S2_ml_perc[1]-S2_ml_perc[0])/2/sigma-1, c=f"C{i}")
+        sigma0 = (S2_sim_perc[1]-S2_sim_perc[0])/2
+        # if np.any(sigma0 == 0):
+        #     print(f"🆘 Warning: sigma0 has zero values for params {params[i]}, skipping those coefficients in epsilon_std plot of ST.")
+        #     sigma0 = np.where(sigma0 == 0, 1e-4, sigma0)  # 替换为一个很小的数，避免除以零
+        sigma1 = (S2_ml_perc[1]-S2_ml_perc[0])/2
+        ax[2].plot(np.arange(y0.shape[0]), (y1-y0)/sigma0, label=f'{np.array(params[i])}', c=f"C{i}")
+        ax[3].plot(np.arange(y0.shape[0]), sigma1/sigma0-1, c=f"C{i}")
 
     # legend_line1 = Line2D([0], [0], linestyle=':', color='black')
     # legend_line2 = Line2D([0], [0], linestyle='-', color='black', marker='|', markersize=10)
@@ -799,6 +804,53 @@ def plot_scattering_transform_2(x_pairs, params, los, sigma_level=68.27, alpha=0
         savename = f"scattering_coefficients_{savename}_{z_idx}.pdf"
         plt.savefig(savename, bbox_inches='tight',)
         print(f'Image saved to {savename}')
+
+def plot_vtasked_Tb(x_pairs, params, los, savename=None, num_per_param=1):
+    samples = []
+    for i, (x0, x1) in enumerate(x_pairs):
+        samples.append(np.concat([x0[:num_per_param], x1[:num_per_param]], axis=0))
+    samples = np.concat(samples, axis=0)
+    print(f"⚠️ plot_vtasked_Tb: samples.shape = {samples.shape}")
+
+    row = len(samples)
+    figsize = (16, 1*row)
+    fig, axes = plt.subplots(row, 1, figsize=figsize, dpi=100)#, constrained_layout=True)
+    plt.subplots_adjust(wspace=0, hspace=-0.001)
+
+    for i in range(row):
+        if samples.ndim == 5:
+            axes[i].imshow(samples[i,0,0,:,:], cmap=cmap, vmin=vmin, vmax=vmax)
+        elif samples.ndim == 4:
+            axes[i].imshow(samples[i,0,:,:], cmap=cmap, vmin=vmin, vmax=vmax)
+        # axes[i].axis("off")
+        axes[i].set_xticks([])
+        axes[i].set_yticks([])
+        
+        # --- 每组第一个子图加一个 ylabel ---
+        group_size = num_per_param * 2  # 每组的大小（真实样本 + 生成样本）
+        if i % group_size == 0:
+            group_idx = i // group_size
+            param = params[group_idx].numpy().tolist()
+            axes[i].set_ylabel(f"[{param[0]:.3f}, {param[1]:.3f}]", fontsize=20, va='center', ha='right', labelpad=10, color=f"C{group_idx}")
+            print(f"⚠️ Adding ylabel [{param[0]:.3f}, {param[1]:.3f}] for group {group_idx} at subplot {i}")
+
+    cbar_ax = fig.add_axes([0.90, 0.128, 0.01, 0.737]) 
+    norm = mpl.colors.Normalize(vmin=vmin, vmax=vmax)
+    cbar = mpl.colorbar.ColorbarBase(cbar_ax, cmap=cmap, norm=norm, orientation='vertical')
+    cbar.set_label('Brightness Temperature (mK)', fontsize=20) 
+    
+    # plt.suptitle(f"ION_Tvir_MIN = {c[0][0]:.3f}, HII_EFF_FACTOR = {c[0][1]:.3f},\nz = [{los[0,0]:.2f}, {los[0,-1]:.2f}] {savename}")
+    plt.colormaps()
+    
+    if savename is None:
+        plt.show()
+    else:
+        # savename = f"Tvir_zeta-{c[0][0]:.3f}_{c[0][1]:.3f}_{savename}.pdf"
+        savename = f"Tbs_{savename}.pdf"
+        plt.savefig(savename, bbox_inches='tight',)
+        print(f"Image saved to {savename}")
+    plt.close()
+    # gc.collect()
 
 
 def evaluate(
@@ -871,11 +923,18 @@ def evaluate(
             elif x0.shape[-1] == 1024:
                 row, col = 9, 2
 
-            plot_grid(torch.cat((x0[:row//2 * col], x0_ml), dim=0), c=c0, los=los, savename = save_name, row=row, col=col)
-            plot_grid(torch.cat((x1[:row//2 * col], x1_ml), dim=0), c=c1, los=los, savename = save_name, row=row, col=col)
-            plot_grid(torch.cat((x2[:row//2 * col], x2_ml), dim=0), c=c2, los=los, savename = save_name, row=row, col=col)
-            plot_grid(torch.cat((x3[:row//2 * col], x3_ml), dim=0), c=c3, los=los, savename = save_name, row=row, col=col)
-            plot_grid(torch.cat((x4[:row//2 * col], x4_ml), dim=0), c=c4, los=los, savename = save_name, row=row, col=col)
+            plot_vtasked_Tb(
+                x_pairs = x_pairs,
+                params = params,
+                los = los,
+                savename = save_name,
+                num_per_param = 2,
+                )
+            # plot_grid(torch.cat((x0[:row//2 * col], x0_ml), dim=0), c=c0, los=los, savename = save_name, row=row, col=col)
+            # plot_grid(torch.cat((x1[:row//2 * col], x1_ml), dim=0), c=c1, los=los, savename = save_name, row=row, col=col)
+            # plot_grid(torch.cat((x2[:row//2 * col], x2_ml), dim=0), c=c2, los=los, savename = save_name, row=row, col=col)
+            # plot_grid(torch.cat((x3[:row//2 * col], x3_ml), dim=0), c=c3, los=los, savename = save_name, row=row, col=col)
+            # plot_grid(torch.cat((x4[:row//2 * col], x4_ml), dim=0), c=c4, los=los, savename = save_name, row=row, col=col)
 
         if 'global_signal' in what2plot:
             plot_global_signal(

@@ -242,7 +242,7 @@ def calc_ps(field, L):
     if field.ndim == 3:
         Pk *= (kbins**3) / (2*np.pi**2)
     elif field.ndim == 2:
-        Pk *= (kbins**2) / (4*np.pi**2)
+        Pk *= (kbins**2) / (2*np.pi)
 
     return kbins, Pk
 

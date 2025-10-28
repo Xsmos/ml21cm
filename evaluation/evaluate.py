@@ -410,9 +410,9 @@ def plot_global_signal(x_pairs, params, los, sigma_level=68.27, alpha=0.2, lw = 
 
     ax[1].set_ylabel(r"$\epsilon_{rel}$")
     # ax[1].set_yscale("symlog", linthresh=0.1)
-    ax[1].set_ylim(-2,2)
-    ax[2].set_ylim(-2,2)
-    ax[3].set_ylim(-2,2)
+    ax[1].set_ylim(-2.3,2.3)
+    ax[2].set_ylim(-2.3,2.3)
+    ax[3].set_ylim(-2.3,2.3)
 
     ax[1].grid()
     
@@ -496,9 +496,9 @@ def plot_power_spectrum(x_pairs, params, los, sigma_level=68.27, alpha=0.2, z_id
     ax[0].set_ylabel(r'$\Delta^2(k)$ [mK$^2$]')
     ax[0].grid()
     
-    ax[1].set_ylim(-2,2)
-    ax[2].set_ylim(-2,2)
-    ax[3].set_ylim(-2,2)
+    ax[1].set_ylim(-2.3,2.3)
+    ax[2].set_ylim(-2.3,2.3)
+    ax[3].set_ylim(-2.3,2.3)
 
     # legend_line1 = Line2D([0], [0], linestyle=':', color='black')
     # legend_line2 = Line2D([0], [0], linestyle='-', color='black', marker='|', markersize=10)
@@ -756,9 +756,9 @@ def plot_scattering_transform_2(x_pairs, params, los, sigma_level=68.27, alpha=0
     j1j2_period = j1j2.shape[0]//L
 
     ax[0].set_ylim(-3,0)
-    ax[1].set_ylim(-2,2)
-    ax[2].set_ylim(-2,2)
-    ax[3].set_ylim(-2,2)
+    ax[1].set_ylim(-2.3,2.3)
+    ax[2].set_ylim(-2.3,2.3)
+    ax[3].set_ylim(-2.3,2.3)
 
     # plt.text()
     ax[0].vlines(np.arange(0-0.5, j1j2.shape[0]-0.5+j1j2_period,j1j2_period), ax[0].get_ylim()[0], ax[0].get_ylim()[1], colors='grey', alpha=0.8, linestyles=':')

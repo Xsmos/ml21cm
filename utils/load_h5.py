@@ -39,12 +39,13 @@ ranges_dict = dict(
         0: [4, 6], # ION_Tvir_MIN
         1: [10, 250], # HII_EFF_FACTOR
         },
-    # images = {
-    #     ## 0: [-338, 54],#[0, 80], # brightness_temp
-    #     0: [-36.840145, 50.21427 * 8],
-    #     #0: [-387, 86],
-    #     }
-    )
+    z_score = {
+        0: [-36.840145, 50.21427],
+        },
+    min_max = {
+        0: [-387, 86],
+        },
+)
 
 class Dataset4h5(Dataset):
     def __init__(
@@ -89,8 +90,15 @@ class Dataset4h5(Dataset):
         if scale_path:
             scale_start = time()
             self.params = self.MinMaxScaler(self.params, ranges=ranges_dict['params'], to=[0,1])
-            self.images = self.ImagesScaler(self.images, scale_path=scale_path, squish=squish)
-            # self.images = self.MinMaxScaler(self.images, ranges=ranges_dict['images'], to=[-1,1])
+            if 'Transformer' in scale_path:
+                self.images = self.ImagesScaler(self.images, scale_path=scale_path, squish=squish)
+            elif 'min-max' in scale_path:
+                print(f"⚠️ Scaling images with min-max scaler using ranges {ranges_dict[scale_path]}")
+                self.images = (self.images - ranges_dict[scale_path][0]) / (ranges_dict[scale_path][1]-ranges_dict[scale_path][0])
+                # self.images = self.MinMaxScaler(self.images, ranges=ranges_dict[scale_path], to=[-1,1])
+            elif 'z-score' in scale_path:
+                print(f"⚠️ Scaling images with z-score scaler using ranges {ranges_dict[scale_path]}")
+                self.images = (self.images - ranges_dict[scale_path][0]) / ranges_dict[scale_path][1]
             #scale_end = time()
             print(f"images & params scaled to [{self.images.min():.4f}, {self.images.max():.4f}] (mean={self.images.mean():.4f}, median={torch.median(self.images):.4f}, std={self.images.std():.4f}) & [{self.params.min():.4e}, {self.params.max():.6f}] after {time()-scale_start:.2f}s")
 

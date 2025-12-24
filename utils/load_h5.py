@@ -92,14 +92,19 @@ class Dataset4h5(Dataset):
             self.params = self.MinMaxScaler(self.params, ranges=ranges_dict['params'], to=[0,1])
             if 'Transformer' in scale_path:
                 self.images = self.ImagesScaler(self.images, scale_path=scale_path, squish=squish)
-            elif 'min-max' in scale_path:
-                print(f"⚠️ Scaling images with min-max scaler using ranges {ranges_dict[scale_path]}")
+            elif 'min_max' in scale_path:
+                print(f"⚠️ Scaling images with min_max scaler using ranges {ranges_dict[scale_path]}")
                 self.images = (self.images - ranges_dict[scale_path][0]) / (ranges_dict[scale_path][1]-ranges_dict[scale_path][0])
                 # self.images = self.MinMaxScaler(self.images, ranges=ranges_dict[scale_path], to=[-1,1])
-            elif 'z-score' in scale_path:
-                print(f"⚠️ Scaling images with z-score scaler using ranges {ranges_dict[scale_path]}")
+            elif 'z_score' in scale_path:
+                print(f"⚠️ Scaling images with z_score scaler using ranges {ranges_dict[scale_path]}")
                 self.images = (self.images - ranges_dict[scale_path][0]) / ranges_dict[scale_path][1]
+            elif 'arcsinh' in scale_path:
+                print(f"⚠️ Scaling images with arcsinh scaler")
+                self.images = np.arcsinh(self.images)
             #scale_end = time()
+
+            self.images = torch.from_numpy(self.images)
             print(f"images & params scaled to [{self.images.min():.4f}, {self.images.max():.4f}] (mean={self.images.mean():.4f}, median={torch.median(self.images):.4f}, std={self.images.std():.4f}) & [{self.params.min():.4e}, {self.params.max():.6f}] after {time()-scale_start:.2f}s")
 
         # from_numpy_start = time()
@@ -269,7 +274,7 @@ class Dataset4h5(Dataset):
             print(f"🌱 cuda:{torch.cuda.current_device()}/{self.global_rank} fitted {scale_path} after {time()-start_time:.3f} sec 🌱")
             joblib.dump(preprocessor, scale_path)
     
-        images = torch.from_numpy(images.reshape(*original_shape))
+        images = images.reshape(*original_shape)
         return images 
 
     def __getitem__(self, index):

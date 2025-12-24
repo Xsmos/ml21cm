@@ -6,7 +6,7 @@
 #SBATCH --gpus-per-node=4
 #SBATCH --ntasks-per-node=1
 #SBATCH --gpu-bind=none
-#SBATCH -t 2-0:00:00
+#SBATCH -t 4:00:00
 #SBATCH -o training/logs/%x-%j
 #SBATCH --mail-type=BEGIN,END,FAIL
 
@@ -56,12 +56,15 @@ srun --gpus-per-node=$SLURM_GPUS_ON_NODE --ntasks-per-node=1 --gpu-bind=none tor
         --num_redshift 1024 \
         --channel_mult 1 1 2 4 \
         --n_epoch 120 \
-        --stride 2 2 4 \
+        --stride 2 4 \
         --num_res_blocks 3 \
         --gradient_accumulation_steps 16 \
-        --squish .1 1 \
-        --scale_path "./utils/PowerTransformer_25600_z1.pkl" \
+        --squish 1 1 \
         --train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
+        --scale_path "./utils/PowerTransformer_25600_z1.pkl" \
+        # --scale_path "arcsinh" \
+        #--scale_path "min_max" \
+        # --scale_path "z_score" \
         #--z_step 1 \
         #--resume ./training/outputs/model-N800-device_count4-node8-43908946-epoch120.pt \
         #--reset-epoch \

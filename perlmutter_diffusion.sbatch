@@ -6,7 +6,7 @@
 #SBATCH --gpus-per-node=4
 #SBATCH --ntasks-per-node=1
 #SBATCH --gpu-bind=none
-#SBATCH -t 4:00:00
+#SBATCH -t 2-0:00:00
 #SBATCH -o training/logs/%x-%j
 #SBATCH --mail-type=BEGIN,END,FAIL
 
@@ -64,7 +64,7 @@ srun --gpus-per-node=$SLURM_GPUS_ON_NODE --ntasks-per-node=1 --gpu-bind=none tor
         --z_step 2 \
         --scale_path "./utils/PowerTransformer_25600_z1.pkl" \
         # --scale_path "arcsinh" \
-        #--scale_path "min_max" \
+        # --scale_path "min_max" \
         # --scale_path "z_score" \
         #--resume ./training/outputs/model-N800-device_count4-node8-43908946-epoch120.pt \
         #--reset-epoch \

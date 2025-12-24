@@ -892,10 +892,10 @@ if __name__ == "__main__":
         max_num_img_per_gpu = args.max_num_img_per_gpu#40#2#20
         params_pairs = [
             (4.4, 131.341),
-            (5.6, 19.037),
+            # (5.6, 19.037),
             (4.699, 30),
             (5.477, 200),
-            (4.8, 131.341),
+            # (4.8, 131.341),
         ]
         generate_samples(config, num_new_img_per_gpu, max_num_img_per_gpu, params_pairs)
     else:

@@ -39,12 +39,8 @@ ranges_dict = dict(
         0: [4, 6], # ION_Tvir_MIN
         1: [10, 250], # HII_EFF_FACTOR
         },
-    z_score = {
-        0: [-36.840145, 50.21427],
-        },
-    min_max = {
-        0: [-387, 86],
-        },
+    z_score = [-36.840145, 50.21427],
+    min_max = [-387, 86],
 )
 
 class Dataset4h5(Dataset):

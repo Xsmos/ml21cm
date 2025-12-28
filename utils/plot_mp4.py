@@ -2,8 +2,9 @@ import re
 from pathlib import Path
 from PIL import Image
 import subprocess
+import math
 
-def plot_mp4(jobid, fps=4, transform=None):
+def plot_mp4(jobid, seconds=4, transform=None):
     outdir = Path("panels")
     outdir.mkdir(exist_ok=True)
     
@@ -12,7 +13,11 @@ def plot_mp4(jobid, fps=4, transform=None):
         int(re.search(r"_z(\d+)", p.name).group(1))
         for p in Path(".").glob(f"Tbs_grid_{jobid}_*_z*.png")
     })
-    
+
+    fps = len(z_values) // seconds
+    if fps == 0:
+        fps = 1
+        
     panel_frames = []
     
     for z in z_values:

@@ -16,3 +16,4 @@ logs/
 wandb/
 *.png
 *.pdf
+*.mp4

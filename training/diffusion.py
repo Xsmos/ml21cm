@@ -482,7 +482,8 @@ class DDPM21CM:
         if k == 0:
             y = A * x
         else:
-            y = A * torch.sign(x) * torch.log1p(torch.abs(x) / k) #A * torch.tanh(x/k)
+            # y = A * torch.sign(x) * torch.log1p(torch.abs(x) / k) #A * torch.tanh(x/k)
+            y = A * torch.arcsinh(x/k)
         #print(f"squish = {Ak}; cuda:{torch.cuda.current_device()}|{self.config.global_rank}; {time()-start_time:.3f} sec")
         return y
 
@@ -492,7 +493,8 @@ class DDPM21CM:
         if k == 0:
             x = 1/A * y
         else:
-            x = k * np.sign(y) * np.expm1(np.abs(y) / A) #k * np.arctanh(y/A)
+            # x = k * np.sign(y) * np.expm1(np.abs(y) / A) #k * np.arctanh(y/A)
+            x = k * torch.sinh(y/A)
         print(f"inverse_squish = {Ak}: {time()-start_time:.3f} sec, {y.min()=}, {y.max()=}, {x.min()=}, {x.max()=}")
         return x
 

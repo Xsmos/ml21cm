@@ -6,7 +6,7 @@
 #SBATCH --gpus-per-node=4
 #SBATCH --ntasks-per-node=1
 #SBATCH --gpu-bind=none
-#SBATCH -t 1-0:00:00
+#SBATCH -t 2-0:00:00
 #SBATCH -o training/logs/%x-%j
 #SBATCH --mail-type=BEGIN,END,FAIL
 
@@ -61,7 +61,7 @@ srun --gpus-per-node=$SLURM_GPUS_ON_NODE --ntasks-per-node=1 --gpu-bind=none tor
         --gradient_accumulation_steps 16 \
         --squish 1 0 \
         --train "$SCRATCH/LEN128-DIM64-CUB16-Tvir[4, 6]-zeta[10, 250]-0809-123640.h5" \
-        --z_step 4 \
+        --z_step 1 \
         --scale_path "./utils/PowerTransformer_25600_z1.pkl" \
         # --scale_path "arcsinh" \
         # --scale_path "min_max" \

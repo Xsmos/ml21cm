@@ -18,3 +18,4 @@ wandb/
 *.pdf
 *.mp4
 panels/
+panel*

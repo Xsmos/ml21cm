@@ -255,7 +255,7 @@ class TrainConfig:
     # seed = 0
     # save_dir = './outputs/'
 
-    save_period = 10 #np.infty #n_epoch // 2 #np.infty#.1 # the period of sampling
+    save_period = 2 #np.infty #n_epoch // 2 #np.infty#.1 # the period of sampling
     # general parameters for the name and logger    
     # device = "cuda" if torch.cuda.is_available() else "cpu"
     lrate = 1e-4

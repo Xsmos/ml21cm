@@ -129,7 +129,7 @@ class Dataset4h5(Dataset):
         elif self.idx == "range":
             rank = torch.cuda.current_device()
             local_world_size = torch.cuda.device_count()
-            self.global_rank = rank + local_world_size * int(os.environ["SLURM_NODEID"])
+            self.global_rank = rank + local_world_size * int(os.environ.get("SLURM_NODEID", 0))
             self.idx = range(
                 self.global_rank*self.num_image, (self.global_rank+1)*self.num_image
                 )

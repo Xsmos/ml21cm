@@ -1,6 +1,8 @@
 import os
 import sys
 import argparse
+import re
+import textwrap
 from typing import Dict, Any
 
 import h5py
@@ -21,98 +23,10 @@ from utils.load_h5 import Dataset4h5, ranges_dict
 # Manually specify the experiment registry here.
 # key: jobID, value: primary hyperparameters for legend labels.
 JOBID_HPARAMS: Dict[int, Dict[str, Any]] = {
-    48436662: {
-        "num_res_blocks": 1,
-        "squish": "0.1,0",
-        "stride": "2-2-4",
-        "epochs": 120,
-        "z_step": "1",
-        "transform": "pt_inv",
-    },
-    48580330: {
-        "num_res_blocks": 2,
-        "squish": "0.1,0",
-        "stride": "2-2-4",
-        "epochs": 120,
-        "z_step": "1",
-        "transform": "pt_inv",
-    },
-    48057143: {
-        "num_res_blocks": 3,
-        "squish": "0.1,0",
-        "stride": "2-2-4",
-        "epochs": 120,
-        "z_step": "1",
-        "transform": "pt_inv",
-    },
-    47908550: {
-        "num_res_blocks": 3,
-        "squish": "0.1,0",
-        "stride": "2-2-4",
-        "epochs": 60,
-        "z_step": "1",
-        "transform": "pt_inv",
-    },
-    47356556: {
-        "num_res_blocks": 3,
-        "squish": "0.1,0",
-        "stride": "2-2-4",
-        "epochs": 30,
-        "z_step": "1",
-        "transform": "pt_inv",
-    },
-    48057168: {
-        "num_res_blocks": 3,
-        "squish": "0.5,0",
-        "stride": "2-2-4",
-        "epochs": 120,
-        "z_step": "1",
-        "transform": "pt_inv",
-    },
-    48057253: {
-        "num_res_blocks": 3,
-        "squish": "1,0",
-        "stride": "2-2-4",
-        "epochs": 120,
-        "z_step": "1",
-        "transform": "pt_inv",
-    },
-    47032656: {
-        "num_res_blocks": 3,
-        "squish": "1,0",
-        "stride": "2-2-4",
-        "epochs": 120,
-        "z_step": "2",
-        "transform": "pt_inv",
-    },
-    47032706: {
-        "num_res_blocks": 3,
-        "squish": "1,0",
-        "stride": "2-2-4",
-        "epochs": 120,
-        "z_step": "2",
-        "transform": "min_max",
-    },
-    47032672: {
-        "num_res_blocks": 3,
-        "squish": "1,0",
-        "stride": "2-2-4",
-        "epochs": 120,
-        "z_step": "2",
-        "transform": "z_score",
-    },
-    46941293: {
-        "num_res_blocks": 3,
-        "squish": "1,0",
-        "stride": "2-4",
-        "epochs": 120,
-        "z_step": "1",
-        "transform": "z_score",
-    },
     46941305: {
         "num_res_blocks": 3,
         "squish": "1,0",
-        "stride": "2-4",
+        "dim": 2,
         "epochs": 120,
         "z_step": "1",
         "transform": "arcsinh",
@@ -120,20 +34,109 @@ JOBID_HPARAMS: Dict[int, Dict[str, Any]] = {
     46941303: {
         "num_res_blocks": 3,
         "squish": "1,0",
-        "stride": "2-4",
+        "dim": 2,
         "epochs": 120,
         "z_step": "1",
         "transform": "min_max",
     },
+    46941293: {
+        "num_res_blocks": 3,
+        "squish": "1,0",
+        "dim": 2,
+        "epochs": 120,
+        "z_step": "1",
+        "transform": "z_score",
+    },
     46941286: {
         "num_res_blocks": 3,
         "squish": "1,0",
-        "stride": "2-4",
+        "dim": 2,
         "epochs": 120,
         "z_step": "1",
         "transform": "pt_inv",
-    }
+    },
+    47032706: {
+        "num_res_blocks": 3,
+        "squish": "1,0",
+        "dim": 3,
+        "epochs": 120,
+        "z_step": "2",
+        "transform": "min_max",
+    },
+    47032672: {
+        "num_res_blocks": 3,
+        "squish": "1,0",
+        "dim": 3,
+        "epochs": 120,
+        "z_step": "2",
+        "transform": "z_score",
+    },
+    47032656: {
+        "num_res_blocks": 3,
+        "squish": "1,0",
+        "dim": 3,
+        "epochs": 120,
+        "z_step": "2",
+        "transform": "pt_inv",
+    },
+    48436662: {
+        "num_res_blocks": 1, # baseline
+        "squish": "0.1,0",
+        "dim": 3,
+        "epochs": 120,
+        "z_step": "1",
+        "transform": "pt_inv",
+    },
+    48580330: {
+        "num_res_blocks": 2,
+        "squish": "0.1,0",
+        "dim": 3,
+        "epochs": 120,
+        "z_step": "1",
+        "transform": "pt_inv",
+    },
+    48057143: {
+        "num_res_blocks": 3,
+        "squish": "0.1,0",
+        "dim": 3,
+        "epochs": 120,
+        "z_step": "1",
+        "transform": "pt_inv",
+    },
+    48057168: {
+        "num_res_blocks": 3,
+        "squish": "0.5,0",
+        "dim": 3,
+        "epochs": 120,
+        "z_step": "1",
+        "transform": "pt_inv",
+    },
+    48057253: {
+        "num_res_blocks": 3,
+        "squish": "1,0",
+        "dim": 3,
+        "epochs": 120,
+        "z_step": "1",
+        "transform": "pt_inv",
+    },
+    47908550: {
+        "num_res_blocks": 3,
+        "squish": "0.1,0",
+        "dim": 3,
+        "epochs": 60,
+        "z_step": "1",
+        "transform": "pt_inv",
+    },
+    47356556: {
+        "num_res_blocks": 3,
+        "squish": "0.1,0",
+        "dim": 3,
+        "epochs": 30,
+        "z_step": "1",
+        "transform": "pt_inv",
+    },
 }
+BASELINE_JOBID = 48436662
 
 
 def load_h5_as_tensor(
@@ -233,11 +236,88 @@ def x2Tb(x: torch.Tensor):
     raise ValueError(f"Unsupported tensor ndim: {x.ndim}")
 
 
-def _format_model_label(jobid: int, hyperparams: Dict[str, Any]) -> str:
+def derive_target_pattern_from_real_h5(real_h5: str) -> str:
+    base = os.path.basename(real_h5)
+    m = re.search(r"Tvir([0-9]*\.?[0-9]+)-zeta([0-9]*\.?[0-9]+)", base)
+    if m is None:
+        raise ValueError(
+            "Cannot derive target pattern from --real_h5. Expected filename containing "
+            "'Tvir<value>-zeta<value>', e.g. LEN...-Tvir4.699-zeta30-....h5"
+        )
+    tvir = float(m.group(1))
+    zeta = float(m.group(2))
+    return f"Tvir{tvir:.3f}-zeta{zeta:.3f}"
+
+
+def _format_model_label(jobid: int, hyperparams: Dict[str, Any], baseline_hyperparams: Dict[str, Any]) -> str:
     if not hyperparams:
         return f"job={jobid}"
-    hp_str = ", ".join([f"{k}={v}" for k, v in hyperparams.items()])
+
+    if jobid == BASELINE_JOBID:
+        hp_str = ", ".join([f"{k}={v}" for k, v in hyperparams.items()])
+        return f"job={jobid} | {hp_str}"
+
+    diff_items = []
+    for k, v in hyperparams.items():
+        if k not in baseline_hyperparams or str(v) != str(baseline_hyperparams[k]):
+            diff_items.append((k, v))
+
+    if not diff_items:
+        return f"job={jobid} | same as baseline"
+
+    hp_str = ", ".join([f"{k}={v}" for k, v in diff_items])
     return f"job={jobid} | {hp_str}"
+
+
+def _format_job_diff_text(jobid: int, hyperparams: Dict[str, Any], baseline_hyperparams: Dict[str, Any]) -> str:
+    if jobid == BASELINE_JOBID:
+        if not hyperparams:
+            return f"{jobid}"
+        return f"{jobid}: " + ", ".join([f"{k}={v}" for k, v in hyperparams.items()])
+    if not hyperparams:
+        return f"{jobid}"
+
+    diff_items = []
+    for k, v in hyperparams.items():
+        if k not in baseline_hyperparams or str(v) != str(baseline_hyperparams[k]):
+            diff_items.append(f"{k}={v}")
+
+    if not diff_items:
+        return f"{jobid} (same)"
+    return f"{jobid}: " + ", ".join(diff_items)
+
+
+def _wrap_label_text(s: str, width: int = 28) -> str:
+    parts = [p.strip() for p in s.split(",")]
+    lines = []
+    cur = ""
+    for p in parts:
+        token = p if cur == "" else ", " + p
+        if len(cur) + len(token) <= width:
+            cur += token
+        else:
+            if cur:
+                lines.append(cur)
+            if len(p) > width:
+                wrapped = textwrap.wrap(p, width=width)
+                lines.extend(wrapped[:-1])
+                cur = wrapped[-1] if wrapped else ""
+            else:
+                cur = p
+    if cur:
+        lines.append(cur)
+    return "\n".join(lines)
+
+
+def _generate_distinct_colors(n: int):
+    if n <= 0:
+        return []
+    if n <= 20:
+        cmap = plt.get_cmap("tab20", n)
+        return [cmap(i) for i in range(n)]
+    # Fallback for many jobs: sample a continuous map uniformly.
+    cmap = plt.get_cmap("turbo")
+    return [cmap(i / max(1, n - 1)) for i in range(n)]
 
 
 def plot_global_signal_hyperparameters(
@@ -255,17 +335,17 @@ def plot_global_signal_hyperparameters(
     low = (100 - sigma_level) / 2
     high = 100 - low
 
-    fig, ax = plt.subplots(4, 1, sharex=True, figsize=(11, 7), dpi=220, gridspec_kw={"height_ratios": [3, 0.5, 0.5, 0.5]})
+    fig, ax_left = plt.subplots(1, 1, figsize=(11, 6), dpi=220)
 
-    eps_rel_all = []
-    eps_std_all = []
-    eps_sigma_all = []
+    jobids_in_order = []
+    mae_rel_by_job = []
+    mae_std_by_job = []
+    mae_sigma_by_job = []
 
-    handles_for_legend = [
-        Line2D([0], [0], color="black", linestyle=":", lw=1.7, label="21cmFAST median")
-    ]
+    handles_for_legend = [Line2D([0], [0], color="black", linestyle=":", lw=1.7, label="21cmFAST median")]
+    baseline_hyperparams = model_meta.get(BASELINE_JOBID, {})
 
-    color_cycle = plt.rcParams["axes.prop_cycle"].by_key().get("color", [f"C{i}" for i in range(10)])
+    color_cycle = _generate_distinct_colors(len(x_ml_by_job))
 
     for idx, (jobid, x_ml) in enumerate(x_ml_by_job.items()):
         color = color_cycle[idx % len(color_cycle)]
@@ -280,7 +360,7 @@ def plot_global_signal_hyperparameters(
         x_axis = los[1, : y_true.shape[0]]
 
         if idx == 0:
-            ax[0].fill_between(
+            ax_left.fill_between(
                 x_axis,
                 perc_true[0],
                 perc_true[1],
@@ -289,24 +369,28 @@ def plot_global_signal_hyperparameters(
                 edgecolor="black",
                 label="21cmFAST CI",
             )
-            ax[0].plot(x_axis, y_true, linestyle=":", c="black", lw=1.7, label="21cmFAST median")
+            ax_left.plot(x_axis, y_true, linestyle=":", c="black", lw=1.7, label="21cmFAST median")
 
         tb_ml = x2Tb(x_ml)
         y_ml = np.median(tb_ml, axis=0)
         perc_ml = np.percentile(tb_ml, [low, high], axis=0)
         sigma_ml = 0.5 * (perc_ml[1] - perc_ml[0])
 
-        yerr_lower = y_ml - perc_ml[0]
-        yerr_upper = perc_ml[1] - y_ml
-
-        ax[0].errorbar(
-            x_axis[::interval],
-            y_ml[::interval],
-            yerr=[yerr_lower[::interval], yerr_upper[::interval]],
+        # Use translucent uncertainty bands instead of dense error bars
+        # to reduce severe overlap across many jobs.
+        ax_left.fill_between(
+            x_axis,
+            perc_ml[0],
+            perc_ml[1],
+            color=color,
+            alpha=0.10,
+            linewidth=0,
+        )
+        ax_left.plot(
+            x_axis,
+            y_ml,
             linestyle="-",
             c=color,
-            marker="|",
-            markersize=1.5,
             linewidth=lw,
         )
 
@@ -317,15 +401,12 @@ def plot_global_signal_hyperparameters(
         eps_std = ((y_ml - y_true) / sigma_true)[mask_std]
         eps_sigma = (sigma_ml / sigma_true - 1)[mask_std]
 
-        eps_rel_all.append(eps_rel)
-        eps_std_all.append(eps_std)
-        eps_sigma_all.append(eps_sigma)
+        jobids_in_order.append(jobid)
+        mae_rel_by_job.append(np.abs(eps_rel).mean() if eps_rel.size > 0 else np.nan)
+        mae_std_by_job.append(np.abs(eps_std).mean() if eps_std.size > 0 else np.nan)
+        mae_sigma_by_job.append(np.abs(eps_sigma).mean() if eps_sigma.size > 0 else np.nan)
 
-        model_label = _format_model_label(jobid, model_meta.get(jobid, {}))
-        ax[1].plot(x_axis[mask_rel], eps_rel, c=color, lw=lw, label=model_label)
-        ax[2].plot(x_axis[mask_std], eps_std, c=color, lw=lw)
-        ax[3].plot(x_axis[mask_std], eps_sigma, c=color, lw=lw)
-
+        model_label = _format_model_label(jobid, model_meta.get(jobid, {}), baseline_hyperparams)
         handles_for_legend.append(Line2D([0], [0], color=color, lw=1.5, label=model_label))
 
     if z_idx is not None:
@@ -334,33 +415,16 @@ def plot_global_signal_hyperparameters(
         los = los_by_job[first_jobid]
         if z_idx < len(los[1]):
             x_mark = los[1][z_idx]
-            for ax_i in ax:
-                ax_i.axvline(x=x_mark, color="red", linestyle="--", linewidth=1.5)
+            ax_left.axvline(x=x_mark, color="red", linestyle="--", linewidth=1.5)
 
-    ax[0].set_ylabel(r"$\langle T_b \rangle$ [mK]")
-    ax[0].grid()
+    ax_left.set_ylabel(r"$\langle T_b \rangle$ [mK]")
+    ax_left.set_xlabel("distance [Gpc]")
+    ax_left.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, pos: f"{x / 1000:.1f}"))
+    ax_left.set_title("Global Signal Comparison")
+    ax_left.grid()
 
-    ax[1].set_ylabel(r"$\epsilon_{rel}$")
-    ax[2].set_ylabel(r"$\epsilon_{std}$")
-    ax[3].set_ylabel(r"$\epsilon_{\sigma}$")
-
-    mae_rel = np.abs(np.concatenate(eps_rel_all)).mean() if eps_rel_all else np.nan
-    mae_std = np.abs(np.concatenate(eps_std_all)).mean() if eps_std_all else np.nan
-    mae_sigma = np.abs(np.concatenate(eps_sigma_all)).mean() if eps_sigma_all else np.nan
-
-    ax[1].text(0.01, 0.12, rf"$\overline{{|\epsilon_{{rel}}|}}={mae_rel:.3f}$", transform=ax[1].transAxes)
-    ax[2].text(0.01, 0.12, rf"$\overline{{|\epsilon_{{std}}|}}={mae_std:.3f}$", transform=ax[2].transAxes)
-    ax[3].text(0.01, 0.12, rf"$\overline{{|\epsilon_{{\sigma}}|}}={mae_sigma:.3f}$", transform=ax[3].transAxes)
-
-    for i in [1, 2, 3]:
-        ax[i].set_ylim(-1.99, 1.99)
-        ax[i].grid()
-
-    ax[3].set_xlabel("distance [Gpc]")
-    ax[3].xaxis.set_major_formatter(plt.FuncFormatter(lambda x, pos: f"{x / 1000:.1f}"))
-
-    ax_twin = ax[0].secondary_xaxis("top")
-    ax_twin.set_xlim(ax[0].get_xlim())
+    ax_twin = ax_left.secondary_xaxis("top")
+    ax_twin.set_xlim(ax_left.get_xlim())
     ax_twin.set_xlabel("redshift")
     first_jobid = next(iter(los_by_job.keys()))
     los = los_by_job[first_jobid]
@@ -369,8 +433,13 @@ def plot_global_signal_hyperparameters(
     ax_twin.set_xticks(z_ticks_x)
     ax_twin.set_xticklabels([f"{zv:.1f}" for zv in z_ticks])
 
-    ax[0].legend(handles=handles_for_legend, fontsize=8, loc="best")
-    plt.subplots_adjust(hspace=0)
+    legend = ax_left.legend(handles=handles_for_legend, fontsize=8, loc="best")
+    for txt in legend.get_texts():
+        if txt.get_text().startswith(f"job={BASELINE_JOBID}"):
+            txt.set_fontweight("bold")
+            txt.set_fontstyle("italic")
+
+    plt.tight_layout()
 
     if savename:
         plt.savefig(savename, bbox_inches="tight")
@@ -379,11 +448,60 @@ def plot_global_signal_hyperparameters(
     else:
         plt.show()
 
+    # Separate figure: per-job MAE trend.
+    fig_mae, ax_mae = plt.subplots(
+        1,
+        1,
+        figsize=(max(6.8, 0.45 * len(jobids_in_order) + 1.6), 4.8),
+        dpi=220,
+    )
+    x = np.arange(len(jobids_in_order))
+    ax_mae.plot(x, mae_rel_by_job, marker="o", lw=1.5, label=r"$\mathrm{MAE}_{rel}$")
+    ax_mae.plot(x, mae_std_by_job, marker="s", lw=1.5, label=r"$\mathrm{MAE}_{std}$")
+    ax_mae.plot(x, mae_sigma_by_job, marker="^", lw=1.5, label=r"$\mathrm{MAE}_{\sigma}$")
+    ax_mae.set_xticks(x)
+    ax_mae.set_xticklabels([str(i + 1) for i in range(len(x))])
+    ax_mae.set_xlabel("job index")
+    ax_mae.set_ylabel("MAE")
+    ax_mae.set_title("Per-Job Error Trend")
+    ax_mae.set_yscale("log")
+    ax_mae.grid()
+    ax_mae.legend()
+
+    # Annotate each job near MAE_rel points using jobID + diffs to baseline.
+    text_transform = ax_mae.get_xaxis_transform()
+    for i, jobid in enumerate(jobids_in_order):
+        label_text = _format_job_diff_text(jobid, model_meta.get(jobid, {}), baseline_hyperparams)
+        label_text = _wrap_label_text(label_text, width=50)
+        fw = "bold" if jobid == BASELINE_JOBID else "normal"
+        fs = "italic" if jobid == BASELINE_JOBID else "normal"
+        ax_mae.text(
+            x[i],
+            0.02,
+            label_text,
+            transform=text_transform,
+            fontsize=7,
+            ha="left",
+            va="bottom",
+            rotation=90,
+            fontweight=fw,
+            fontstyle=fs,
+        )
+    plt.tight_layout()
+
+    if savename:
+        root, ext = os.path.splitext(savename)
+        mae_savename = f"{root}_mae_trend{ext if ext else '.png'}"
+        plt.savefig(mae_savename, bbox_inches="tight")
+        print(f"Saved figure to {mae_savename}")
+        plt.close()
+    else:
+        plt.show()
+
 
 def main():
     parser = argparse.ArgumentParser(description="Plot global signal: truth vs multiple model hyperparameter settings.")
     parser.add_argument("--real_h5", type=str, required=True, help="Real-data H5 filename. Relative path is resolved under $SCRATCH.")
-    parser.add_argument("--target_pattern", type=str, required=True, help="Substring used to match generated files, e.g. 'Tvir4.400-zeta131.341'.")
     parser.add_argument("--outputs_dir", type=str, default="../training/outputs", help="Directory containing generated .npy files.")
     parser.add_argument("--num_image", type=int, default=256)
     parser.add_argument("--num_redshift", type=int, default=1024)
@@ -394,6 +512,8 @@ def main():
     parser.add_argument("--z_idx", type=int, default=None)
     parser.add_argument("--save", type=str, default="global_signal_hyperparams.png")
     args = parser.parse_args()
+    target_pattern = derive_target_pattern_from_real_h5(args.real_h5)
+    print(f"Using target_pattern={target_pattern} derived from real_h5={args.real_h5}")
 
     # Load truth once at z_step=1, then adapt per job by slicing [..., ::z_step].
     x_true_full, _, los_full = load_h5_as_tensor(
@@ -418,7 +538,7 @@ def main():
         los = los_full[:, ::job_z_step]
 
         x_ml = load_x_ml(
-            target_pattern=args.target_pattern,
+            target_pattern=target_pattern,
             jobid=jobid,
             num_image=args.num_image,
             ema=args.use_ema,
@@ -426,7 +546,13 @@ def main():
             pt_fname=args.pt_fname,
             transform=job_transform,
         )
-        print(f"⛳️ Loaded {x_ml.shape=}; {x_true.shape=}; {los.shape=}; {jobid=}")
+        print(
+            "⛳️ Loaded "
+            f"x_ml.shape={x_ml.shape}; "
+            f"x_true.shape={x_true.shape}; "
+            f"los.shape={los.shape}; "
+            f"jobid={jobid}"
+        )
         # Align LOS length if generated tensors use a different redshift-length.
         z_len = min(x_true.shape[-1], x_ml.shape[-1], los.shape[1])
         x_true = x_true[..., :z_len]

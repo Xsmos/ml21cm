@@ -79,6 +79,22 @@ JOBID_HPARAMS: Dict[int, Dict[str, Any]] = {
         "z_step": "2",
         "transform": "pt_inv",
     },
+    48057253: {
+        "num_res_blocks": 3,
+        "squish": "1,0",
+        "dim": 3,
+        "epochs": 120,
+        "z_step": "1",
+        "transform": "pt_inv",
+    },
+    48057168: {
+        "num_res_blocks": 3,
+        "squish": "0.5,0",
+        "dim": 3,
+        "epochs": 120,
+        "z_step": "1",
+        "transform": "pt_inv",
+    },
     48436662: {
         "num_res_blocks": 1, # baseline
         "squish": "0.1,0",
@@ -103,22 +119,6 @@ JOBID_HPARAMS: Dict[int, Dict[str, Any]] = {
         "z_step": "1",
         "transform": "pt_inv",
     },
-    48057168: {
-        "num_res_blocks": 3,
-        "squish": "0.5,0",
-        "dim": 3,
-        "epochs": 120,
-        "z_step": "1",
-        "transform": "pt_inv",
-    },
-    48057253: {
-        "num_res_blocks": 3,
-        "squish": "1,0",
-        "dim": 3,
-        "epochs": 120,
-        "z_step": "1",
-        "transform": "pt_inv",
-    },
     47908550: {
         "num_res_blocks": 3,
         "squish": "0.1,0",
@@ -137,6 +137,7 @@ JOBID_HPARAMS: Dict[int, Dict[str, Any]] = {
     },
 }
 BASELINE_JOBID = 48436662
+PDF_JOBIDS = [46941305, 46941303, 46941293, 46941286]
 
 
 def load_h5_as_tensor(
@@ -180,6 +181,7 @@ def load_x_ml(
     outputs_dir: str = "../training/outputs",
     pt_fname: str = None,
     transform: str = "pt_inv",
+    apply_inverse: bool = True,
 ):
     fnames = [
         fname
@@ -212,16 +214,16 @@ def load_x_ml(
     x_ml = np.concatenate(x_ml, axis=0)
     original_shape = x_ml.shape
 
-    if transform == "pt_inv" and pt_fname is not None:
+    if apply_inverse and transform == "pt_inv" and pt_fname is not None:
         pt = joblib.load(pt_fname)
         x_ml = pt.inverse_transform(x_ml.reshape(-1, 1))
-    elif transform == "min_max":
+    elif apply_inverse and transform == "min_max":
         min_val, max_val = ranges_dict[transform]
         x_ml = x_ml * (max_val - min_val) + min_val
-    elif transform == "z_score":
+    elif apply_inverse and transform == "z_score":
         mean_val, std_val = ranges_dict[transform]
         x_ml = x_ml * std_val + mean_val
-    elif transform == "arcsinh":
+    elif apply_inverse and transform == "arcsinh":
         x_ml = np.sinh(x_ml)
 
     x_ml = torch.from_numpy(x_ml.reshape(*original_shape))
@@ -318,6 +320,182 @@ def _generate_distinct_colors(n: int):
     # Fallback for many jobs: sample a continuous map uniformly.
     cmap = plt.get_cmap("turbo")
     return [cmap(i / max(1, n - 1)) for i in range(n)]
+
+
+def _symlog_forward(x, linthresh: float = 1.0):
+    x = np.asarray(x)
+    ax = np.abs(x)
+    y = np.where(ax <= linthresh, ax / linthresh, 1.0 + np.log10(ax / linthresh))
+    return np.sign(x) * y
+
+
+def _symlog_inverse(y, linthresh: float = 1.0):
+    y = np.asarray(y)
+    ay = np.abs(y)
+    x = np.where(ay <= 1.0, ay * linthresh, (10 ** (ay - 1.0)) * linthresh)
+    return np.sign(y) * x
+
+
+def _make_symlog_bins(xmin: float, xmax: float, n_bins: int = 180, linthresh: float = 1.0):
+    umin = _symlog_forward(xmin, linthresh=linthresh)
+    umax = _symlog_forward(xmax, linthresh=linthresh)
+    if np.isclose(umin, umax):
+        umax = umin + 1e-6
+    u_edges = np.linspace(umin, umax, n_bins + 1)
+    return _symlog_inverse(u_edges, linthresh=linthresh)
+
+
+def _infer_job_dim(meta: Dict[str, Any], fallback_dim: int = 3) -> int:
+    if "dim" in meta:
+        try:
+            return int(meta["dim"])
+        except Exception:
+            pass
+    stride = meta.get("stride", None)
+    if isinstance(stride, (list, tuple)):
+        return len(stride)
+    if isinstance(stride, str):
+        return len([s for s in stride.split("-") if s.strip() != ""])
+    return int(fallback_dim)
+
+
+def _forward_transform_truth_for_job(x_true: torch.Tensor, transform: str, pt_fname: str = None) -> torch.Tensor:
+    x_np = x_true.numpy()
+    orig_shape = x_np.shape
+    if transform == "pt_inv":
+        if pt_fname is None:
+            raise ValueError("pt_fname is required to forward-transform truth for 'pt_inv' jobs.")
+        pt = joblib.load(pt_fname)
+        x_np = pt.transform(x_np.reshape(-1, 1)).reshape(orig_shape)
+    elif transform == "min_max":
+        min_val, max_val = ranges_dict["min_max"]
+        x_np = (x_np - min_val) / (max_val - min_val)
+    elif transform == "z_score":
+        mean_val, std_val = ranges_dict["z_score"]
+        x_np = (x_np - mean_val) / std_val
+    elif transform == "arcsinh":
+        x_np = np.arcsinh(x_np)
+    return torch.from_numpy(x_np.astype(np.float32))
+
+
+def _inverse_transform_sampled_for_job(x_ml_raw: torch.Tensor, transform: str, pt_fname: str = None) -> torch.Tensor:
+    x_np = x_ml_raw.numpy()
+    orig_shape = x_np.shape
+    if transform == "pt_inv":
+        if pt_fname is None:
+            raise ValueError("pt_fname is required to inverse-transform sampled data for 'pt_inv' jobs.")
+        pt = joblib.load(pt_fname)
+        x_np = pt.inverse_transform(x_np.reshape(-1, 1)).reshape(orig_shape)
+    elif transform == "min_max":
+        min_val, max_val = ranges_dict["min_max"]
+        x_np = x_np * (max_val - min_val) + min_val
+    elif transform == "z_score":
+        mean_val, std_val = ranges_dict["z_score"]
+        x_np = x_np * std_val + mean_val
+    elif transform == "arcsinh":
+        x_np = np.sinh(x_np)
+    return torch.from_numpy(x_np.astype(np.float32))
+
+
+def plot_pixel_pdf_by_job_transform(
+    x_true_by_job: Dict[int, torch.Tensor],
+    x_ml_raw_by_job: Dict[int, torch.Tensor],
+    model_meta: Dict[int, Dict[str, Any]],
+    pt_fname: str = None,
+    savename: str = "global_signal_hparams_pdf.png",
+):
+    if not x_ml_raw_by_job:
+        print("No dim=2 jobs found for PDF plotting; skipped.")
+        return
+
+    jobids = list(x_ml_raw_by_job.keys())
+    fig, axes = plt.subplots(1, 2, figsize=(14.0, 6.0), dpi=220)
+    ax_l, ax_r = axes
+    job_handles = []
+    linthresh_raw = 1.0
+    first_jobid = jobids[0]
+    x_true_ref = x_true_by_job[first_jobid].numpy().reshape(-1)
+    m_inv_by_job = {}
+
+    for i, jobid in enumerate(jobids):
+        color = f"C{i}"
+        transform = model_meta.get(jobid, {}).get("transform", "pt_inv")
+        x_true = x_true_by_job[jobid]
+        x_ml_raw = x_ml_raw_by_job[jobid]
+
+        x_true_t = _forward_transform_truth_for_job(x_true, transform=transform, pt_fname=pt_fname)
+        t = x_true_t.numpy().reshape(-1)
+        m = x_ml_raw.numpy().reshape(-1)
+
+        low = min(np.percentile(t, 0.1), np.percentile(m, 0.1))
+        high = max(np.percentile(t, 99.9), np.percentile(m, 99.9))
+        bins = np.linspace(low, high, 180)
+
+        # Left subplot: transformed-space comparison.
+        ax_l.hist(t, bins=bins, density=True, histtype="step", linewidth=1.5, linestyle="--", color=color)
+        ax_l.hist(m, bins=bins, density=True, histtype="step", linewidth=1.2, linestyle="-", color=color)
+        job_handles.append(Line2D([0], [0], color=color, lw=1.8, linestyle="-", label=f"job={jobid}, {transform}"))
+
+        # Right subplot: inverse-transformed sampled vs raw testing-set space.
+        m_inv = _inverse_transform_sampled_for_job(x_ml_raw, transform=transform, pt_fname=pt_fname).numpy().reshape(-1)
+        m_inv_by_job[jobid] = m_inv
+
+    raw_lows = [np.percentile(x_true_ref, 0.1)]
+    raw_highs = [np.percentile(x_true_ref, 99.9)]
+    for jobid in jobids:
+        raw_lows.append(np.percentile(m_inv_by_job[jobid], 0.1))
+        raw_highs.append(np.percentile(m_inv_by_job[jobid], 99.9))
+    bins_r = _make_symlog_bins(min(raw_lows), max(raw_highs), n_bins=180, linthresh=linthresh_raw)
+
+    for i, jobid in enumerate(jobids):
+        color = f"C{i}"
+        ax_r.hist(m_inv_by_job[jobid], bins=bins_r, density=True, histtype="step", linewidth=1.2, linestyle="-", color=color)
+
+    # Raw testing-set reference (same space as inverse-transformed sampled).
+    ax_r.hist(
+        x_true_ref,
+        bins=bins_r,
+        density=True,
+        histtype="step",
+        linewidth=1.8,
+        linestyle="--",
+        color="black",
+        label="testing set (raw)",
+    )
+
+    ax_l.set_yscale("log")
+    ax_l.grid(alpha=0.35)
+    ax_l.set_title("Transform Space: test(transformed) vs sampled")
+    ax_l.set_xlabel("pixel value")
+    ax_l.set_ylabel("PDF")
+
+    ax_r.set_yscale("log")
+    ax_r.set_xscale("symlog", linthresh=linthresh_raw)
+    ax_r.grid(alpha=0.35)
+    ax_r.set_title("Raw Space: sampled (inverse) vs testing set")
+    ax_r.set_xlabel("pixel value")
+    ax_r.set_ylabel("PDF")
+
+    legend_jobs = ax_l.legend(handles=job_handles, fontsize=7, loc="upper right", title="Job / Transform")
+    ax_l.add_artist(legend_jobs)
+    style_handles = [
+        Line2D([0], [0], color="black", lw=1.5, linestyle="--", label="testing set (transformed)"),
+        Line2D([0], [0], color="black", lw=1.2, linestyle="-", label="sampled data"),
+    ]
+    ax_l.legend(handles=style_handles, fontsize=8, loc="upper left", title="Line Style")
+    style_handles_right = [
+        Line2D([0], [0], color="black", lw=1.8, linestyle="--", label="testing set (raw)"),
+        Line2D([0], [0], color="black", lw=1.2, linestyle="-", label="sampled data (inverse)"),
+    ]
+    ax_r.legend(handles=style_handles_right, fontsize=8, loc="upper right", title="Line Style")
+
+    plt.tight_layout()
+    if savename:
+        plt.savefig(savename, bbox_inches="tight")
+        print(f"Saved figure to {savename}")
+        plt.close()
+    else:
+        plt.show()
 
 
 def plot_global_signal_hyperparameters(
@@ -511,6 +689,7 @@ def main():
     parser.add_argument("--pt_fname", type=str, default="../utils/PowerTransformer_25600_z1.pkl")
     parser.add_argument("--z_idx", type=int, default=None)
     parser.add_argument("--save", type=str, default="global_signal_hyperparams.png")
+    parser.add_argument("--save_pdf", type=str, default="global_signal_hparams_pdf.png")
     args = parser.parse_args()
     target_pattern = derive_target_pattern_from_real_h5(args.real_h5)
     print(f"Using target_pattern={target_pattern} derived from real_h5={args.real_h5}")
@@ -529,6 +708,7 @@ def main():
     x_true_by_job: Dict[int, torch.Tensor] = {}
     los_by_job: Dict[int, np.ndarray] = {}
     for jobid in JOBID_HPARAMS.keys():
+        job_dim = _infer_job_dim(JOBID_HPARAMS.get(jobid, {}), fallback_dim=args.dim)
         job_z_step = int(JOBID_HPARAMS.get(jobid, {}).get("z_step", 1))
         if job_z_step < 1:
             raise ValueError(f"Invalid z_step={job_z_step} for jobid={jobid}. z_step must be >= 1.")
@@ -545,9 +725,10 @@ def main():
             outputs_dir=args.outputs_dir,
             pt_fname=args.pt_fname,
             transform=job_transform,
+            apply_inverse=True,
         )
         print(
-            "⛳️ Loaded "
+            "[GlobalSignal] Loaded "
             f"x_ml.shape={x_ml.shape}; "
             f"x_true.shape={x_true.shape}; "
             f"los.shape={los.shape}; "
@@ -571,6 +752,58 @@ def main():
         model_meta=JOBID_HPARAMS,
         z_idx=args.z_idx,
         savename=args.save,
+    )
+
+    # PDF plotting: explicitly selected jobs only.
+    x_ml_raw_dim2_by_job: Dict[int, torch.Tensor] = {}
+    x_true_dim2_by_job: Dict[int, torch.Tensor] = {}
+    pdf_jobids = [jobid for jobid in PDF_JOBIDS if jobid in JOBID_HPARAMS]
+    missing_pdf_jobids = [jobid for jobid in PDF_JOBIDS if jobid not in JOBID_HPARAMS]
+    if missing_pdf_jobids:
+        print(f"Skipped PDF jobIDs not found in JOBID_HPARAMS: {missing_pdf_jobids}")
+
+    if pdf_jobids:
+        print(f"[PDF] Using explicit jobIDs: {pdf_jobids}")
+        x_true_full_dim2, _, _ = load_h5_as_tensor(
+            dir_name=args.real_h5,
+            num_image=args.num_image,
+            num_redshift=args.num_redshift,
+            HII_DIM=args.HII_DIM,
+            z_step=1,
+            dim=2,
+        )
+        for jobid in pdf_jobids:
+            job_meta = JOBID_HPARAMS.get(jobid, {})
+            job_z_step = int(job_meta.get("z_step", 1))
+            job_transform = job_meta.get("transform", "pt_inv")
+            x_true_dim2 = x_true_full_dim2[..., ::job_z_step]
+            x_ml_raw = load_x_ml(
+                target_pattern=target_pattern,
+                jobid=jobid,
+                num_image=args.num_image,
+                ema=args.use_ema,
+                outputs_dir=args.outputs_dir,
+                pt_fname=args.pt_fname,
+                transform=job_transform,
+                apply_inverse=False,
+            )
+            z_len_pdf = min(x_true_dim2.shape[-1], x_ml_raw.shape[-1])
+            n_pdf = min(len(x_true_dim2), len(x_ml_raw))
+            x_true_dim2_by_job[jobid] = x_true_dim2[:n_pdf, ..., :z_len_pdf]
+            x_ml_raw_dim2_by_job[jobid] = x_ml_raw[:n_pdf, ..., :z_len_pdf]
+            print(
+                "[PDF] Loaded "
+                f"x_ml_raw.shape={x_ml_raw_dim2_by_job[jobid].shape}; "
+                f"x_true_dim2.shape={x_true_dim2_by_job[jobid].shape}; "
+                f"jobid={jobid}; transform={job_transform}"
+            )
+
+    plot_pixel_pdf_by_job_transform(
+        x_true_by_job=x_true_dim2_by_job,
+        x_ml_raw_by_job=x_ml_raw_dim2_by_job,
+        model_meta=JOBID_HPARAMS,
+        pt_fname=args.pt_fname,
+        savename=args.save_pdf,
     )
 
 

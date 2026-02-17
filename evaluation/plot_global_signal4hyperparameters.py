@@ -95,8 +95,8 @@ JOBID_HPARAMS: Dict[int, Dict[str, Any]] = {
         "z_step": "1",
         "transform": "pt_inv",
     },
-    48436662: {
-        "num_res_blocks": 1, # baseline
+    48057143: {
+        "num_res_blocks": 3,
         "squish": "0.1,0",
         "dim": 3,
         "epochs": 120,
@@ -111,8 +111,8 @@ JOBID_HPARAMS: Dict[int, Dict[str, Any]] = {
         "z_step": "1",
         "transform": "pt_inv",
     },
-    48057143: {
-        "num_res_blocks": 3,
+    48436662: {
+        "num_res_blocks": 1, # baseline
         "squish": "0.1,0",
         "dim": 3,
         "epochs": 120,
@@ -412,9 +412,12 @@ def plot_pixel_pdf_by_job_transform(
     fig, axes = plt.subplots(1, 2, figsize=(14.0, 6.0), dpi=220)
     ax_l, ax_r = axes
     job_handles = []
+    linthresh_tf = 1.0
     linthresh_raw = 1.0
     first_jobid = jobids[0]
     x_true_ref = x_true_by_job[first_jobid].numpy().reshape(-1)
+    t_by_job = {}
+    m_by_job = {}
     m_inv_by_job = {}
 
     for i, jobid in enumerate(jobids):
@@ -426,19 +429,28 @@ def plot_pixel_pdf_by_job_transform(
         x_true_t = _forward_transform_truth_for_job(x_true, transform=transform, pt_fname=pt_fname)
         t = x_true_t.numpy().reshape(-1)
         m = x_ml_raw.numpy().reshape(-1)
+        t_by_job[jobid] = t
+        m_by_job[jobid] = m
 
-        low = min(np.percentile(t, 0.1), np.percentile(m, 0.1))
-        high = max(np.percentile(t, 99.9), np.percentile(m, 99.9))
-        bins = np.linspace(low, high, 180)
-
-        # Left subplot: transformed-space comparison.
-        ax_l.hist(t, bins=bins, density=True, histtype="step", linewidth=1.5, linestyle="--", color=color)
-        ax_l.hist(m, bins=bins, density=True, histtype="step", linewidth=1.2, linestyle="-", color=color)
         job_handles.append(Line2D([0], [0], color=color, lw=1.8, linestyle="-", label=f"job={jobid}, {transform}"))
 
         # Right subplot: inverse-transformed sampled vs raw testing-set space.
         m_inv = _inverse_transform_sampled_for_job(x_ml_raw, transform=transform, pt_fname=pt_fname).numpy().reshape(-1)
         m_inv_by_job[jobid] = m_inv
+
+    tf_lows = []
+    tf_highs = []
+    for jobid in jobids:
+        tf_lows.append(np.percentile(t_by_job[jobid], 0.1))
+        tf_lows.append(np.percentile(m_by_job[jobid], 0.1))
+        tf_highs.append(np.percentile(t_by_job[jobid], 99.9))
+        tf_highs.append(np.percentile(m_by_job[jobid], 99.9))
+    bins_l = _make_symlog_bins(min(tf_lows), max(tf_highs), n_bins=180, linthresh=linthresh_tf)
+
+    for i, jobid in enumerate(jobids):
+        color = f"C{i}"
+        ax_l.hist(t_by_job[jobid], bins=bins_l, density=True, histtype="step", linewidth=1.5, linestyle="--", color=color)
+        ax_l.hist(m_by_job[jobid], bins=bins_l, density=True, histtype="step", linewidth=1.2, linestyle="-", color=color)
 
     raw_lows = [np.percentile(x_true_ref, 0.1)]
     raw_highs = [np.percentile(x_true_ref, 99.9)]
@@ -464,6 +476,7 @@ def plot_pixel_pdf_by_job_transform(
     )
 
     ax_l.set_yscale("log")
+    ax_l.set_xscale("symlog", linthresh=linthresh_tf)
     ax_l.grid(alpha=0.35)
     ax_l.set_title("Transform Space: test(transformed) vs sampled")
     ax_l.set_xlabel("pixel value")
@@ -504,7 +517,7 @@ def plot_global_signal_hyperparameters(
     los_by_job: Dict[int, np.ndarray],
     model_meta: Dict[int, Dict[str, Any]],
     sigma_level: float = 68.27,
-    y_eps: float = 0.0,
+    y_eps: float = 1.0,
     lw: float = 0.8,
     alpha_true: float = 0.20,
     z_idx: int = None,

@@ -219,6 +219,7 @@ def load_x_ml(
         x_ml = pt.inverse_transform(x_ml.reshape(-1, 1))
     elif apply_inverse and transform == "min_max":
         min_val, max_val = ranges_dict[transform]
+        x_ml = (x_ml + 1) / 2
         x_ml = x_ml * (max_val - min_val) + min_val
     elif apply_inverse and transform == "z_score":
         mean_val, std_val = ranges_dict[transform]
@@ -370,6 +371,7 @@ def _forward_transform_truth_for_job(x_true: torch.Tensor, transform: str, pt_fn
     elif transform == "min_max":
         min_val, max_val = ranges_dict["min_max"]
         x_np = (x_np - min_val) / (max_val - min_val)
+        x_np = x_np * 2 - 1
     elif transform == "z_score":
         mean_val, std_val = ranges_dict["z_score"]
         x_np = (x_np - mean_val) / std_val

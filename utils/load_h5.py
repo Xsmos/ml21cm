@@ -40,7 +40,7 @@ ranges_dict = dict(
         1: [10, 250], # HII_EFF_FACTOR
         },
     z_score = [-36.840145, 50.21427],
-    min_max = [-387, 86],
+    min_max = [-200, 40],
 )
 
 class Dataset4h5(Dataset):
@@ -91,6 +91,7 @@ class Dataset4h5(Dataset):
             elif 'min_max' in scale_path:
                 print(f"⚠️ Scaling images with min_max scaler using ranges {ranges_dict[scale_path]}")
                 self.images = (self.images - ranges_dict[scale_path][0]) / (ranges_dict[scale_path][1]-ranges_dict[scale_path][0])
+                self.images = self.images * 2 - 1 # scale from [0, 1] to [-1, 1]
                 # self.images = self.MinMaxScaler(self.images, ranges=ranges_dict[scale_path], to=[-1,1])
             elif 'z_score' in scale_path:
                 print(f"⚠️ Scaling images with z_score scaler using ranges {ranges_dict[scale_path]}")

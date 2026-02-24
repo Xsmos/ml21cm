@@ -494,6 +494,8 @@ class DDPM21CM:
             x = 1/A * y
         else:
             # x = k * np.sign(y) * np.expm1(np.abs(y) / A) #k * np.arctanh(y/A)
+            if not isinstance(y, torch.Tensor):
+                y = torch.tensor(y)
             x = k * torch.sinh(y/A)
         print(f"inverse_squish = {Ak}: {time()-start_time:.3f} sec, {y.min()=}, {y.max()=}, {x.min()=}, {x.max()=}")
         return x
@@ -893,11 +895,11 @@ if __name__ == "__main__":
         num_new_img_per_gpu = args.num_new_img_per_gpu#200#4#200
         max_num_img_per_gpu = args.max_num_img_per_gpu#40#2#20
         params_pairs = [
-            (4.4, 131.341),
-            # (5.6, 19.037),
+            # (4.4, 131.341),
+            # # (5.6, 19.037),
             (4.699, 30),
-            (5.477, 200),
-            # (4.8, 131.341),
+            # (5.477, 200),
+            # # (4.8, 131.341),
         ]
         generate_samples(config, num_new_img_per_gpu, max_num_img_per_gpu, params_pairs)
     else:

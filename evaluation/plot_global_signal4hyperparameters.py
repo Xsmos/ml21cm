@@ -79,16 +79,20 @@ JOBID_HPARAMS: Dict[int, Dict[str, Any]] = {
         "z_step": "2",
         "transform": "pt_inv",
     },
-    48057253: {
-        "num_res_blocks": 3,
+    48820329: {
+        "num_res_blocks": 1,
+    # 48057253: {
+    #     "num_res_blocks": 3,
         "squish": "1,0",
         "dim": 3,
         "epochs": 120,
         "z_step": "1",
         "transform": "pt_inv",
     },
-    48057168: {
-        "num_res_blocks": 3,
+    48902106: {
+        "num_res_blocks": 1,
+    # 48057168: {
+    #     "num_res_blocks": 3,
         "squish": "0.5,0",
         "dim": 3,
         "epochs": 120,
@@ -111,6 +115,15 @@ JOBID_HPARAMS: Dict[int, Dict[str, Any]] = {
         "z_step": "1",
         "transform": "pt_inv",
     },
+    48820652: {
+    # 48436662: {
+        "num_res_blocks": 1,
+        "squish": "0.1,0",
+        "dim": 3,
+        "epochs": 240,
+        "z_step": "1",
+        "transform": "pt_inv",
+    },
     48436662: {
         "num_res_blocks": 1, # baseline
         "squish": "0.1,0",
@@ -119,16 +132,29 @@ JOBID_HPARAMS: Dict[int, Dict[str, Any]] = {
         "z_step": "1",
         "transform": "pt_inv",
     },
+    # 48902183: {
+    #     "num_res_blocks": 1,
+    #     "squish": "0.1,1",
+    #     # "squish": "0.1,0",
+    #     "dim": 3,
+    #     "epochs": 120,
+    #     "z_step": "1",
+    #     "transform": "pt_inv",
+    # },
     47908550: {
-        "num_res_blocks": 3,
+        "num_res_blocks": 1,
+    # 47908550: {
+    #     "num_res_blocks": 3,
         "squish": "0.1,0",
         "dim": 3,
         "epochs": 60,
         "z_step": "1",
         "transform": "pt_inv",
     },
-    47356556: {
-        "num_res_blocks": 3,
+    48820424: {
+    # 47356556: {
+        # "num_res_blocks": 3,
+        "num_res_blocks": 1,
         "squish": "0.1,0",
         "dim": 3,
         "epochs": 30,

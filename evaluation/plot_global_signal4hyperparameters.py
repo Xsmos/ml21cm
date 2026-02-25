@@ -132,15 +132,15 @@ JOBID_HPARAMS: Dict[int, Dict[str, Any]] = {
         "z_step": "1",
         "transform": "pt_inv",
     },
-    # 48902183: {
-    #     "num_res_blocks": 1,
-    #     "squish": "0.1,1",
-    #     # "squish": "0.1,0",
-    #     "dim": 3,
-    #     "epochs": 120,
-    #     "z_step": "1",
-    #     "transform": "pt_inv",
-    # },
+    48902183: {
+        "num_res_blocks": 1,
+        "squish": "0.1,1",
+        # "squish": "0.1,0",
+        "dim": 3,
+        "epochs": 120,
+        "z_step": "1",
+        "transform": "pt_inv",
+    },
     47908550: {
         "num_res_blocks": 1,
     # 47908550: {

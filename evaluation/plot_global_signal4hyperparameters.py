@@ -101,6 +101,14 @@ JOBID_HPARAMS: Dict[int, Dict[str, Any]] = {
         "z_step": "1",
         "transform": "pt_inv",
     },
+    49325389: {
+        "num_res_blocks": 1,
+        "squish": "0.01,0",
+        "dim": 3,
+        "epochs": 120,
+        "z_step": "1",
+        "transform": "pt_inv",
+    },
     48057143: {
         "num_res_blocks": 3,
         "squish": "0.1,0",
@@ -126,14 +134,6 @@ JOBID_HPARAMS: Dict[int, Dict[str, Any]] = {
         "z_step": "1",
         "transform": "pt_inv",
     },
-    49325389: {
-        "num_res_blocks": 1,
-        "squish": "0.01,0",
-        "dim": 3,
-        "epochs": 120,
-        "z_step": "1",
-        "transform": "pt_inv",
-    },
     48436662: {
         "num_res_blocks": 1, # baseline
         "squish": "0.1,0",
@@ -142,16 +142,16 @@ JOBID_HPARAMS: Dict[int, Dict[str, Any]] = {
         "z_step": "1",
         "transform": "pt_inv",
     },
-    48902183: {
-        "num_res_blocks": 1,
-        "squish": "0.1,1",
-        # "squish": "0.1,0",
-        "dim": 3,
-        "epochs": 120,
-        "z_step": "1",
-        "transform": "pt_inv",
-    },
-    47908550: {
+    # 48902183: {
+    #     "num_res_blocks": 1,
+    #     "squish": "0.1,1",
+    #     # "squish": "0.1,0",
+    #     "dim": 3,
+    #     "epochs": 120,
+    #     "z_step": "1",
+    #     "transform": "pt_inv",
+    # },
+    48820480: {
         "num_res_blocks": 1,
     # 47908550: {
     #     "num_res_blocks": 3,
@@ -175,6 +175,15 @@ JOBID_HPARAMS: Dict[int, Dict[str, Any]] = {
 BASELINE_JOBID = 48436662
 # PDF_JOBIDS = [49299542, 47032672, 47032656,]
 PDF_JOBIDS = [49299747, 46941293, 46941286, 46941305]
+MAIN_PLOT_EXCLUDED_JOBIDS = {
+    46941305,
+    49299747,
+    46941293,
+    46941286,
+    48820480,
+    48820424,
+    48820652,
+}
 
 
 def load_h5_as_tensor(
@@ -516,6 +525,7 @@ def plot_pixel_pdf_by_job_transform(
     )
 
     ax_l.set_yscale("log")
+    ax_l.set_ylim(bottom=1e-3)
     ax_l.set_xscale("symlog", linthresh=linthresh_tf)
     ax_l.grid(alpha=0.35)
     ax_l.set_title("Transform Space: test(transformed) vs sampled")
@@ -523,6 +533,7 @@ def plot_pixel_pdf_by_job_transform(
     ax_l.set_ylabel("PDF")
 
     ax_r.set_yscale("log")
+    ax_r.set_ylim(bottom=1e-3)
     ax_r.set_xscale("symlog", linthresh=linthresh_raw)
     ax_r.grid(alpha=0.35)
     ax_r.set_title("Raw Space: sampled (inverse) vs testing set")
@@ -576,10 +587,20 @@ def plot_global_signal_hyperparameters(
     handles_for_legend = [Line2D([0], [0], color="black", linestyle=":", lw=1.7, label="21cmFAST median")]
     baseline_hyperparams = model_meta.get(BASELINE_JOBID, {})
 
-    color_cycle = _generate_distinct_colors(len(x_ml_by_job))
+    z_other_band = 1
+    z_other_line = 2
+    z_baseline_band = 5
+    z_baseline_line = 6
+    z_true_band = 7
+    z_true_line = 8
+    skipped_in_main_plot = []
+    delta_plot_records = []
+    delta_ref_x_axis = None
+    delta_ref_low = None
+    delta_ref_high = None
 
     for idx, (jobid, x_ml) in enumerate(x_ml_by_job.items()):
-        color = color_cycle[idx % len(color_cycle)]
+        color = f"C{idx}"
         x_true = x_true_by_job[jobid]
         los = los_by_job[jobid]
 
@@ -599,31 +620,60 @@ def plot_global_signal_hyperparameters(
                 facecolor="black",
                 edgecolor="black",
                 label="21cmFAST CI",
+                zorder=z_true_band,
             )
-            ax_left.plot(x_axis, y_true, linestyle=":", c="black", lw=1.7, label="21cmFAST median")
+            ax_left.plot(
+                x_axis,
+                y_true,
+                linestyle=":",
+                c="black",
+                lw=1.7,
+                label="21cmFAST median",
+                zorder=z_true_line,
+            )
+            delta_ref_x_axis = x_axis.copy()
+            delta_ref_low = (perc_true[0] - y_true).copy()
+            delta_ref_high = (perc_true[1] - y_true).copy()
 
         tb_ml = x2Tb(x_ml)
         y_ml = np.median(tb_ml, axis=0)
         perc_ml = np.percentile(tb_ml, [low, high], axis=0)
         sigma_ml = 0.5 * (perc_ml[1] - perc_ml[0])
+        tb_delta = tb_ml - tb_true
+        y_delta = np.median(tb_delta, axis=0)
+        perc_delta = np.percentile(tb_delta, [low, high], axis=0)
 
-        # Use translucent uncertainty bands instead of dense error bars
-        # to reduce severe overlap across many jobs.
-        ax_left.fill_between(
-            x_axis,
-            perc_ml[0],
-            perc_ml[1],
-            color=color,
-            alpha=0.10,
-            linewidth=0,
-        )
-        ax_left.plot(
-            x_axis,
-            y_ml,
-            linestyle="-",
-            c=color,
-            linewidth=lw,
-        )
+        if jobid not in MAIN_PLOT_EXCLUDED_JOBIDS:
+            # Use translucent uncertainty bands instead of dense error bars
+            # to reduce severe overlap across many jobs.
+            ax_left.fill_between(
+                x_axis,
+                perc_ml[0],
+                perc_ml[1],
+                color=color,
+                alpha=0.10,
+                linewidth=0,
+                zorder=z_baseline_band if jobid == BASELINE_JOBID else z_other_band,
+            )
+            ax_left.plot(
+                x_axis,
+                y_ml,
+                linestyle="-",
+                c=color,
+                linewidth=lw,
+                zorder=z_baseline_line if jobid == BASELINE_JOBID else z_other_line,
+            )
+            delta_plot_records.append(
+                {
+                    "jobid": jobid,
+                    "x_axis": x_axis.copy(),
+                    "y_delta": y_delta.copy(),
+                    "perc_delta": perc_delta.copy(),
+                    "color": color,
+                }
+            )
+        else:
+            skipped_in_main_plot.append(jobid)
 
         mask_rel = np.abs(y_true) > y_eps
         mask_std = sigma_true > y_eps
@@ -637,8 +687,9 @@ def plot_global_signal_hyperparameters(
         mae_std_by_job.append(np.abs(eps_std).mean() if eps_std.size > 0 else np.nan)
         mae_sigma_by_job.append(np.abs(eps_sigma).mean() if eps_sigma.size > 0 else np.nan)
 
-        model_label = _format_model_label(jobid, model_meta.get(jobid, {}), baseline_hyperparams)
-        handles_for_legend.append(Line2D([0], [0], color=color, lw=1.5, label=model_label))
+        if jobid not in MAIN_PLOT_EXCLUDED_JOBIDS:
+            model_label = _format_model_label(jobid, model_meta.get(jobid, {}), baseline_hyperparams)
+            handles_for_legend.append(Line2D([0], [0], color=color, lw=1.5, label=model_label))
 
     if z_idx is not None:
         # z_idx is interpreted relative to each job's LOS grid; use first job for marker.
@@ -669,12 +720,101 @@ def plot_global_signal_hyperparameters(
         if txt.get_text().startswith(f"job={BASELINE_JOBID}"):
             txt.set_fontweight("bold")
             txt.set_fontstyle("italic")
+    if skipped_in_main_plot:
+        print(f"Skipped jobIDs in global_signal_hparams.png: {sorted(set(skipped_in_main_plot))}")
 
     plt.tight_layout()
 
     if savename:
         plt.savefig(savename, bbox_inches="tight")
         print(f"Saved figure to {savename}")
+        plt.close()
+    else:
+        plt.show()
+
+    # Additional figure: residual global signal vs 21cmFAST.
+    fig_delta, ax_delta = plt.subplots(1, 1, figsize=(11, 6), dpi=220)
+    delta_handles_for_legend = [
+        Line2D([0], [0], color="black", linestyle=":", lw=1.7, label=r"21cmFAST reference ($\Delta T_b=0$)")
+    ]
+    for rec in delta_plot_records:
+        jobid = rec["jobid"]
+        x_axis = rec["x_axis"]
+        y_delta = rec["y_delta"]
+        perc_delta = rec["perc_delta"]
+        color = rec["color"]
+
+        ax_delta.fill_between(
+            x_axis,
+            perc_delta[0],
+            perc_delta[1],
+            color=color,
+            alpha=0.10,
+            linewidth=0,
+            zorder=z_baseline_band if jobid == BASELINE_JOBID else z_other_band,
+        )
+        ax_delta.plot(
+            x_axis,
+            y_delta,
+            linestyle="-",
+            c=color,
+            linewidth=lw,
+            zorder=z_baseline_line if jobid == BASELINE_JOBID else z_other_line,
+        )
+
+        model_label = _format_model_label(jobid, model_meta.get(jobid, {}), baseline_hyperparams)
+        delta_handles_for_legend.append(Line2D([0], [0], color=color, lw=1.5, label=model_label))
+
+    if delta_ref_x_axis is not None:
+        ax_delta.fill_between(
+            delta_ref_x_axis,
+            delta_ref_low,
+            delta_ref_high,
+            alpha=alpha_true,
+            facecolor="black",
+            edgecolor="black",
+            label="21cmFAST CI (relative to median)",
+            zorder=z_true_band,
+        )
+        ax_delta.plot(
+            delta_ref_x_axis,
+            np.zeros_like(delta_ref_x_axis),
+            linestyle=":",
+            c="black",
+            lw=1.7,
+            zorder=z_true_line,
+        )
+    ax_delta.axhline(y=0.0, color="gray", linestyle="--", linewidth=1.0, alpha=0.8, zorder=0)
+
+    ax_delta.set_ylabel(r"$\Delta\langle T_b \rangle$ [mK] (model - 21cmFAST)")
+    ax_delta.set_yscale("symlog", linthresh=10.0)
+    ax_delta.set_xlabel("distance [Gpc]")
+    ax_delta.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, pos: f"{x / 1000:.1f}"))
+    ax_delta.set_title("Global Signal Residuals vs 21cmFAST")
+    ax_delta.grid()
+
+    ax_delta_twin = ax_delta.secondary_xaxis("top")
+    ax_delta_twin.set_xlim(ax_delta.get_xlim())
+    ax_delta_twin.set_xlabel("redshift")
+    first_jobid = next(iter(los_by_job.keys()))
+    los = los_by_job[first_jobid]
+    z_ticks_x_delta = ax_delta_twin.get_xticks()
+    z_ticks_delta = np.interp(z_ticks_x_delta, los[1], los[0])
+    ax_delta_twin.set_xticks(z_ticks_x_delta)
+    ax_delta_twin.set_xticklabels([f"{zv:.1f}" for zv in z_ticks_delta])
+
+    legend_delta = ax_delta.legend(handles=delta_handles_for_legend, fontsize=8, loc="best")
+    for txt in legend_delta.get_texts():
+        if txt.get_text().startswith(f"job={BASELINE_JOBID}"):
+            txt.set_fontweight("bold")
+            txt.set_fontstyle("italic")
+
+    plt.tight_layout()
+    if savename:
+        root, ext = os.path.splitext(savename)
+        delta_savename = f"{root}_deltaTb{ext if ext else '.png'}"
+        plt.savefig(delta_savename, bbox_inches="tight")
+        print(f"Saved figure to {delta_savename}")
         plt.close()
     else:
         plt.show()

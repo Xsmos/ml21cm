@@ -31,7 +31,8 @@ JOBID_HPARAMS: Dict[int, Dict[str, Any]] = {
         "z_step": "1",
         "transform": "arcsinh",
     },
-    46941303: {
+    49299747: {
+    # 46941303: {
         "num_res_blocks": 3,
         "squish": "1,0",
         "dim": 2,
@@ -55,7 +56,8 @@ JOBID_HPARAMS: Dict[int, Dict[str, Any]] = {
         "z_step": "1",
         "transform": "pt_inv",
     },
-    47032706: {
+    49299542: {
+    # 47032706: {
         "num_res_blocks": 3,
         "squish": "1,0",
         "dim": 3,
@@ -124,6 +126,14 @@ JOBID_HPARAMS: Dict[int, Dict[str, Any]] = {
         "z_step": "1",
         "transform": "pt_inv",
     },
+    49325389: {
+        "num_res_blocks": 1,
+        "squish": "0.01,0",
+        "dim": 3,
+        "epochs": 120,
+        "z_step": "1",
+        "transform": "pt_inv",
+    },
     48436662: {
         "num_res_blocks": 1, # baseline
         "squish": "0.1,0",
@@ -163,7 +173,8 @@ JOBID_HPARAMS: Dict[int, Dict[str, Any]] = {
     },
 }
 BASELINE_JOBID = 48436662
-PDF_JOBIDS = [46941305, 46941303, 46941293, 46941286]
+# PDF_JOBIDS = [49299542, 47032672, 47032656,]
+PDF_JOBIDS = [49299747, 46941293, 46941286, 46941305]
 
 
 def load_h5_as_tensor(
@@ -416,6 +427,7 @@ def _inverse_transform_sampled_for_job(x_ml_raw: torch.Tensor, transform: str, p
         x_np = pt.inverse_transform(x_np.reshape(-1, 1)).reshape(orig_shape)
     elif transform == "min_max":
         min_val, max_val = ranges_dict["min_max"]
+        x_np = (x_np + 1) / 2
         x_np = x_np * (max_val - min_val) + min_val
     elif transform == "z_score":
         mean_val, std_val = ranges_dict["z_score"]

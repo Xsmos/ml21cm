@@ -185,6 +185,19 @@ MAIN_PLOT_EXCLUDED_JOBIDS = {
     48820652,
 }
 
+# MAE trend grouping (1-based job index as shown on x-axis):
+# used only for visualization aids in global_signal_hparams_mae_trend.png.
+MAE_GROUPS = [
+    {"name": "2D Transform", "indices_1based": [1, 2, 3, 4], "color": "#4C78A8", "row": 0},
+    {"name": "3D dz=2 Transform", "indices_1based": [5, 6, 7], "color": "#F58518", "row": 0},
+    {"name": "Squish A", "indices_1based": [8, 9, 10, 14], "color": "#54A24B", "row": 1},
+    {"name": "ResBlocks", "indices_1based": [11, 12, 14], "color": "#B279A2", "row": 2},
+    {"name": "Epoch", "indices_1based": [13, 14, 15, 16], "color": "#E45756", "row": 1},
+]
+# Optional section separators (1-based boundary after index i).
+# Helps readability without changing existing job order.
+MAE_SECTION_BOUNDARIES_1BASED = [4, 7]
+
 
 def load_h5_as_tensor(
     dir_name: str,
@@ -298,42 +311,119 @@ def derive_target_pattern_from_real_h5(real_h5: str) -> str:
     return f"Tvir{tvir:.3f}-zeta{zeta:.3f}"
 
 
-def _format_model_label(jobid: int, hyperparams: Dict[str, Any], baseline_hyperparams: Dict[str, Any]) -> str:
+def _normalize_num_str(v: Any) -> str:
+    s = str(v).strip()
+    try:
+        return f"{float(s):g}"
+    except ValueError:
+        return s
+
+
+def _parse_squish(v: Any) -> tuple[str, str]:
+    # squish is stored as "A,k" in current experiments.
+    s = str(v).replace(" ", "")
+    parts = s.split(",")
+    if len(parts) >= 2:
+        return _normalize_num_str(parts[0]), _normalize_num_str(parts[1])
+    return _normalize_num_str(s), "0"
+
+
+def _abbr_transform(v: Any) -> str:
+    # Short aliases for legend compactness.
+    mapping = {
+        "pt_inv": "YJ",   # Yeo-Johnson inverse
+        "min_max": "MM",
+        "z_score": "ZS",
+        "arcsinh": "AS",
+    }
+    return mapping.get(str(v), str(v))
+
+
+def _param_cmp_value(k: str, v: Any) -> Any:
+    if k == "squish":
+        return _parse_squish(v)
+    if k == "transform":
+        return _abbr_transform(v)
+    return str(v)
+
+
+def _param_token(k: str, v: Any) -> str:
+    # Legend shorthand:
+    # RB=num_res_blocks, A=squish(A,k; k=0 omitted), D=dim, Ep=epochs, dz=z_step, T=transform.
+    if k == "num_res_blocks":
+        return f"RB{v}"
+    if k == "squish":
+        a, squish_k = _parse_squish(v)
+        if squish_k == "0":
+            return f"A{a}"
+        return f"A{a},k{squish_k}"
+    if k == "dim":
+        return f"D{v}"
+    if k == "epochs":
+        return f"Ep{v}"
+    if k == "z_step":
+        return f"dz{v}"
+    if k == "transform":
+        return f"T{_abbr_transform(v)}"
+    return f"{k}={v}"
+
+
+def _ordered_keys(hyperparams: Dict[str, Any]) -> list[str]:
+    preferred = ["num_res_blocks", "squish", "dim", "epochs", "z_step", "transform"]
+    keys = [k for k in preferred if k in hyperparams]
+    keys.extend([k for k in hyperparams.keys() if k not in preferred])
+    return keys
+
+
+def _format_model_label(
+    jobid: int,
+    hyperparams: Dict[str, Any],
+    baseline_hyperparams: Dict[str, Any],
+    show_jobid: bool = False,
+) -> str:
+    prefix = f"job={jobid}: " if show_jobid else ""
     if not hyperparams:
-        return f"job={jobid}"
+        return f"job={jobid}" if show_jobid else "config"
 
     if jobid == BASELINE_JOBID:
-        hp_str = ", ".join([f"{k}={v}" for k, v in hyperparams.items()])
-        return f"job={jobid} | {hp_str}"
+        tokens = [_param_token(k, hyperparams[k]) for k in _ordered_keys(hyperparams)]
+        return f"{prefix}{' '.join(tokens)}"
 
-    diff_items = []
-    for k, v in hyperparams.items():
-        if k not in baseline_hyperparams or str(v) != str(baseline_hyperparams[k]):
-            diff_items.append((k, v))
+    diff_tokens = []
+    for k in _ordered_keys(hyperparams):
+        v = hyperparams[k]
+        if k not in baseline_hyperparams or _param_cmp_value(k, v) != _param_cmp_value(k, baseline_hyperparams[k]):
+            diff_tokens.append(_param_token(k, v))
 
-    if not diff_items:
-        return f"job={jobid} | same as baseline"
-
-    hp_str = ", ".join([f"{k}={v}" for k, v in diff_items])
-    return f"job={jobid} | {hp_str}"
+    if not diff_tokens:
+        return f"{prefix}same as BASE" if show_jobid else "same as BASE"
+    return f"{prefix}{' '.join(diff_tokens)}"
 
 
-def _format_job_diff_text(jobid: int, hyperparams: Dict[str, Any], baseline_hyperparams: Dict[str, Any]) -> str:
+def _format_job_diff_text(
+    jobid: int,
+    hyperparams: Dict[str, Any],
+    baseline_hyperparams: Dict[str, Any],
+    show_jobid: bool = False,
+) -> str:
+    prefix = f"{jobid}: " if show_jobid else ""
     if jobid == BASELINE_JOBID:
         if not hyperparams:
-            return f"{jobid}"
-        return f"{jobid}: " + ", ".join([f"{k}={v}" for k, v in hyperparams.items()])
+            return f"{jobid}" if show_jobid else "BASE"
+        tokens = [_param_token(k, hyperparams[k]) for k in _ordered_keys(hyperparams)]
+        return (f"{jobid}: " if show_jobid else "BASE: ") + " ".join(tokens)
     if not hyperparams:
-        return f"{jobid}"
+        return f"{jobid}" if show_jobid else "config"
 
     diff_items = []
-    for k, v in hyperparams.items():
-        if k not in baseline_hyperparams or str(v) != str(baseline_hyperparams[k]):
-            diff_items.append(f"{k}={v}")
+    for k in _ordered_keys(hyperparams):
+        v = hyperparams[k]
+        if k not in baseline_hyperparams or _param_cmp_value(k, v) != _param_cmp_value(k, baseline_hyperparams[k]):
+            diff_items.append(_param_token(k, v))
 
     if not diff_items:
-        return f"{jobid} (same)"
-    return f"{jobid}: " + ", ".join(diff_items)
+        return f"{jobid} (same)" if show_jobid else "same as BASE"
+    return prefix + " ".join(diff_items)
 
 
 def _wrap_label_text(s: str, width: int = 28) -> str:
@@ -452,6 +542,7 @@ def plot_pixel_pdf_by_job_transform(
     model_meta: Dict[int, Dict[str, Any]],
     pt_fname: str = None,
     savename: str = "global_signal_hparams_pdf.png",
+    show_jobid: bool = False,
 ):
     if not x_ml_raw_by_job:
         print("No dim=2 jobs found for PDF plotting; skipped.")
@@ -468,6 +559,7 @@ def plot_pixel_pdf_by_job_transform(
     t_by_job = {}
     m_by_job = {}
     m_inv_by_job = {}
+    baseline_hyperparams = model_meta.get(BASELINE_JOBID, {})
 
     for i, jobid in enumerate(jobids):
         color = f"C{i}"
@@ -481,7 +573,13 @@ def plot_pixel_pdf_by_job_transform(
         t_by_job[jobid] = t
         m_by_job[jobid] = m
 
-        job_handles.append(Line2D([0], [0], color=color, lw=1.8, linestyle="-", label=f"job={jobid}, {transform}"))
+        label = _format_model_label(
+            jobid,
+            model_meta.get(jobid, {}),
+            baseline_hyperparams,
+            show_jobid=show_jobid,
+        )
+        job_handles.append(Line2D([0], [0], color=color, lw=1.8, linestyle="-", label=label))
 
         # Right subplot: inverse-transformed sampled vs raw testing-set space.
         m_inv = _inverse_transform_sampled_for_job(x_ml_raw, transform=transform, pt_fname=pt_fname).numpy().reshape(-1)
@@ -573,6 +671,7 @@ def plot_global_signal_hyperparameters(
     alpha_true: float = 0.20,
     z_idx: int = None,
     savename: str = None,
+    show_jobid: bool = False,
 ):
     low = (100 - sigma_level) / 2
     high = 100 - low
@@ -595,12 +694,12 @@ def plot_global_signal_hyperparameters(
     z_true_line = 8
     skipped_in_main_plot = []
     delta_plot_records = []
+    plotted_color_idx = 0
     delta_ref_x_axis = None
     delta_ref_low = None
     delta_ref_high = None
 
     for idx, (jobid, x_ml) in enumerate(x_ml_by_job.items()):
-        color = f"C{idx}"
         x_true = x_true_by_job[jobid]
         los = los_by_job[jobid]
 
@@ -644,6 +743,8 @@ def plot_global_signal_hyperparameters(
         perc_delta = np.percentile(tb_delta, [low, high], axis=0)
 
         if jobid not in MAIN_PLOT_EXCLUDED_JOBIDS:
+            color = f"C{plotted_color_idx}"
+            plotted_color_idx += 1
             # Use translucent uncertainty bands instead of dense error bars
             # to reduce severe overlap across many jobs.
             ax_left.fill_between(
@@ -688,7 +789,12 @@ def plot_global_signal_hyperparameters(
         mae_sigma_by_job.append(np.abs(eps_sigma).mean() if eps_sigma.size > 0 else np.nan)
 
         if jobid not in MAIN_PLOT_EXCLUDED_JOBIDS:
-            model_label = _format_model_label(jobid, model_meta.get(jobid, {}), baseline_hyperparams)
+            model_label = _format_model_label(
+                jobid,
+                model_meta.get(jobid, {}),
+                baseline_hyperparams,
+                show_jobid=show_jobid,
+            )
             handles_for_legend.append(Line2D([0], [0], color=color, lw=1.5, label=model_label))
 
     if z_idx is not None:
@@ -716,8 +822,14 @@ def plot_global_signal_hyperparameters(
     ax_twin.set_xticklabels([f"{zv:.1f}" for zv in z_ticks])
 
     legend = ax_left.legend(handles=handles_for_legend, fontsize=8, loc="best")
+    baseline_label = _format_model_label(
+        BASELINE_JOBID,
+        model_meta.get(BASELINE_JOBID, {}),
+        baseline_hyperparams,
+        show_jobid=show_jobid,
+    )
     for txt in legend.get_texts():
-        if txt.get_text().startswith(f"job={BASELINE_JOBID}"):
+        if txt.get_text() == baseline_label:
             txt.set_fontweight("bold")
             txt.set_fontstyle("italic")
     if skipped_in_main_plot:
@@ -762,7 +874,12 @@ def plot_global_signal_hyperparameters(
             zorder=z_baseline_line if jobid == BASELINE_JOBID else z_other_line,
         )
 
-        model_label = _format_model_label(jobid, model_meta.get(jobid, {}), baseline_hyperparams)
+        model_label = _format_model_label(
+            jobid,
+            model_meta.get(jobid, {}),
+            baseline_hyperparams,
+            show_jobid=show_jobid,
+        )
         delta_handles_for_legend.append(Line2D([0], [0], color=color, lw=1.5, label=model_label))
 
     if delta_ref_x_axis is not None:
@@ -805,7 +922,7 @@ def plot_global_signal_hyperparameters(
 
     legend_delta = ax_delta.legend(handles=delta_handles_for_legend, fontsize=8, loc="best")
     for txt in legend_delta.get_texts():
-        if txt.get_text().startswith(f"job={BASELINE_JOBID}"):
+        if txt.get_text() == baseline_label:
             txt.set_fontweight("bold")
             txt.set_fontstyle("italic")
 
@@ -827,9 +944,9 @@ def plot_global_signal_hyperparameters(
         dpi=220,
     )
     x = np.arange(len(jobids_in_order))
-    ax_mae.plot(x, mae_rel_by_job, marker="o", lw=1.5, label=r"$\mathrm{MAE}_{rel}$")
-    ax_mae.plot(x, mae_std_by_job, marker="s", lw=1.5, label=r"$\mathrm{MAE}_{std}$")
-    ax_mae.plot(x, mae_sigma_by_job, marker="^", lw=1.5, label=r"$\mathrm{MAE}_{\sigma}$")
+    ax_mae.scatter(x, mae_rel_by_job, marker="o", s=30, label=r"$\mathrm{MAE}_{rel}$")
+    ax_mae.scatter(x, mae_std_by_job, marker="s", s=30, label=r"$\mathrm{MAE}_{std}$")
+    ax_mae.scatter(x, mae_sigma_by_job, marker="^", s=34, label=r"$\mathrm{MAE}_{\sigma}$")
     ax_mae.set_xticks(x)
     ax_mae.set_xticklabels([str(i + 1) for i in range(len(x))])
     ax_mae.set_xlabel("job index")
@@ -839,10 +956,111 @@ def plot_global_signal_hyperparameters(
     ax_mae.grid()
     ax_mae.legend()
 
-    # Annotate each job near MAE_rel points using jobID + diffs to baseline.
+    # Visual grouping aids for job blocks (non-destructive to current job order):
+    # - light background spans for group coverage (supports non-contiguous groups)
+    # - top guide bars + titles (supports overlapping groups via row)
+    # - ring-highlight of per-group best MAE_std point
+    mae_rel_arr = np.asarray(mae_rel_by_job, dtype=float)
+    mae_std_arr = np.asarray(mae_std_by_job, dtype=float)
     text_transform = ax_mae.get_xaxis_transform()
+    y_min_raw = np.nanmin(np.concatenate([mae_rel_arr, mae_std_arr, np.asarray(mae_sigma_by_job, dtype=float)]))
+    y_max_raw = np.nanmax(np.concatenate([mae_rel_arr, mae_std_arr, np.asarray(mae_sigma_by_job, dtype=float)]))
+    y_min = max(y_min_raw * 0.9, 1e-12)
+    y_max = y_max_raw * 1.35
+    ax_mae.set_ylim(y_min, y_max)
+    # Place group labels/guide lines inside plot area (avoid title overlap).
+    y_span = np.log10(y_max) - np.log10(y_min)
+    row_base = y_max / (10 ** (0.10 * y_span))
+    row_step = 10 ** (0.08 * y_span)
+    best_in_group_labeled = False
+    for group in MAE_GROUPS:
+        valid_pos = []
+        for idx1 in group["indices_1based"]:
+            idx0 = idx1 - 1
+            if 0 <= idx0 < len(x):
+                valid_pos.append(idx0)
+        if not valid_pos:
+            continue
+
+        valid_pos_arr = np.array(sorted(valid_pos), dtype=int)
+        x0 = float(valid_pos_arr.min())
+        x1 = float(valid_pos_arr.max())
+        color = group["color"]
+        runs = []
+        start = valid_pos_arr[0]
+        prev = valid_pos_arr[0]
+        for pos in valid_pos_arr[1:]:
+            if pos == prev + 1:
+                prev = pos
+            else:
+                runs.append((start, prev))
+                start = pos
+                prev = pos
+        runs.append((start, prev))
+        for run_start, run_end in runs:
+            ax_mae.axvspan(float(run_start) - 0.45, float(run_end) + 0.45, color=color, alpha=0.06, zorder=0)
+
+        row = int(group.get("row", 0))
+        y_row = row_base / (row_step ** row)
+        ax_mae.plot([x0, x1], [y_row, y_row], color=color, lw=1.2, ls="--", alpha=0.8, clip_on=True)
+        for run_start, run_end in runs:
+            ax_mae.plot(
+                [float(run_start), float(run_end)],
+                [y_row, y_row],
+                color=color,
+                lw=2.2,
+                clip_on=True,
+            )
+        for xi in valid_pos_arr:
+            ax_mae.plot(
+                [float(xi), float(xi)],
+                [y_row / 1.015, y_row * 1.015],
+                color=color,
+                lw=1.3,
+                clip_on=True,
+            )
+        ax_mae.text(
+            0.5 * (x0 + x1),
+            y_row * 1.03,
+            group["name"],
+            color=color,
+            fontsize=8,
+            ha="center",
+            va="bottom",
+            clip_on=True,
+            bbox=dict(facecolor="none", edgecolor="none", pad=1.5),
+        )
+
+        group_vals = mae_std_arr[valid_pos_arr]
+        finite_mask = np.isfinite(group_vals)
+        if np.any(finite_mask):
+            best_pos = valid_pos_arr[finite_mask][np.argmin(group_vals[finite_mask])]
+            ax_mae.scatter(
+                [x[best_pos]],
+                [mae_std_arr[best_pos]],
+                s=130,
+                facecolors="none",
+                edgecolors=color,
+                linewidths=1.8,
+                zorder=5,
+                label="best in group" if not best_in_group_labeled else None,
+            )
+            best_in_group_labeled = True
+
+    # Add visual separators between major contiguous sections.
+    for b in MAE_SECTION_BOUNDARIES_1BASED:
+        b0 = b - 1
+        if 0 <= b0 < len(x) - 1:
+            ax_mae.axvline(float(b0) + 0.5, color="0.45", lw=0.9, ls=":", alpha=0.8, zorder=1)
+
+    # Annotate each job near MAE_rel points using jobID + diffs to baseline.
     for i, jobid in enumerate(jobids_in_order):
-        label_text = _format_job_diff_text(jobid, model_meta.get(jobid, {}), baseline_hyperparams)
+        label_text = _format_job_diff_text(
+            jobid,
+            model_meta.get(jobid, {}),
+            baseline_hyperparams,
+            show_jobid=show_jobid,
+        )
         label_text = _wrap_label_text(label_text, width=50)
         fw = "bold" if jobid == BASELINE_JOBID else "normal"
         fs = "italic" if jobid == BASELINE_JOBID else "normal"
@@ -858,7 +1076,8 @@ def plot_global_signal_hyperparameters(
             fontweight=fw,
             fontstyle=fs,
         )
-    plt.tight_layout()
+    ax_mae.legend(fontsize=8)
+    plt.tight_layout(rect=[0.0, 0.0, 1.0, 0.90])
 
     if savename:
         root, ext = os.path.splitext(savename)
@@ -881,6 +1100,7 @@ def main():
     parser.add_argument("--use_ema", type=int, default=0)
     parser.add_argument("--pt_fname", type=str, default="../utils/PowerTransformer_25600_z1.pkl")
     parser.add_argument("--z_idx", type=int, default=None)
+    parser.add_argument("--show-jobid", action="store_true", help="Show jobid in plot labels/annotations.")
     parser.add_argument("--save", type=str, default="global_signal_hyperparams.png")
     parser.add_argument("--save_pdf", type=str, default="global_signal_hparams_pdf.png")
     args = parser.parse_args()
@@ -945,6 +1165,7 @@ def main():
         model_meta=JOBID_HPARAMS,
         z_idx=args.z_idx,
         savename=args.save,
+        show_jobid=args.show_jobid,
     )
 
     # PDF plotting: explicitly selected jobs only.
@@ -997,6 +1218,7 @@ def main():
         model_meta=JOBID_HPARAMS,
         pt_fname=args.pt_fname,
         savename=args.save_pdf,
+        show_jobid=args.show_jobid,
     )
 
 

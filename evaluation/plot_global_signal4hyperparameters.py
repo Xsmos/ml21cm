@@ -1079,7 +1079,11 @@ def plot_global_signal_hyperparameters(
         if 0 <= b0 < len(x) - 1:
             ax_mae.axvline(float(b0) + 0.5, color="0.45", lw=0.9, ls=":", alpha=0.8, zorder=1)
 
-    # Annotate each job near MAE_rel points using jobID + diffs to baseline.
+    ax_mae.legend(fontsize=8)
+
+    # Annotate each job at the very end so labels stay on top of markers/rings.
+    # Use a small alternating x-offset to reduce overlaps with point markers.
+    x_offset = -0.10
     for i, jobid in enumerate(jobids_in_order):
         label_text = _format_job_diff_text(
             jobid,
@@ -1091,18 +1095,18 @@ def plot_global_signal_hyperparameters(
         fw = "bold" if jobid == BASELINE_JOBID else "normal"
         fs = "italic" if jobid == BASELINE_JOBID else "normal"
         ax_mae.text(
-            x[i],
+            x[i] + x_offset,
             0.02,
             label_text,
             transform=text_transform,
             fontsize=7,
-            ha="left",
+            ha="center",
             va="bottom",
             rotation=90,
             fontweight=fw,
             fontstyle=fs,
+            zorder=30,
         )
-    ax_mae.legend(fontsize=8)
     plt.tight_layout(rect=[0.0, 0.0, 1.0, 0.90])
 
     if savename:

@@ -3,7 +3,7 @@ import sys
 import argparse
 import re
 import textwrap
-from typing import Dict, Any
+from typing import Dict, Any, List, Tuple
 
 import h5py
 import joblib
@@ -192,7 +192,7 @@ MAE_GROUPS = [
     {"name": "3D dz=2 Transform", "indices_1based": [5, 6, 7], "color": "#F58518", "row": 0},
     {"name": "Squish A", "indices_1based": [8, 9, 10, 14], "color": "#54A24B", "row": 1},
     {"name": "ResBlocks", "indices_1based": [11, 12, 14], "color": "#B279A2", "row": 2},
-    {"name": "Epoch", "indices_1based": [13, 14, 15, 16], "color": "#E45756", "row": 1},
+    {"name": "Epoch", "indices_1based": [13, 14, 15, 16], "color": "#E45756", "row": 0},
 ]
 # Optional section separators (1-based boundary after index i).
 # Helps readability without changing existing job order.
@@ -972,7 +972,12 @@ def plot_global_signal_hyperparameters(
     y_span = np.log10(y_max) - np.log10(y_min)
     row_base = y_max / (10 ** (0.10 * y_span))
     row_step = 10 ** (0.08 * y_span)
+    # Extra stagger factor for overlapping groups that share the same row.
+    lane_step = 10 ** (0.055 * y_span)
+    row_lane_intervals: Dict[int, List[List[Tuple[float, float]]]] = {}
     best_in_group_labeled = False
+    # Collect best markers first so coincident points can be drawn as concentric rings.
+    best_markers_by_pos: Dict[int, List[Tuple[str, float]]] = {}
     for group in MAE_GROUPS:
         valid_pos = []
         for idx1 in group["indices_1based"]:
@@ -1001,7 +1006,20 @@ def plot_global_signal_hyperparameters(
             ax_mae.axvspan(float(run_start) - 0.45, float(run_end) + 0.45, color=color, alpha=0.06, zorder=0)
 
         row = int(group.get("row", 0))
-        y_row = row_base / (row_step ** row)
+        span_left = float(x0) - 0.45
+        span_right = float(x1) + 0.45
+        lanes = row_lane_intervals.setdefault(row, [])
+        lane_idx = 0
+        while True:
+            if lane_idx >= len(lanes):
+                lanes.append([])
+            overlaps = any(not (span_right < l or span_left > r) for l, r in lanes[lane_idx])
+            if not overlaps:
+                lanes[lane_idx].append((span_left, span_right))
+                break
+            lane_idx += 1
+
+        y_row = row_base / (row_step ** row) / (lane_step ** lane_idx)
         ax_mae.plot([x0, x1], [y_row, y_row], color=color, lw=1.2, ls="--", alpha=0.8, clip_on=True)
         for run_start, run_end in runs:
             ax_mae.plot(
@@ -1021,7 +1039,7 @@ def plot_global_signal_hyperparameters(
             )
         ax_mae.text(
             0.5 * (x0 + x1),
-            y_row * 1.03,
+            y_row * 1.08,
             group["name"],
             color=color,
             fontsize=8,
@@ -1034,15 +1052,23 @@ def plot_global_signal_hyperparameters(
         group_vals = mae_std_arr[valid_pos_arr]
         finite_mask = np.isfinite(group_vals)
         if np.any(finite_mask):
-            best_pos = valid_pos_arr[finite_mask][np.argmin(group_vals[finite_mask])]
+            best_pos = int(valid_pos_arr[finite_mask][np.argmin(group_vals[finite_mask])])
+            best_markers_by_pos.setdefault(best_pos, []).append((color, float(mae_std_arr[best_pos])))
+
+    # Draw per-group best markers; if multiple groups share one best point,
+    # render concentric rings so all colors remain visible.
+    for best_pos, entries in best_markers_by_pos.items():
+        n = len(entries)
+        for j, (color, y_val) in enumerate(entries):
+            s_ring = 130 + 55 * (n - 1 - j)
             ax_mae.scatter(
                 [x[best_pos]],
-                [mae_std_arr[best_pos]],
-                s=130,
+                [y_val],
+                s=s_ring,
                 facecolors="none",
                 edgecolors=color,
                 linewidths=1.8,
-                zorder=5,
+                zorder=5 + 0.01 * j,
                 label="best in group" if not best_in_group_labeled else None,
             )
             best_in_group_labeled = True

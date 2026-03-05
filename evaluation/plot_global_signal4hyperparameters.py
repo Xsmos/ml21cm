@@ -937,7 +937,7 @@ def plot_global_signal_hyperparameters(
     ax_delta_twin.set_xticklabels([f"{zv:.1f}" for zv in z_ticks_delta])
     ax_delta_twin.tick_params(axis="x", labelsize=FS_TICK)
 
-    legend_delta = ax_delta.legend(handles=delta_handles_for_legend, fontsize=FS_LEGEND, loc="best")
+    legend_delta = ax_delta.legend(handles=delta_handles_for_legend, fontsize=FS_LEGEND, loc="upper left")
     for txt in legend_delta.get_texts():
         if txt.get_text() == baseline_label:
             txt.set_fontweight("bold")
@@ -1105,8 +1105,8 @@ def plot_global_signal_hyperparameters(
 
     ax_mae.legend(
         fontsize=fs_mae_legend,
-        loc="upper left",
-        bbox_to_anchor=(0.003, 0.997),
+        loc="upper center",
+        bbox_to_anchor=(0.5, 0.997),
         ncol=4,
         framealpha=0.92,
         handletextpad=0.5,

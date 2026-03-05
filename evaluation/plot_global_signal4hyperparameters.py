@@ -19,6 +19,14 @@ if parent_dir not in sys.path:
 
 from utils.load_h5 import Dataset4h5, ranges_dict
 
+# Plot typography (kept explicit to avoid tiny text at high dpi).
+FS_TITLE = 20
+FS_LABEL = 17
+FS_TICK = 14
+FS_LEGEND = 13
+FS_TEXT = 12
+FS_GROUP = 13
+
 
 # Manually specify the experiment registry here.
 # key: jobID, value: primary hyperparameters for legend labels.
@@ -188,9 +196,9 @@ MAIN_PLOT_EXCLUDED_JOBIDS = {
 # MAE trend grouping (1-based job index as shown on x-axis):
 # used only for visualization aids in global_signal_hparams_mae_trend.png.
 MAE_GROUPS = [
-    {"name": "2D Transform", "indices_1based": [1, 2, 3, 4], "color": "#4C78A8", "row": 0},
-    {"name": "3D dz=2 Transform", "indices_1based": [5, 6, 7], "color": "#F58518", "row": 0},
-    {"name": "Squish A", "indices_1based": [8, 9, 10, 14], "color": "#54A24B", "row": 1},
+    {"name": "2D Transform", "indices_1based": [1, 2, 3, 4], "color": "#4C78A8", "row": 1},
+    {"name": "3D dz=2 Transform", "indices_1based": [5, 6, 7], "color": "#F58518", "row": 2},
+    {"name": "Amplitude Scale", "indices_1based": [8, 9, 10, 14], "color": "#54A24B", "row": 1},
     {"name": "ResBlocks", "indices_1based": [11, 12, 14], "color": "#B279A2", "row": 2},
     {"name": "Epoch", "indices_1based": [13, 14, 15, 16], "color": "#E45756", "row": 0},
 ]
@@ -626,30 +634,35 @@ def plot_pixel_pdf_by_job_transform(
     ax_l.set_ylim(bottom=1e-3)
     ax_l.set_xscale("symlog", linthresh=linthresh_tf)
     ax_l.grid(alpha=0.35)
-    ax_l.set_title("Transform Space: test(transformed) vs sampled")
-    ax_l.set_xlabel("pixel value")
-    ax_l.set_ylabel("PDF")
+    ax_l.set_title("Transform Space: test(transformed) vs sampled", fontsize=FS_TITLE)
+    ax_l.set_xlabel("pixel value", fontsize=FS_LABEL)
+    ax_l.set_ylabel("PDF", fontsize=FS_LABEL)
+    ax_l.tick_params(axis="both", labelsize=FS_TICK)
 
     ax_r.set_yscale("log")
     ax_r.set_ylim(bottom=1e-3)
     ax_r.set_xscale("symlog", linthresh=linthresh_raw)
     ax_r.grid(alpha=0.35)
-    ax_r.set_title("Raw Space: sampled (inverse) vs testing set")
-    ax_r.set_xlabel("pixel value")
-    ax_r.set_ylabel("PDF")
+    ax_r.set_title("Raw Space: sampled (inverse) vs testing set", fontsize=FS_TITLE)
+    ax_r.set_xlabel("pixel value", fontsize=FS_LABEL)
+    ax_r.set_ylabel("PDF", fontsize=FS_LABEL)
+    ax_r.tick_params(axis="both", labelsize=FS_TICK)
 
-    legend_jobs = ax_l.legend(handles=job_handles, fontsize=7, loc="upper right", title="Job / Transform")
+    legend_jobs = ax_l.legend(handles=job_handles, fontsize=FS_LEGEND, loc="upper right", title="Job / Transform")
+    legend_jobs.get_title().set_fontsize(FS_LEGEND)
     ax_l.add_artist(legend_jobs)
     style_handles = [
         Line2D([0], [0], color="black", lw=1.5, linestyle="--", label="testing set (transformed)"),
         Line2D([0], [0], color="black", lw=1.2, linestyle="-", label="sampled data"),
     ]
-    ax_l.legend(handles=style_handles, fontsize=8, loc="upper left", title="Line Style")
+    legend_style_l = ax_l.legend(handles=style_handles, fontsize=FS_LEGEND, loc="upper left", title="Line Style")
+    legend_style_l.get_title().set_fontsize(FS_LEGEND)
     style_handles_right = [
         Line2D([0], [0], color="black", lw=1.8, linestyle="--", label="testing set (raw)"),
         Line2D([0], [0], color="black", lw=1.2, linestyle="-", label="sampled data (inverse)"),
     ]
-    ax_r.legend(handles=style_handles_right, fontsize=8, loc="upper right", title="Line Style")
+    legend_style_r = ax_r.legend(handles=style_handles_right, fontsize=FS_LEGEND, loc="upper right", title="Line Style")
+    legend_style_r.get_title().set_fontsize(FS_LEGEND)
 
     plt.tight_layout()
     if savename:
@@ -805,23 +818,25 @@ def plot_global_signal_hyperparameters(
             x_mark = los[1][z_idx]
             ax_left.axvline(x=x_mark, color="red", linestyle="--", linewidth=1.5)
 
-    ax_left.set_ylabel(r"$\langle T_b \rangle$ [mK]")
-    ax_left.set_xlabel("distance [Gpc]")
+    ax_left.set_ylabel(r"$\langle T_b \rangle$ [mK]", fontsize=FS_LABEL)
+    ax_left.set_xlabel("distance [Gpc]", fontsize=FS_LABEL)
     ax_left.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, pos: f"{x / 1000:.1f}"))
-    ax_left.set_title("Global Signal Comparison")
+    ax_left.set_title("Global Signal Comparison", fontsize=FS_TITLE)
     ax_left.grid()
+    ax_left.tick_params(axis="both", labelsize=FS_TICK)
 
     ax_twin = ax_left.secondary_xaxis("top")
     ax_twin.set_xlim(ax_left.get_xlim())
-    ax_twin.set_xlabel("redshift")
+    ax_twin.set_xlabel("redshift", fontsize=FS_LABEL)
     first_jobid = next(iter(los_by_job.keys()))
     los = los_by_job[first_jobid]
     z_ticks_x = ax_twin.get_xticks()
     z_ticks = np.interp(z_ticks_x, los[1], los[0])
     ax_twin.set_xticks(z_ticks_x)
     ax_twin.set_xticklabels([f"{zv:.1f}" for zv in z_ticks])
+    ax_twin.tick_params(axis="x", labelsize=FS_TICK)
 
-    legend = ax_left.legend(handles=handles_for_legend, fontsize=8, loc="best")
+    legend = ax_left.legend(handles=handles_for_legend, fontsize=FS_LEGEND, loc="best")
     baseline_label = _format_model_label(
         BASELINE_JOBID,
         model_meta.get(BASELINE_JOBID, {}),
@@ -903,24 +918,26 @@ def plot_global_signal_hyperparameters(
         )
     ax_delta.axhline(y=0.0, color="gray", linestyle="--", linewidth=1.0, alpha=0.8, zorder=0)
 
-    ax_delta.set_ylabel(r"$\Delta\langle T_b \rangle$ [mK] (model - 21cmFAST)")
+    ax_delta.set_ylabel(r"$\Delta\langle T_b \rangle$ [mK] (model - 21cmFAST)", fontsize=FS_LABEL)
     ax_delta.set_yscale("symlog", linthresh=10.0)
-    ax_delta.set_xlabel("distance [Gpc]")
+    ax_delta.set_xlabel("distance [Gpc]", fontsize=FS_LABEL)
     ax_delta.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, pos: f"{x / 1000:.1f}"))
-    ax_delta.set_title("Global Signal Residuals vs 21cmFAST")
+    ax_delta.set_title("Global Signal Residuals vs 21cmFAST", fontsize=FS_TITLE)
     ax_delta.grid()
+    ax_delta.tick_params(axis="both", labelsize=FS_TICK)
 
     ax_delta_twin = ax_delta.secondary_xaxis("top")
     ax_delta_twin.set_xlim(ax_delta.get_xlim())
-    ax_delta_twin.set_xlabel("redshift")
+    ax_delta_twin.set_xlabel("redshift", fontsize=FS_LABEL)
     first_jobid = next(iter(los_by_job.keys()))
     los = los_by_job[first_jobid]
     z_ticks_x_delta = ax_delta_twin.get_xticks()
     z_ticks_delta = np.interp(z_ticks_x_delta, los[1], los[0])
     ax_delta_twin.set_xticks(z_ticks_x_delta)
     ax_delta_twin.set_xticklabels([f"{zv:.1f}" for zv in z_ticks_delta])
+    ax_delta_twin.tick_params(axis="x", labelsize=FS_TICK)
 
-    legend_delta = ax_delta.legend(handles=delta_handles_for_legend, fontsize=8, loc="best")
+    legend_delta = ax_delta.legend(handles=delta_handles_for_legend, fontsize=FS_LEGEND, loc="best")
     for txt in legend_delta.get_texts():
         if txt.get_text() == baseline_label:
             txt.set_fontweight("bold")
@@ -943,18 +960,25 @@ def plot_global_signal_hyperparameters(
         figsize=(max(6.8, 0.45 * len(jobids_in_order) + 1.6), 4.8),
         dpi=220,
     )
+    # Dedicated typography for this dense panel.
+    fs_mae_title = 18
+    fs_mae_label = 16
+    fs_mae_tick = 12
+    fs_mae_legend = 11
+    fs_mae_group = 10
+    fs_mae_text = 8
     x = np.arange(len(jobids_in_order))
     ax_mae.scatter(x, mae_rel_by_job, marker="o", s=30, label=r"$\mathrm{MAE}_{rel}$")
     ax_mae.scatter(x, mae_std_by_job, marker="s", s=30, label=r"$\mathrm{MAE}_{std}$")
     ax_mae.scatter(x, mae_sigma_by_job, marker="^", s=34, label=r"$\mathrm{MAE}_{\sigma}$")
     ax_mae.set_xticks(x)
     ax_mae.set_xticklabels([str(i + 1) for i in range(len(x))])
-    ax_mae.set_xlabel("job index")
-    ax_mae.set_ylabel("MAE")
-    ax_mae.set_title("Per-Job Error Trend")
+    ax_mae.set_xlabel("job index", fontsize=fs_mae_label)
+    ax_mae.set_ylabel("MAE", fontsize=fs_mae_label)
+    ax_mae.set_title("Per-Job Error Trend", fontsize=fs_mae_title)
     ax_mae.set_yscale("log")
     ax_mae.grid()
-    ax_mae.legend()
+    ax_mae.tick_params(axis="both", labelsize=fs_mae_tick)
 
     # Visual grouping aids for job blocks (non-destructive to current job order):
     # - light background spans for group coverage (supports non-contiguous groups)
@@ -1042,7 +1066,7 @@ def plot_global_signal_hyperparameters(
             y_row * 1.08,
             group["name"],
             color=color,
-            fontsize=8,
+            fontsize=fs_mae_group,
             ha="center",
             va="bottom",
             clip_on=True,
@@ -1079,10 +1103,20 @@ def plot_global_signal_hyperparameters(
         if 0 <= b0 < len(x) - 1:
             ax_mae.axvline(float(b0) + 0.5, color="0.45", lw=0.9, ls=":", alpha=0.8, zorder=1)
 
-    ax_mae.legend(fontsize=8)
+    ax_mae.legend(
+        fontsize=fs_mae_legend,
+        loc="upper left",
+        bbox_to_anchor=(0.003, 0.997),
+        ncol=4,
+        framealpha=0.92,
+        handletextpad=0.5,
+        columnspacing=0.9,
+        borderpad=0.28,
+        borderaxespad=0.0,
+    )
 
     # Annotate each job at the very end so labels stay on top of markers/rings.
-    # Use a small alternating x-offset to reduce overlaps with point markers.
+    # Use a small fixed x-offset to reduce overlaps with point markers.
     x_offset = -0.10
     for i, jobid in enumerate(jobids_in_order):
         label_text = _format_job_diff_text(
@@ -1091,20 +1125,21 @@ def plot_global_signal_hyperparameters(
             baseline_hyperparams,
             show_jobid=show_jobid,
         )
-        label_text = _wrap_label_text(label_text, width=50)
+        label_text = _wrap_label_text(label_text, width=34)
         fw = "bold" if jobid == BASELINE_JOBID else "normal"
         fs = "italic" if jobid == BASELINE_JOBID else "normal"
         ax_mae.text(
             x[i] + x_offset,
-            0.02,
+            0.012,
             label_text,
             transform=text_transform,
-            fontsize=7,
+            fontsize=fs_mae_text,
             ha="center",
             va="bottom",
             rotation=90,
             fontweight=fw,
             fontstyle=fs,
+            alpha=0.88,
             zorder=30,
         )
     plt.tight_layout(rect=[0.0, 0.0, 1.0, 0.90])

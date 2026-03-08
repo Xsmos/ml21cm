@@ -31,64 +31,78 @@ FS_GROUP = 13
 # Manually specify the experiment registry here.
 # key: jobID, value: primary hyperparameters for legend labels.
 JOBID_HPARAMS: Dict[int, Dict[str, Any]] = {
-    46941305: {
-        "num_res_blocks": 3,
+    49654214: {
+        "num_res_blocks": 1,
+    # 46941305: {
+    #     "num_res_blocks": 3,
         "squish": "1,0",
         "dim": 2,
         "epochs": 120,
         "z_step": "1",
         "transform": "arcsinh",
     },
-    49299747: {
+    49654134: {
+        "num_res_blocks": 1,
+    # 49299747: {
+    #     "num_res_blocks": 3,
     # 46941303: {
-        "num_res_blocks": 3,
+        # "num_res_blocks": 3,
         "squish": "1,0",
         "dim": 2,
         "epochs": 120,
         "z_step": "1",
         "transform": "min_max",
     },
-    46941293: {
-        "num_res_blocks": 3,
+    49654128: {
+        "num_res_blocks": 1,
+    # 46941293: {
+    #     "num_res_blocks": 3,
         "squish": "1,0",
         "dim": 2,
         "epochs": 120,
         "z_step": "1",
         "transform": "z_score",
     },
-    46941286: {
-        "num_res_blocks": 3,
+    49654199: {
+        "num_res_blocks": 1,
+    # 46941286: {
+    #     "num_res_blocks": 3,
         "squish": "1,0",
         "dim": 2,
         "epochs": 120,
         "z_step": "1",
         "transform": "pt_inv",
     },
-    49299542: {
+    49653881: {
+        "num_res_blocks": 1,
+    # 49299542: {
+    #     "num_res_blocks": 3,
     # 47032706: {
-        "num_res_blocks": 3,
+        # "num_res_blocks": 3,
         "squish": "1,0",
         "dim": 3,
         "epochs": 120,
-        "z_step": "2",
+        "z_step": "1", #"2",
         "transform": "min_max",
     },
-    47032672: {
-        "num_res_blocks": 3,
+    49653904: {
+        "num_res_blocks": 1,
+    # 47032672: {
+    #     "num_res_blocks": 3,
         "squish": "1,0",
         "dim": 3,
         "epochs": 120,
-        "z_step": "2",
+        "z_step": "1", #"2",
         "transform": "z_score",
     },
-    47032656: {
-        "num_res_blocks": 3,
-        "squish": "1,0",
-        "dim": 3,
-        "epochs": 120,
-        "z_step": "2",
-        "transform": "pt_inv",
-    },
+    # 47032656: {
+    #     "num_res_blocks": 3,
+    #     "squish": "1,0",
+    #     "dim": 3,
+    #     "epochs": 120,
+    #     "z_step": "1", #"2",
+    #     "transform": "pt_inv",
+    # },
     48820329: {
         "num_res_blocks": 1,
     # 48057253: {

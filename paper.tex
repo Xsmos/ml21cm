@@ -1,0 +1,328 @@
+\documentclass{aastex631}
+
+\usepackage{amsmath}
+\usepackage{natbib}
+\usepackage{graphicx}
+\usepackage{booktabs}
+
+\newcommand{\vdag}{(v)^\dagger}
+\newcommand\aastex{AAS\TeX}
+\newcommand\latex{La\TeX}
+
+\graphicspath{{./}}
+
+\begin{document}
+
+\title{From 2D to 3D Conditional Diffusion for 21cm Lightcone Emulation}
+
+\author[0000-0002-7077-9836]{Bin Xia}
+\affiliation{Center for Relativistic Astrophysics, School of Physics,
+Georgia Institute of Technology,
+Atlanta, GA 30332, USA}
+
+\author[0000-0003-1173-8847]{John Wise}
+\affiliation{Center for Relativistic Astrophysics, School of Physics,
+Georgia Institute of Technology,
+Atlanta, GA 30332, USA}
+
+\begin{abstract}
+We present a 3D extension of the conditional diffusion framework introduced by \citet{zhao2023can} (arXiv:2307.09568), which originally focused on 2D 21cm image generation at $64\times 64$ resolution. Our target is substantially harder: conditional generation of 3D lightcone cubes with sky-plane size $64\times 64$ and long line-of-sight depth up to 1024 cells. This dimensional jump introduces severe practical constraints, including GPU memory pressure, large training I/O, and optimization instability. Using a code-aligned analysis of our training and evaluation pipeline, we show that preprocessing choices (PowerTransformer/\texttt{pt\_inv}, min-max, z-score, arcsinh, and amplitude squish) dominate training behavior and final fidelity. We evaluate outputs with complementary diagnostics in configuration and summary-statistic spaces: image slices, global signal, power spectrum, and reduced scattering coefficients. To quantify performance, we use three residual channels implemented consistently in our code: $\epsilon_{\rm rel}$, $\epsilon_{\rm std}$, and $\epsilon_{\sigma}$, together with their mean absolute errors. Hyperparameter trends indicate that robust 3D performance requires coordinated choices of transform, dynamic-range compression, architecture depth, and training duration, rather than any single modification. This manuscript provides an ApJ-ready technical baseline for inference-focused future work with realistic observational systematics.
+\end{abstract}
+
+\keywords{cosmology: theory --- dark ages, reionization, first stars --- methods: numerical --- methods: statistical --- radio lines: general}
+
+\section{Introduction}
+Tomographic 21cm observations are expected to probe the astrophysics of the first luminous sources and the evolving ionization topology of the intergalactic medium. Because direct forward simulation campaigns remain computationally expensive, emulator development is central to scalable inference pipelines. Semi-numerical models such as 21cmFAST provide the training target distribution for many of these efforts \citep{2011MNRAS.411..955M,2018MNRAS.477.3217G}.
+
+Diffusion models have become competitive generative models for high-dimensional science data \citep{ho2020denoising,dhariwal2021diffusion}. For 21cm applications, \citet{zhao2023can} demonstrated conditional diffusion generation for 2D images ($64\times64$). Their setup established two important points: (i) conditional diffusion is viable for astrophysical image generation, and (ii) data transformation choices materially affect model quality.
+
+Our work starts from that baseline and extends to 3D lightcone generation. The key methodological question is not only whether 3D generation is possible, but how to make it stable and diagnostically trustworthy when moving from 2D maps to high-aspect-ratio 3D volumes (e.g., $64\times64\times1024$).
+
+\section{Relation to the Baseline 2D Study}
+\subsection{What We Inherit from \citet{zhao2023can}}
+The baseline paper uses conditional diffusion to generate 2D astronomical images at $64\times64$, with conditioning variables corresponding to astrophysical parameters and with strong emphasis on transform-space behavior. The paper demonstrates generation quality on representative parameter points and motivates transform-aware treatment of non-Gaussian pixel distributions.
+
+\subsection{What We Change}
+Our project generalizes this setup to 3D data tensors and modifies both training and evaluation accordingly:
+\begin{enumerate}
+    \item dimension-aware U-Net backbone in 2D/3D modes from one code path (\texttt{models/context\_unet.py});
+    \item distributed multi-GPU training with AMP, gradient clipping, and gradient accumulation (\texttt{training/diffusion.py});
+    \item transform and dynamic-range studies integrated into hyperparameter sweeps (\texttt{evaluation/plot\_global\_signal4hyperparameters.py});
+    \item multi-view diagnostics beyond direct images: global signal, power spectrum, and scattering coefficients (\texttt{evaluation/evaluate.ipynb}).
+\end{enumerate}
+
+\section{Methods}
+\subsection{Data, Conditioning, and Shapes}
+Conditioning variables are $(\log_{10}T_{\rm vir},\zeta)$, rescaled to $[0,1]$ in the data loader. The code supports 2D and 3D input tensors through the same interface:
+\begin{equation}
+\mathbf{x}\in \mathbb{R}^{1\times H\times Z} \;\text{(2D)}\quad \text{or}\quad
+\mathbf{x}\in \mathbb{R}^{1\times H\times H\times Z} \;\text{(3D)}.
+\end{equation}
+In this work, $H=64$ and $Z$ varies by run design, including high-depth regimes up to $Z=1024$ for evaluation and stress tests.
+
+\subsection{Conditional Diffusion Architecture}
+The model uses a context-conditioned U-Net with timestep embeddings and condition-token embeddings added in latent space. The implementation is dimension-agnostic through \texttt{Conv\{2,3\}d} blocks, residual blocks, and attention blocks. A DDPM scheduler with linear or cosine $\beta_t$ schedule is supported; production runs in this project use standard DDPM-style denoising with MSE loss on predicted noise \citep{ho2020denoising}.
+
+\subsection{Normalization and Dynamic-Range Control}
+A major empirical finding is that normalization dominates training stability at 3D scale. The pipeline supports:
+\begin{enumerate}
+    \item PowerTransformer-based normalization (\texttt{pt\_inv} in inverse mapping),
+    \item min-max scaling,
+    \item z-score scaling,
+    \item arcsinh scaling,
+    \item additional squish transform parameterized by $(A,k)$.
+\end{enumerate}
+For squish, the code applies
+\begin{equation}
+\tilde{x}=\begin{cases}
+A x, & k=0,\\
+A\,\mathrm{arcsinh}(x/k), & k\neq 0,
+\end{cases}
+\end{equation}
+and uses the inverse at sampling time. This extra degree of control is critical in suppressing pathological heavy tails during 3D training.
+
+\subsection{Stability and Memory Strategies for 3D}
+Moving from 2D to 3D introduces a large memory/computation jump. The training code addresses this with:
+\begin{enumerate}
+    \item distributed data parallel training (\texttt{torchrun}+DDP),
+    \item mixed precision with \texttt{autocast} and \texttt{GradScaler},
+    \item gradient accumulation for effective batch size control,
+    \item gradient clipping (max norm 1.0),
+    \item optional checkpointed blocks in U-Net,
+    \item configurable line-of-sight downsampling via \texttt{z\_step}.
+\end{enumerate}
+Despite these controls, naive 3D training at full $64\times64\times1024$ remains challenging, motivating our normalization-centered ablations.
+
+\section{Evaluation Protocol}
+\subsection{Diagnostic Views}
+We evaluate generated samples against 21cmFAST targets in four complementary views:
+\begin{enumerate}
+    \item brightness-temperature image slices,
+    \item global signal $\langle T_b\rangle$ vs line-of-sight/redshift,
+    \item power spectrum at selected redshift slices,
+    \item reduced scattering coefficients \citep{andreux2020kymatio,2023MNRAS.519.5288G}.
+\end{enumerate}
+
+\subsection{Residual Channels and Scalar Scores}
+All major diagnostic functions in \texttt{evaluate.ipynb} share the same residual definitions:
+\begin{align}
+\epsilon_{\rm rel} &= \frac{y_1-y_0}{|y_0|}, \\
+\epsilon_{\rm std} &= \frac{y_1-y_0}{\sigma_0}, \\
+\epsilon_{\sigma} &= \frac{\sigma_1}{\sigma_0}-1,
+\end{align}
+with masking thresholds on $|y_0|$ or $\sigma_0$ as implemented in code. Reported scalar metrics are
+\begin{align}
+\mathrm{MAE}_{\rm rel}=\langle|\epsilon_{\rm rel}|\rangle,\quad
+\mathrm{MAE}_{\rm std}=\langle|\epsilon_{\rm std}|\rangle,\quad
+\mathrm{MAE}_{\sigma}=\langle|\epsilon_{\sigma}|\rangle.
+\end{align}
+
+\section{Results}
+\subsection{Single-Run 3D Diagnostics: job 48820652}
+From \texttt{JOBID\_HPARAMS}, job 48820652 corresponds to:
+\texttt{RB1, squish A=0.1, dim=3, Ep240, transform=pt\_inv}. Figure~\ref{fig:single_job_diagnostics} summarizes its behavior.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.48\textwidth]{Tbs_48820652_0.png}
+\hfill
+\includegraphics[width=0.48\textwidth]{global_Tb_48820652_0_z320.png}
+\vspace{0.5em}
+\includegraphics[width=0.48\textwidth]{power_spectrum_48820652_0_z320.png}
+\hfill
+\includegraphics[width=0.48\textwidth]{scattering_coefficients_48820652_0_z320.png}
+\caption{Single-run diagnostics for job 48820652. Top-left: brightness-temperature image comparison. Top-right: global signal with residual channels. Bottom-left: power-spectrum comparison. Bottom-right: reduced scattering-coefficient comparison. This figure shows why configuration-space visual agreement must be complemented by summary-statistic residual analysis.}
+\label{fig:single_job_diagnostics}
+\end{figure*}
+
+The run captures broad morphological trends and large-scale global-signal structure, while residual panels reveal remaining offsets in both central tendency and dispersion channels.
+
+\subsection{Transform Ablation from 2D Controls}
+To isolate preprocessing effects cleanly, we compare four 2D transform settings (arcsinh, min-max, z-score, pt\_inv). Figure~\ref{fig:hparam_pdf} presents transformed-space and raw-space PDF checks.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{hparams_pdf.png}
+\caption{Transform ablation on 2D jobs (indices 1--4). Left: transformed-space test-vs-sampled PDFs. Right: inverse-mapped raw-space PDFs. Transform behavior in latent space does not always translate to raw-space fidelity; this motivates explicit dual-space diagnostics.}
+\label{fig:hparam_pdf}
+\end{figure}
+
+\subsection{3D Hyperparameter Trends}
+For 3D-focused comparisons, the plotting script selects job indices
+\{5,6,7,8,9,10,11,13\} to emphasize transform/scale/architecture effects while keeping overlays interpretable.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\linewidth]{hparams.png}
+\caption{3D selected-job comparison against 21cmFAST, combining the global-signal median/uncertainty-band overlays and the residual global signal $\Delta\langle T_b\rangle$ into a single figure.}
+\label{fig:hparam_global_delta}
+\end{figure*}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{hparams_mae_trend.png}
+\caption{Per-job MAE trends with grouped annotations (2D transform, 3D transform, amplitude scale, residual blocks, epochs). Circles denote per-group best in $\mathrm{MAE}_{\rm std}$.}
+\label{fig:hparam_mae}
+\end{figure}
+
+Three robust observations emerge:
+\begin{enumerate}
+    \item normalization/transform choice is a first-order driver of training outcome;
+    \item dynamic-range squish and residual-block depth interact non-trivially with transform choice;
+    \item longer training helps only when preprocessing keeps optimization stable.
+\end{enumerate}
+
+\section{Discussion}
+\subsection{Main Technical Takeaways}
+Relative to the 2D baseline of \citet{zhao2023can}, the 3D extension is not a trivial dimensional upgrade. The dominant failure modes in our code-level experiments are engineering-statistical couplings: memory constraints force small micro-batches; small batches amplify optimization noise; unstable normalization magnifies this effect. As a result, architecture and preprocessing must be tuned jointly.
+
+\subsection{Limitations and Next Steps}
+This paper focuses on emulator fidelity under simulation-level conditions. The following are necessary for a full survey-facing pipeline:
+\begin{enumerate}
+    \item instrument response and foreground contamination modeling,
+    \item uncertainty calibration beyond percentile envelopes,
+    \item larger controlled seed studies for variance quantification,
+    \item direct SBI/MCMC downstream validation using emulator outputs.
+\end{enumerate}
+
+\section{Conclusion}
+We presented an ApJ-style update of our diffusion-emulator study, explicitly framed as a 3D extension of the 2D conditional diffusion baseline in \citet{zhao2023can}. The central result is methodological: stable high-dimensional 21cm generation depends critically on preprocessing and dynamic-range control, in addition to architecture and compute scaling. Our current codebase and diagnostics establish a reproducible foundation for the next phase: inference-driven 3D emulation under realistic observational effects.
+
+\appendix
+\section{Implementation Details for Reproducibility}
+This appendix records code-level details needed to revise or extend the manuscript without reopening the project repository.
+
+\subsection{Code Modules and Responsibilities}
+The current workflow is split across four primary files:
+\begin{enumerate}
+    \item \texttt{training/diffusion.py}: DDP setup, DDPM scheduler, training loop, sampling, optimizer/scheduler, mixed precision.
+    \item \texttt{models/context\_unet.py}: dimension-agnostic conditional U-Net with residual and attention blocks.
+    \item \texttt{utils/load\_h5.py}: HDF5 loading, parameter scaling, image normalization/transform, augmentation.
+    \item \texttt{evaluation/evaluate.ipynb} and \texttt{evaluation/plot\_global\_signal4hyperparameters.py}: diagnostics and hyperparameter-comparison plots.
+\end{enumerate}
+
+\subsection{Architecture and Diffusion Settings}
+In \texttt{ContextUnet}, 2D and 3D are unified through dimension-dependent convolution/pooling operators. Key architectural defaults used in this project are:
+\begin{enumerate}
+    \item base channels \texttt{model\_channels=128},
+    \item attention resolutions at downsample factors corresponding to spatial scales 16 and 8,
+    \item multi-head attention with default \texttt{num\_heads=4},
+    \item GroupNorm-based normalization (32 groups) with SiLU-style nonlinearity \citep{wu2018group},
+    \item condition-token embedding and timestep embedding summed in latent space.
+\end{enumerate}
+
+In \texttt{training/diffusion.py}, DDPM training uses:
+\begin{enumerate}
+    \item \texttt{betas=(1e-4, 0.02)} with linear or cosine schedule,
+    \item \texttt{num\_timesteps=1000},
+    \item MSE loss on predicted noise,
+    \item AdamW optimizer and cosine annealing LR schedule,
+    \item gradient clipping (\texttt{max\_norm=1.0}),
+    \item optional EMA model tracking.
+\end{enumerate}
+
+\subsection{Data Pipeline and Normalization}
+For each sample, the loader returns image tensor and normalized condition vector:
+\begin{equation}
+(\mathbf{x},\mathbf{c}),\quad \mathbf{c}\in[0,1]^2,\ \mathbf{c}=(\log_{10}T_{\rm vir},\zeta)\ \text{after min-max rescaling.}
+\end{equation}
+Image-space preprocessing is selected via \texttt{scale\_path} and supports:
+\begin{enumerate}
+    \item PowerTransformer/QuantileTransformer-based normalization,
+    \item min-max mapping to $[-1,1]$ using fixed dataset ranges,
+    \item z-score normalization with fixed mean/std,
+    \item arcsinh transform.
+\end{enumerate}
+
+The training code additionally applies a squish function before diffusion:
+\begin{equation}
+\tilde{x}=A x \ \ (k=0),\qquad \tilde{x}=A\,\mathrm{arcsinh}(x/k) \ \ (k\neq 0),
+\end{equation}
+with inverse mapping applied after sampling.
+
+\subsection{Stability and Memory Controls for 3D}
+The dimensional expansion from 2D to 3D required explicit engineering controls:
+\begin{enumerate}
+    \item DDP execution via \texttt{torchrun},
+    \item AMP (\texttt{autocast} + \texttt{GradScaler}),
+    \item gradient accumulation to increase effective batch size under memory limits,
+    \item optional checkpointed blocks in U-Net,
+    \item configurable \texttt{z\_step} and stride choices for depth handling.
+\end{enumerate}
+
+Representative launch settings used in cluster scripts are summarized in Table~\ref{tab:hpc_settings}. These settings document why micro-batch size is small and why gradient accumulation is essential in high-dimensional runs.
+
+\begin{table*}[t]
+\centering
+\caption{Representative training-launch settings in project batch scripts.}
+\label{tab:hpc_settings}
+\begin{tabular}{lccccccc}
+\toprule
+Script & Nodes$\times$GPU & \texttt{num\_image} & \texttt{batch\_size} & \texttt{num\_redshift} & \texttt{stride} & \texttt{grad\_acc} & \texttt{squish} \\
+\midrule
+\texttt{perlmutter\_diffusion.sbatch} & $8\times4$ & 800 & 2 & 1024 & (2,4) & 16 & (0.1,0) \\
+\texttt{frontera\_diffusion.sbatch} & $4\times4$ & 1600 & 2 & 64 & (2,2,2) & 16 & default \\
+\texttt{phoenix\_diffusion.sbatch} & $2\times2$ & script default & script default & script default & script default & 30 & script default \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\subsection{Hyperparameter Registry Used in the Paper}
+The paper figures are driven by the explicit registry \texttt{JOBID\_HPARAMS} in \texttt{plot\_global\_signal4hyperparameters.py}. Current 1-based job ordering is shown in Table~\ref{tab:job_registry}.
+
+\begin{table*}[t]
+\centering
+\caption{Job index to hyperparameter mapping in the current plotting registry.}
+\label{tab:job_registry}
+\begin{tabular}{cccccc}
+\toprule
+Index & Job ID & Dim & Transform & Squish & Notes \\
+\midrule
+1 & 49654214 & 2D & arcsinh & 1,0 & RB1, Ep120 \\
+2 & 49654134 & 2D & min\_max & 1,0 & RB1, Ep120 \\
+3 & 49654128 & 2D & z\_score & 1,0 & RB1, Ep120 \\
+4 & 49654199 & 2D & pt\_inv & 1,0 & RB1, Ep120 \\
+5 & 49653881 & 3D & min\_max & 1,0 & RB1, Ep120 \\
+6 & 49653904 & 3D & z\_score & 1,0 & RB1, Ep120 \\
+7 & 48820329 & 3D & pt\_inv & 1,0 & RB1, Ep120 \\
+8 & 48902106 & 3D & pt\_inv & 0.5,0 & RB1, Ep120 \\
+9 & 49325389 & 3D & pt\_inv & 0.01,0 & RB1, Ep120 \\
+10 & 48057143 & 3D & pt\_inv & 0.1,0 & RB3, Ep120 \\
+11 & 48580330 & 3D & pt\_inv & 0.1,0 & RB2, Ep120 \\
+12 & 48820652 & 3D & pt\_inv & 0.1,0 & RB1, Ep240 \\
+13 & 48436662 & 3D & pt\_inv & 0.1,0 & RB1, Ep120 (BASE) \\
+14 & 48820480 & 3D & pt\_inv & 0.1,0 & RB1, Ep60 \\
+15 & 48820424 & 3D & pt\_inv & 0.1,0 & RB1, Ep30 \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\subsection{Figure Generation Rules}
+The main rules hard-coded in \texttt{plot\_global\_signal4hyperparameters.py} are:
+\begin{enumerate}
+    \item PDF comparison figure uses indices \{1,2,3,4\} (2D transform study).
+    \item Global-signal and residual panel use indices \{5,6,7,8,9,10,11,13\}.
+    \item MAE trend figure reports all registry jobs with grouped annotations:
+    2D transform, 3D transform, amplitude scale, residual blocks, epochs.
+\end{enumerate}
+
+\subsection{Metric Definitions Implemented in Code}
+All three diagnostic blocks (global signal, power spectrum, scattering coefficients) use the same residual channels:
+\begin{align}
+\epsilon_{\rm rel} &= (y_1-y_0)/|y_0|, \\
+\epsilon_{\rm std} &= (y_1-y_0)/\sigma_0, \\
+\epsilon_{\sigma} &= \sigma_1/\sigma_0-1,
+\end{align}
+and summarize each channel with mean absolute value (MAE). This shared metric design is implemented directly in \texttt{evaluate.ipynb} and is the basis of all scalar comparisons in this manuscript.
+
+\acknowledgments
+This manuscript is aligned with the current implementation in
+\texttt{training/diffusion.py},
+\texttt{models/context\_unet.py},
+\texttt{evaluation/evaluate.ipynb}, and
+\texttt{evaluation/plot\_global\_signal4hyperparameters.py}.
+
+\bibliography{sample631}{}
+\bibliographystyle{aasjournal}
+
+\end{document}

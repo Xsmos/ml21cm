@@ -202,9 +202,9 @@ MAE_GROUPS = [
     # job index 7 was removed from the original 16-job layout; indices below are
     # the current 15-job layout shown on x-axis (1..15).
     {"name": "3D Transform", "indices_1based": [5, 6, 7], "color": "#F58518", "row": 2},
-    {"name": "Amplitude Scale", "indices_1based": [7, 8, 9, 13], "color": "#54A24B", "row": 1},
-    {"name": "ResBlocks", "indices_1based": [10, 11, 13], "color": "#B279A2", "row": 2},
-    {"name": "Epoch", "indices_1based": [12, 13, 14, 15], "color": "#E45756", "row": 0},
+    {"name": "3D + Amplitude Scale", "indices_1based": [7, 8, 9, 13], "color": "#54A24B", "row": 1},
+    {"name": "3D + ResBlocks", "indices_1based": [10, 11, 13], "color": "#B279A2", "row": 2},
+    {"name": "3D + Epoch", "indices_1based": [12, 13, 14, 15], "color": "#E45756", "row": 0},
 ]
 # Optional section separators (1-based boundary after index i).
 # Helps readability without changing existing job order.
@@ -578,7 +578,10 @@ def plot_pixel_pdf_by_job_transform(
 
     jobids = list(x_ml_raw_by_job.keys())
     fig, axes = plt.subplots(1, 2, figsize=(14.0, 6.0), dpi=220, sharey=True)
-    ax_l, ax_r = axes
+    ax_r, ax_l = axes
+    testing_lw = 1.5 + 2.0
+    diffusion_lw = 1.2 + 2.0
+    raw_testing_lw = 1.8 + 2.0
     job_handles = []
     linthresh_tf = 1.0
     linthresh_raw = 1.0
@@ -587,7 +590,6 @@ def plot_pixel_pdf_by_job_transform(
     t_by_job = {}
     m_by_job = {}
     m_inv_by_job = {}
-    baseline_hyperparams = model_meta.get(BASELINE_JOBID, {})
 
     for i, jobid in enumerate(jobids):
         color = f"C{i}"
@@ -601,15 +603,16 @@ def plot_pixel_pdf_by_job_transform(
         t_by_job[jobid] = t
         m_by_job[jobid] = m
 
-        label = _format_model_label(
-            jobid,
-            model_meta.get(jobid, {}),
-            baseline_hyperparams,
-            show_jobid=show_jobid,
-        )
-        job_handles.append(Line2D([0], [0], color=color, lw=1.8, linestyle="-", label=label))
+        transform_label = {
+            "pt_inv": "yeo-johnson",
+            "min_max": "min-max",
+            "z_score": "z-score",
+            "arcsinh": "arcsinh",
+        }.get(str(transform), str(transform))
+        label = f"job={jobid}: {transform_label}" if show_jobid else transform_label
+        job_handles.append(Line2D([0], [0], color=color, lw=diffusion_lw, linestyle="-", label=label))
 
-        # Right subplot: inverse-transformed sampled vs raw testing-set space.
+        # Left subplot: inverse-transformed sampled vs raw 21cmfast space.
         m_inv = _inverse_transform_sampled_for_job(x_ml_raw, transform=transform, pt_fname=pt_fname).numpy().reshape(-1)
         m_inv_by_job[jobid] = m_inv
 
@@ -624,8 +627,8 @@ def plot_pixel_pdf_by_job_transform(
 
     for i, jobid in enumerate(jobids):
         color = f"C{i}"
-        ax_l.hist(t_by_job[jobid], bins=bins_l, density=True, histtype="step", linewidth=1.5, linestyle="--", color=color)
-        ax_l.hist(m_by_job[jobid], bins=bins_l, density=True, histtype="step", linewidth=1.2, linestyle="-", color=color)
+        ax_l.hist(t_by_job[jobid], bins=bins_l, density=True, histtype="step", linewidth=testing_lw, linestyle="--", color=color)
+        ax_l.hist(m_by_job[jobid], bins=bins_l, density=True, histtype="step", linewidth=diffusion_lw, linestyle="-", color=color)
 
     raw_lows = [np.percentile(x_true_ref, 0.1)]
     raw_highs = [np.percentile(x_true_ref, 99.9)]
@@ -636,7 +639,7 @@ def plot_pixel_pdf_by_job_transform(
 
     for i, jobid in enumerate(jobids):
         color = f"C{i}"
-        ax_r.hist(m_inv_by_job[jobid], bins=bins_r, density=True, histtype="step", linewidth=1.2, linestyle="-", color=color)
+        ax_r.hist(m_inv_by_job[jobid], bins=bins_r, density=True, histtype="step", linewidth=diffusion_lw, linestyle="-", color=color)
 
     # Raw testing-set reference (same space as inverse-transformed sampled).
     ax_r.hist(
@@ -644,10 +647,10 @@ def plot_pixel_pdf_by_job_transform(
         bins=bins_r,
         density=True,
         histtype="step",
-        linewidth=1.8,
+        linewidth=raw_testing_lw,
         linestyle="--",
         color="black",
-        label="testing set (raw)",
+        label="21cmfast",
     )
 
     ax_l.set_yscale("log")
@@ -655,7 +658,8 @@ def plot_pixel_pdf_by_job_transform(
     ax_l.set_xscale("symlog", linthresh=linthresh_tf)
     ax_l.grid(alpha=0.35)
     ax_l.set_xlabel("voxel value", fontsize=FS_LABEL)
-    ax_l.set_ylabel("PDF", fontsize=FS_LABEL)
+    ax_l.set_title("Transformed voxel space", fontsize=FS_TITLE)
+    ax_r.set_ylabel("PDF", fontsize=FS_LABEL)
     ax_l.tick_params(axis="both", labelsize=FS_TICK)
 
     ax_r.set_yscale("log")
@@ -663,30 +667,27 @@ def plot_pixel_pdf_by_job_transform(
     ax_r.set_xscale("symlog", linthresh=linthresh_raw)
     ax_r.grid(alpha=0.35)
     ax_r.set_xlabel("voxel value", fontsize=FS_LABEL)
+    ax_r.set_title("Raw voxel space", fontsize=FS_TITLE)
     ax_r.tick_params(axis="both", labelsize=FS_TICK)
 
-    legend_jobs = ax_r.legend(
+    legend_jobs = ax_l.legend(
         handles=job_handles,
         fontsize=FS_LEGEND,
         loc="upper right",
-        title="Transform",
         framealpha=0.85,
     )
-    legend_jobs.get_title().set_fontsize(FS_LEGEND)
-    ax_r.add_artist(legend_jobs)
+    ax_l.add_artist(legend_jobs)
 
     style_handles = [
-        Line2D([0], [0], color="black", lw=1.5, linestyle="--", label="testing set"),
-        Line2D([0], [0], color="black", lw=1.2, linestyle="-", label="sampled data"),
+        Line2D([0], [0], color="black", lw=testing_lw, linestyle="--", label="21cmfast"),
+        Line2D([0], [0], color="black", lw=diffusion_lw, linestyle="-", label="diffusion"),
     ]
-    legend_style = ax_r.legend(
+    legend_style = ax_l.legend(
         handles=style_handles,
         fontsize=FS_LEGEND,
         loc="upper left",
-        title="Line Style",
         framealpha=0.85,
     )
-    legend_style.get_title().set_fontsize(FS_LEGEND)
 
     fig.tight_layout()
     fig.subplots_adjust(hspace=0)
@@ -730,8 +731,14 @@ def plot_global_signal_hyperparameters(
     mae_std_by_job = []
     mae_sigma_by_job = []
 
-    handles_for_legend = [Line2D([0], [0], color="black", linestyle=":", lw=1.7, label="21cmFAST median")]
+    line_lw = lw + 2.0
+    ref_line_lw = 1.7 + 2.0
+    legend_line_lw = 1.5 + 2.0
+    marker_line_lw = 1.5 + 2.0
+    zero_line_lw = 1.0 + 2.0
+
     baseline_hyperparams = model_meta.get(BASELINE_JOBID, {})
+    handles_for_legend = [Line2D([0], [0], color="black", linestyle=":", lw=ref_line_lw, label="21cmFAST median")]
     baseline_label = _format_model_label(
         BASELINE_JOBID,
         model_meta.get(BASELINE_JOBID, {}),
@@ -779,7 +786,7 @@ def plot_global_signal_hyperparameters(
                 y_true,
                 linestyle=":",
                 c="black",
-                lw=1.7,
+                lw=ref_line_lw,
                 label="21cmFAST median",
                 zorder=z_true_line,
             )
@@ -813,7 +820,7 @@ def plot_global_signal_hyperparameters(
                 y_ml,
                 linestyle="-",
                 c=color,
-                linewidth=lw,
+                linewidth=line_lw,
                 zorder=z_baseline_line if jobid == BASELINE_JOBID else z_other_line,
             )
             delta_plot_records.append(
@@ -847,15 +854,15 @@ def plot_global_signal_hyperparameters(
                 baseline_hyperparams,
                 show_jobid=show_jobid,
             )
-            handles_for_legend.append(Line2D([0], [0], color=color, lw=1.5, label=model_label))
+            handles_for_legend.append(Line2D([0], [0], color=color, lw=legend_line_lw, label=model_label))
 
     if z_idx is not None:
         first_jobid = next(iter(los_by_job.keys()))
         los = los_by_job[first_jobid]
         if z_idx < len(los[1]):
             x_mark = los[1][z_idx]
-            ax_left.axvline(x=x_mark, color="red", linestyle="--", linewidth=1.5)
-            ax_delta.axvline(x=x_mark, color="red", linestyle="--", linewidth=1.5)
+            ax_left.axvline(x=x_mark, color="red", linestyle="--", linewidth=marker_line_lw)
+            ax_delta.axvline(x=x_mark, color="red", linestyle="--", linewidth=marker_line_lw)
 
     for rec in delta_plot_records:
         jobid = rec["jobid"]
@@ -878,7 +885,7 @@ def plot_global_signal_hyperparameters(
             y_delta,
             linestyle="-",
             c=color,
-            linewidth=lw,
+            linewidth=line_lw,
             zorder=z_baseline_line if jobid == BASELINE_JOBID else z_other_line,
         )
 
@@ -897,10 +904,10 @@ def plot_global_signal_hyperparameters(
             np.zeros_like(delta_ref_x_axis),
             linestyle=":",
             c="black",
-            lw=1.7,
+            lw=ref_line_lw,
             zorder=z_true_line,
         )
-    ax_delta.axhline(y=0.0, color="gray", linestyle="--", linewidth=1.0, alpha=0.8, zorder=0)
+    ax_delta.axhline(y=0.0, color="gray", linestyle="--", linewidth=zero_line_lw, alpha=0.8, zorder=0)
 
     ax_left.set_ylabel(r"$\langle T_b \rangle$ [mK]", fontsize=FS_LABEL)
     ax_left.grid()
@@ -1126,9 +1133,9 @@ def plot_global_signal_hyperparameters(
 
 def main():
     parser = argparse.ArgumentParser(description="Plot global signal: truth vs multiple model hyperparameter settings.")
-    parser.add_argument("--real_h5", type=str, required=True, help="Real-data H5 filename. Relative path is resolved under $SCRATCH.")
+    parser.add_argument("--real_h5", type=str, required=True, help="Real-data H5 filename. Relative path is resolved under $SCRATCH.", default="LEN128-DIM64-CUB16-Tvir4.699-zeta30-0812-104322.h5")
     parser.add_argument("--outputs_dir", type=str, default="../training/outputs", help="Directory containing generated .npy files.")
-    parser.add_argument("--num_image", type=int, default=256)
+    parser.add_argument("--num_image", type=int, default=320)
     parser.add_argument("--num_redshift", type=int, default=1024)
     parser.add_argument("--HII_DIM", type=int, default=64)
     parser.add_argument("--dim", type=int, default=3)
@@ -1136,7 +1143,7 @@ def main():
     parser.add_argument("--pt_fname", type=str, default="../utils/PowerTransformer_25600_z1.pkl")
     parser.add_argument("--z_idx", type=int, default=None)
     parser.add_argument("--show-jobid", action="store_true", help="Show jobid in plot labels/annotations.")
-    parser.add_argument("--save", type=str, default="global_signal_hyperparams.png")
+    parser.add_argument("--save", type=str, default="hparams.png")
     parser.add_argument("--save_pdf", type=str, default="hparams_pdf.png")
     args = parser.parse_args()
     target_pattern = derive_target_pattern_from_real_h5(args.real_h5)

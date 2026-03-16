@@ -579,9 +579,9 @@ def plot_pixel_pdf_by_job_transform(
     jobids = list(x_ml_raw_by_job.keys())
     fig, axes = plt.subplots(1, 2, figsize=(14.0, 6.0), dpi=220, sharey=True)
     ax_r, ax_l = axes
-    testing_lw = 1.5 + 2.0
-    diffusion_lw = 1.2 + 2.0
-    raw_testing_lw = 1.8 + 2.0
+    testing_lw = 1.5 + 1.0
+    diffusion_lw = 1.2 + 1.0
+    raw_testing_lw = 1.8 + 1.0
     job_handles = []
     linthresh_tf = 1.0
     linthresh_raw = 1.0
@@ -670,19 +670,19 @@ def plot_pixel_pdf_by_job_transform(
     ax_r.set_title("Raw voxel space", fontsize=FS_TITLE)
     ax_r.tick_params(axis="both", labelsize=FS_TICK)
 
-    legend_jobs = ax_l.legend(
+    legend_jobs = ax_r.legend(
         handles=job_handles,
         fontsize=FS_LEGEND,
         loc="upper right",
         framealpha=0.85,
     )
-    ax_l.add_artist(legend_jobs)
+    ax_r.add_artist(legend_jobs)
 
     style_handles = [
         Line2D([0], [0], color="black", lw=testing_lw, linestyle="--", label="21cmfast"),
         Line2D([0], [0], color="black", lw=diffusion_lw, linestyle="-", label="diffusion"),
     ]
-    legend_style = ax_l.legend(
+    legend_style = ax_r.legend(
         handles=style_handles,
         fontsize=FS_LEGEND,
         loc="upper left",
@@ -731,11 +731,11 @@ def plot_global_signal_hyperparameters(
     mae_std_by_job = []
     mae_sigma_by_job = []
 
-    line_lw = lw + 2.0
-    ref_line_lw = 1.7 + 2.0
-    legend_line_lw = 1.5 + 2.0
-    marker_line_lw = 1.5 + 2.0
-    zero_line_lw = 1.0 + 2.0
+    line_lw = lw + 1.0
+    ref_line_lw = 1.7 + 1.0
+    legend_line_lw = 1.5 + 1.0
+    marker_line_lw = 1.5 + 1.0
+    zero_line_lw = 1.0 + 1.0
 
     baseline_hyperparams = model_meta.get(BASELINE_JOBID, {})
     handles_for_legend = [Line2D([0], [0], color="black", linestyle=":", lw=ref_line_lw, label="21cmFAST median")]
@@ -1133,7 +1133,7 @@ def plot_global_signal_hyperparameters(
 
 def main():
     parser = argparse.ArgumentParser(description="Plot global signal: truth vs multiple model hyperparameter settings.")
-    parser.add_argument("--real_h5", type=str, required=True, help="Real-data H5 filename. Relative path is resolved under $SCRATCH.", default="LEN128-DIM64-CUB16-Tvir4.699-zeta30-0812-104322.h5")
+    parser.add_argument("--real_h5", type=str, required=False, help="Real-data H5 filename. Relative path is resolved under $SCRATCH.", default="LEN128-DIM64-CUB16-Tvir4.699-zeta30-0812-104322.h5")
     parser.add_argument("--outputs_dir", type=str, default="../training/outputs", help="Directory containing generated .npy files.")
     parser.add_argument("--num_image", type=int, default=320)
     parser.add_argument("--num_redshift", type=int, default=1024)

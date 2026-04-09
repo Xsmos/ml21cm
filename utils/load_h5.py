@@ -41,8 +41,8 @@ ranges_dict = dict(
         },
     z_score = [-36.840145, 50.21427],
     # min_max = [-200, 40],
-    # min_max = [-387, 86],
-    min_max = [-333.3936, 58.3321],
+    min_max = [-387, 86],
+    # min_max = [-333.3936, 58.3321],
 )
 
 class Dataset4h5(Dataset):

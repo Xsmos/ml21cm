@@ -439,7 +439,7 @@ def _format_job_diff_text(
         if not hyperparams:
             return f"{jobid}" if show_jobid else "BASE"
         tokens = [_param_token(k, hyperparams[k]) for k in _ordered_keys(hyperparams)]
-        return (f"{jobid}: " if show_jobid else "BASE: ") + " ".join(tokens)
+        return (f"{jobid}: " if show_jobid else "") + " ".join(tokens)
     if not hyperparams:
         return f"{jobid}" if show_jobid else "config"
 

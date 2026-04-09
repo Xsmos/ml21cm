@@ -196,7 +196,7 @@ PDF_JOB_INDICES_1BASED = [5, 6, 7]
 MAIN_PLOT_JOB_INDICES_1BASED = [5, 6, 7, 8, 9, 10, 11, 13]
 
 # MAE trend grouping (1-based job index as shown on x-axis):
-# used only for visualization aids in global_signal_hparams_mae_trend.png.
+# used only for visualization aids in global_signal_hparams_mae_trend.pdf.
 MAE_GROUPS = [
     {"name": "2D Transform", "indices_1based": [1, 2, 3, 4], "color": "#4C78A8", "row": 1},
     # job index 7 was removed from the original 16-job layout; indices below are
@@ -569,7 +569,7 @@ def plot_pixel_pdf_by_job_transform(
     x_ml_raw_by_job: Dict[int, torch.Tensor],
     model_meta: Dict[int, Dict[str, Any]],
     pt_fname: str = None,
-    savename: str = "hparams_pdf.png",
+    savename: str = "hparams_pdf.pdf",
     show_jobid: bool = False,
 ):
     if not x_ml_raw_by_job:
@@ -936,7 +936,7 @@ def plot_global_signal_hyperparameters(
             txt.set_fontweight("bold")
             txt.set_fontstyle("italic")
     if skipped_in_main_plot:
-        print(f"Skipped jobIDs in global_signal_hparams.png: {sorted(set(skipped_in_main_plot))}")
+        print(f"Skipped jobIDs in global_signal_hparams.pdf: {sorted(set(skipped_in_main_plot))}")
 
     fig.tight_layout()
     fig.subplots_adjust(hspace=0)
@@ -1124,7 +1124,7 @@ def plot_global_signal_hyperparameters(
 
     if savename:
         root, ext = os.path.splitext(savename)
-        mae_savename = f"{root}_mae_trend{ext if ext else '.png'}"
+        mae_savename = f"{root}_mae_trend{ext if ext else '.pdf'}"
         plt.savefig(mae_savename, bbox_inches="tight")
         print(f"Saved figure to {mae_savename}")
         plt.close()
@@ -1143,8 +1143,8 @@ def main():
     parser.add_argument("--pt_fname", type=str, default="../utils/PowerTransformer_25600_z1.pkl")
     parser.add_argument("--z_idx", type=int, default=None)
     parser.add_argument("--show-jobid", action="store_true", help="Show jobid in plot labels/annotations.")
-    parser.add_argument("--save", type=str, default="hparams.png")
-    parser.add_argument("--save_pdf", type=str, default="hparams_pdf.png")
+    parser.add_argument("--save", type=str, default="hparams.pdf")
+    parser.add_argument("--save_pdf", type=str, default="hparams_pdf.pdf")
     args = parser.parse_args()
     target_pattern = derive_target_pattern_from_real_h5(args.real_h5)
     print(f"Using target_pattern={target_pattern} derived from real_h5={args.real_h5}")

@@ -56,7 +56,7 @@ srun --gpus-per-node=$SLURM_GPUS_ON_NODE --ntasks-per-node=1 --gpu-bind=none tor
         --num_redshift 1024 \
         --channel_mult 1 1 2 4 \
         --n_epoch 120 \
-        --stride 2 2 4 \
+        --stride 2 4 \
         --num_res_blocks 1 \
         --gradient_accumulation_steps 16 \
         --squish 1 0 \

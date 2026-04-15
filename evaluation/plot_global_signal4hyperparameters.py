@@ -46,8 +46,6 @@ FS_GROUP = plt.rcParams["legend.title_fontsize"]
 JOBID_HPARAMS: Dict[int, Dict[str, Any]] = {
     49654214: {
         "num_res_blocks": 1,
-    # 46941305: {
-    #     "num_res_blocks": 3,
         "squish": "1,0",
         "dim": 2,
         "epochs": 120,
@@ -55,10 +53,6 @@ JOBID_HPARAMS: Dict[int, Dict[str, Any]] = {
     },
     49654134: {
         "num_res_blocks": 1,
-    # 49299747: {
-    #     "num_res_blocks": 3,
-    # 46941303: {
-        # "num_res_blocks": 3,
         "squish": "1,0",
         "dim": 2,
         "epochs": 120,
@@ -66,8 +60,6 @@ JOBID_HPARAMS: Dict[int, Dict[str, Any]] = {
     },
     49654128: {
         "num_res_blocks": 1,
-    # 46941293: {
-    #     "num_res_blocks": 3,
         "squish": "1,0",
         "dim": 2,
         "epochs": 120,
@@ -75,8 +67,6 @@ JOBID_HPARAMS: Dict[int, Dict[str, Any]] = {
     },
     49654199: {
         "num_res_blocks": 1,
-    # 46941286: {
-    #     "num_res_blocks": 3,
         "squish": "1,0",
         "dim": 2,
         "epochs": 120,
@@ -84,10 +74,6 @@ JOBID_HPARAMS: Dict[int, Dict[str, Any]] = {
     },
     49653881: {
         "num_res_blocks": 1,
-    # 49299542: {
-    #     "num_res_blocks": 3,
-    # 47032706: {
-        # "num_res_blocks": 3,
         "squish": "1,0",
         "dim": 3,
         "epochs": 120,
@@ -95,24 +81,13 @@ JOBID_HPARAMS: Dict[int, Dict[str, Any]] = {
     },
     49653904: {
         "num_res_blocks": 1,
-    # 47032672: {
-    #     "num_res_blocks": 3,
         "squish": "1,0",
         "dim": 3,
         "epochs": 120,
         "transform": "z_score",
     },
-    # 47032656: {
-    #     "num_res_blocks": 3,
-    #     "squish": "1,0",
-    #     "dim": 3,
-    #     "epochs": 120,
-    #     "transform": "pt_inv",
-    # },
     48820329: {
         "num_res_blocks": 1,
-    # 48057253: {
-    #     "num_res_blocks": 3,
         "squish": "1,0",
         "dim": 3,
         "epochs": 120,
@@ -120,8 +95,6 @@ JOBID_HPARAMS: Dict[int, Dict[str, Any]] = {
     },
     48902106: {
         "num_res_blocks": 1,
-    # 48057168: {
-    #     "num_res_blocks": 3,
         "squish": "0.5,0",
         "dim": 3,
         "epochs": 120,
@@ -149,7 +122,6 @@ JOBID_HPARAMS: Dict[int, Dict[str, Any]] = {
         "transform": "pt_inv",
     },
     48820652: {
-    # 48436662: {
         "num_res_blocks": 1,
         "squish": "0.1,0",
         "dim": 3,
@@ -157,32 +129,20 @@ JOBID_HPARAMS: Dict[int, Dict[str, Any]] = {
         "transform": "pt_inv",
     },
     48436662: {
-        "num_res_blocks": 1, # baseline
+        "num_res_blocks": 1,  # baseline
         "squish": "0.1,0",
         "dim": 3,
         "epochs": 120,
         "transform": "pt_inv",
     },
-    # 48902183: {
-    #     "num_res_blocks": 1,
-    #     "squish": "0.1,1",
-    #     # "squish": "0.1,0",
-    #     "dim": 3,
-    #     "epochs": 120,
-    #     "transform": "pt_inv",
-    # },
     48820480: {
         "num_res_blocks": 1,
-    # 47908550: {
-    #     "num_res_blocks": 3,
         "squish": "0.1,0",
         "dim": 3,
         "epochs": 60,
         "transform": "pt_inv",
     },
     48820424: {
-    # 47356556: {
-        # "num_res_blocks": 3,
         "num_res_blocks": 1,
         "squish": "0.1,0",
         "dim": 3,
@@ -191,6 +151,7 @@ JOBID_HPARAMS: Dict[int, Dict[str, Any]] = {
     },
 }
 BASELINE_JOBID = 48436662
+
 # Selection by 1-based index in JOBID_HPARAMS insertion order.
 PDF_JOB_INDICES_1BASED = [5, 6, 7]
 MAIN_PLOT_JOB_INDICES_1BASED = [5, 6, 7, 8, 9, 10, 11, 13]
@@ -199,15 +160,13 @@ MAIN_PLOT_JOB_INDICES_1BASED = [5, 6, 7, 8, 9, 10, 11, 13]
 # used only for visualization aids in global_signal_hparams_mae_trend.pdf.
 MAE_GROUPS = [
     {"name": "2D Transform", "indices_1based": [1, 2, 3, 4], "color": "#4C78A8", "row": 1},
-    # job index 7 was removed from the original 16-job layout; indices below are
-    # the current 15-job layout shown on x-axis (1..15).
     {"name": "3D Transform", "indices_1based": [5, 6, 7], "color": "#F58518", "row": 2},
     {"name": "3D + Amplitude Scale", "indices_1based": [7, 8, 9, 13], "color": "#54A24B", "row": 1},
     {"name": "3D + ResBlocks", "indices_1based": [10, 11, 13], "color": "#B279A2", "row": 2},
     {"name": "3D + Epoch", "indices_1based": [12, 13, 14, 15], "color": "#E45756", "row": 0},
 ]
+
 # Optional section separators (1-based boundary after index i).
-# Helps readability without changing existing job order.
 MAE_SECTION_BOUNDARIES_1BASED = [4, 7]
 
 
@@ -349,8 +308,7 @@ def _normalize_num_str(v: Any) -> str:
         return s
 
 
-def _parse_squish(v: Any) -> tuple[str, str]:
-    # squish is stored as "A,k" in current experiments.
+def _parse_squish(v: Any) -> Tuple[str, str]:
     s = str(v).replace(" ", "")
     parts = s.split(",")
     if len(parts) >= 2:
@@ -359,9 +317,8 @@ def _parse_squish(v: Any) -> tuple[str, str]:
 
 
 def _abbr_transform(v: Any) -> str:
-    # Short aliases for legend compactness.
     mapping = {
-        "pt_inv": "YJ",   # Yeo-Johnson inverse
+        "pt_inv": "YJ",
         "min_max": "MM",
         "z_score": "ZS",
         "arcsinh": "AS",
@@ -378,8 +335,6 @@ def _param_cmp_value(k: str, v: Any) -> Any:
 
 
 def _param_token(k: str, v: Any) -> str:
-    # Legend shorthand:
-    # RB=num_res_blocks, A=squish(A,k; k=0 omitted), D=dim, Ep=epochs, T=transform.
     if k == "num_res_blocks":
         return f"RB{v}"
     if k == "squish":
@@ -396,7 +351,7 @@ def _param_token(k: str, v: Any) -> str:
     return f"{k}={v}"
 
 
-def _ordered_keys(hyperparams: Dict[str, Any]) -> list[str]:
+def _ordered_keys(hyperparams: Dict[str, Any]) -> List[str]:
     preferred = ["num_res_blocks", "squish", "dim", "epochs", "transform"]
     keys = [k for k in preferred if k in hyperparams]
     keys.extend([k for k in hyperparams.keys() if k not in preferred])
@@ -482,7 +437,6 @@ def _generate_distinct_colors(n: int):
     if n <= 20:
         cmap = plt.get_cmap("tab20", n)
         return [cmap(i) for i in range(n)]
-    # Fallback for many jobs: sample a continuous map uniformly.
     cmap = plt.get_cmap("turbo")
     return [cmap(i / max(1, n - 1)) for i in range(n)]
 
@@ -579,9 +533,9 @@ def plot_pixel_pdf_by_job_transform(
     jobids = list(x_ml_raw_by_job.keys())
     fig, axes = plt.subplots(1, 2, figsize=(14.0, 6.0), dpi=220, sharey=True)
     ax_r, ax_l = axes
-    testing_lw = 1.5 + 1.0
-    diffusion_lw = 1.2 + 1.0
-    raw_testing_lw = 1.8 + 1.0
+    testing_lw = 2.5
+    diffusion_lw = 2.2
+    raw_testing_lw = 2.8
     job_handles = []
     linthresh_tf = 1.0
     linthresh_raw = 1.0
@@ -612,7 +566,6 @@ def plot_pixel_pdf_by_job_transform(
         label = f"job={jobid}: {transform_label}" if show_jobid else transform_label
         job_handles.append(Line2D([0], [0], color=color, lw=diffusion_lw, linestyle="-", label=label))
 
-        # Left subplot: inverse-transformed sampled vs raw 21cmfast space.
         m_inv = _inverse_transform_sampled_for_job(x_ml_raw, transform=transform, pt_fname=pt_fname).numpy().reshape(-1)
         m_inv_by_job[jobid] = m_inv
 
@@ -641,7 +594,6 @@ def plot_pixel_pdf_by_job_transform(
         color = f"C{i}"
         ax_r.hist(m_inv_by_job[jobid], bins=bins_r, density=True, histtype="step", linewidth=diffusion_lw, linestyle="-", color=color)
 
-    # Raw testing-set reference (same space as inverse-transformed sampled).
     ax_r.hist(
         x_true_ref,
         bins=bins_r,
@@ -682,7 +634,7 @@ def plot_pixel_pdf_by_job_transform(
         Line2D([0], [0], color="black", lw=testing_lw, linestyle="--", label="21cmfast"),
         Line2D([0], [0], color="black", lw=diffusion_lw, linestyle="-", label="diffusion"),
     ]
-    legend_style = ax_r.legend(
+    ax_r.legend(
         handles=style_handles,
         fontsize=FS_LEGEND,
         loc="upper left",
@@ -732,10 +684,10 @@ def plot_global_signal_hyperparameters(
     mae_sigma_by_job = []
 
     line_lw = lw + 1.0
-    ref_line_lw = 1.7 + 1.0
-    legend_line_lw = 1.5 + 1.0
-    marker_line_lw = 1.5 + 1.0
-    zero_line_lw = 1.0 + 1.0
+    ref_line_lw = 2.7
+    legend_line_lw = 2.5
+    marker_line_lw = 2.5
+    zero_line_lw = 2.0
 
     baseline_hyperparams = model_meta.get(BASELINE_JOBID, {})
     handles_for_legend = [Line2D([0], [0], color="black", linestyle=":", lw=ref_line_lw, label="21cmFAST median")]
@@ -912,6 +864,7 @@ def plot_global_signal_hyperparameters(
     ax_left.set_ylabel(r"$\langle T_b \rangle$ [mK]", fontsize=FS_LABEL)
     ax_left.grid()
     ax_left.tick_params(axis="both", labelsize=FS_TICK)
+
     ax_delta.set_ylabel(r"$\Delta\langle T_b \rangle$ [mK]", fontsize=FS_LABEL)
     ax_delta.set_xlabel("distance [Gpc]", fontsize=FS_LABEL)
     ax_delta.set_yscale("symlog", linthresh=10.0)
@@ -935,6 +888,7 @@ def plot_global_signal_hyperparameters(
         if txt.get_text() == baseline_label:
             txt.set_fontweight("bold")
             txt.set_fontstyle("italic")
+
     if skipped_in_main_plot:
         print(f"Skipped jobIDs in global_signal_hparams.pdf: {sorted(set(skipped_in_main_plot))}")
 
@@ -953,12 +907,12 @@ def plot_global_signal_hyperparameters(
         figsize=(max(6.8, 0.45 * len(jobids_in_order) + 1.6), 4.8),
         dpi=220,
     )
-    fs_mae_title = 18
     fs_mae_label = 16
     fs_mae_tick = 12
     fs_mae_legend = 11
     fs_mae_group = 10
     fs_mae_text = 8
+
     x = np.arange(len(jobids_in_order))
     ax_mae.scatter(x, mae_rel_by_job, marker="o", s=30, label=r"$\mathrm{MAE}_{rel}$")
     ax_mae.scatter(x, mae_std_by_job, marker="s", s=30, label=r"$\mathrm{MAE}_{std}$")
@@ -973,12 +927,40 @@ def plot_global_signal_hyperparameters(
 
     mae_rel_arr = np.asarray(mae_rel_by_job, dtype=float)
     mae_std_arr = np.asarray(mae_std_by_job, dtype=float)
+    mae_sigma_arr = np.asarray(mae_sigma_by_job, dtype=float)
+
+    # Print MAE lists for easy copy/paste
+    print("\n===== MAE summary (in JOBID_HPARAMS order) =====")
+    print("jobids_in_order =", jobids_in_order)
+    print("mae_rel_list =", [float(v) if np.isfinite(v) else None for v in mae_rel_by_job])
+    print("mae_std_list =", [float(v) if np.isfinite(v) else None for v in mae_std_by_job])
+    print("mae_sigma_list =", [float(v) if np.isfinite(v) else None for v in mae_sigma_by_job])
+
+    print("\n===== MAE table =====")
+    print(f"{'idx':>3} {'jobid':>10} {'MAE_rel':>14} {'MAE_std':>14} {'MAE_sigma':>14}")
+    for i, (jobid, mrel, mstd, msig) in enumerate(
+        zip(jobids_in_order, mae_rel_by_job, mae_std_by_job, mae_sigma_by_job), start=1
+    ):
+        mrel_s = f"{mrel:.6g}" if np.isfinite(mrel) else "nan"
+        mstd_s = f"{mstd:.6g}" if np.isfinite(mstd) else "nan"
+        msig_s = f"{msig:.6g}" if np.isfinite(msig) else "nan"
+        print(f"{i:>3} {jobid:>10} {mrel_s:>14} {mstd_s:>14} {msig_s:>14}")
+
+    print("\n===== Copy-friendly columns =====")
+    print("MAE_rel:")
+    print(", ".join(f"{v:.6g}" if np.isfinite(v) else "nan" for v in mae_rel_by_job))
+    print("MAE_std:")
+    print(", ".join(f"{v:.6g}" if np.isfinite(v) else "nan" for v in mae_std_by_job))
+    print("MAE_sigma:")
+    print(", ".join(f"{v:.6g}" if np.isfinite(v) else "nan" for v in mae_sigma_by_job))
+
     text_transform = ax_mae.get_xaxis_transform()
-    y_min_raw = np.nanmin(np.concatenate([mae_rel_arr, mae_std_arr, np.asarray(mae_sigma_by_job, dtype=float)]))
-    y_max_raw = np.nanmax(np.concatenate([mae_rel_arr, mae_std_arr, np.asarray(mae_sigma_by_job, dtype=float)]))
+    y_min_raw = np.nanmin(np.concatenate([mae_rel_arr, mae_std_arr, mae_sigma_arr]))
+    y_max_raw = np.nanmax(np.concatenate([mae_rel_arr, mae_std_arr, mae_sigma_arr]))
     y_min = max(y_min_raw * 0.9, 1e-12)
     y_max = y_max_raw * 1.35
     ax_mae.set_ylim(y_min, y_max)
+
     y_span = np.log10(y_max) - np.log10(y_min)
     row_base = y_max / (10 ** (0.10 * y_span))
     row_step = 10 ** (0.08 * y_span)
@@ -986,6 +968,7 @@ def plot_global_signal_hyperparameters(
     row_lane_intervals: Dict[int, List[List[Tuple[float, float]]]] = {}
     best_in_group_labeled = False
     best_markers_by_pos: Dict[int, List[Tuple[str, float]]] = {}
+
     for group in MAE_GROUPS:
         valid_pos = []
         for idx1 in group["indices_1based"]:
@@ -999,6 +982,7 @@ def plot_global_signal_hyperparameters(
         x0 = float(valid_pos_arr.min())
         x1 = float(valid_pos_arr.max())
         color = group["color"]
+
         runs = []
         start = valid_pos_arr[0]
         prev = valid_pos_arr[0]
@@ -1010,8 +994,9 @@ def plot_global_signal_hyperparameters(
                 start = pos
                 prev = pos
         runs.append((start, prev))
+
         for run_start, run_end in runs:
-            ax_mae.axvspan(float(run_start) - 0.45, float(run_end) + 0.45, color=color, alpha=0.06, zorder=0)
+            ax_mae.axvspan(float(run_start) - 0.45, float(run_end) + 0.45, color=color, alpha=0.2, zorder=0)
 
         row = int(group.get("row", 0))
         span_left = float(x0) - 0.45
@@ -1120,6 +1105,7 @@ def plot_global_signal_hyperparameters(
             alpha=0.88,
             zorder=30,
         )
+
     plt.tight_layout(rect=[0.0, 0.0, 1.0, 0.90])
 
     if savename:
@@ -1131,9 +1117,16 @@ def plot_global_signal_hyperparameters(
     else:
         plt.show()
 
+
 def main():
     parser = argparse.ArgumentParser(description="Plot global signal: truth vs multiple model hyperparameter settings.")
-    parser.add_argument("--real_h5", type=str, required=False, help="Real-data H5 filename. Relative path is resolved under $SCRATCH.", default="LEN128-DIM64-CUB16-Tvir4.699-zeta30-0812-104322.h5")
+    parser.add_argument(
+        "--real_h5",
+        type=str,
+        required=False,
+        help="Real-data H5 filename. Relative path is resolved under $SCRATCH.",
+        default="LEN128-DIM64-CUB16-Tvir4.699-zeta30-0812-104322.h5",
+    )
     parser.add_argument("--outputs_dir", type=str, default="../training/outputs", help="Directory containing generated .npy files.")
     parser.add_argument("--num_image", type=int, default=320)
     parser.add_argument("--num_redshift", type=int, default=1024)
@@ -1146,8 +1139,10 @@ def main():
     parser.add_argument("--save", type=str, default="hparams.pdf")
     parser.add_argument("--save_pdf", type=str, default="hparams_pdf.pdf")
     args = parser.parse_args()
+
     target_pattern = derive_target_pattern_from_real_h5(args.real_h5)
     print(f"Using target_pattern={target_pattern} derived from real_h5={args.real_h5}")
+
     main_plot_jobids = _jobids_from_indices_1based(
         MAIN_PLOT_JOB_INDICES_1BASED,
         JOBID_HPARAMS,
@@ -1155,7 +1150,6 @@ def main():
     )
     print(f"[MainPlot] Using job indices {MAIN_PLOT_JOB_INDICES_1BASED} -> jobIDs {main_plot_jobids}")
 
-    # Load truth once at z_step=1, then adapt per job by slicing [..., ::z_step].
     x_true_full, _, los_full = load_h5_as_tensor(
         dir_name=args.real_h5,
         num_image=args.num_image,
@@ -1168,6 +1162,7 @@ def main():
     x_ml_by_job: Dict[int, torch.Tensor] = {}
     x_true_by_job: Dict[int, torch.Tensor] = {}
     los_by_job: Dict[int, np.ndarray] = {}
+
     for jobid in JOBID_HPARAMS.keys():
         job_dim = _infer_job_dim(JOBID_HPARAMS.get(jobid, {}), fallback_dim=args.dim)
         job_z_step = int(JOBID_HPARAMS.get(jobid, {}).get("z_step", 1))
@@ -1195,7 +1190,7 @@ def main():
             f"los.shape={los.shape}; "
             f"jobid={jobid}"
         )
-        # Align LOS length if generated tensors use a different redshift-length.
+
         z_len = min(x_true.shape[-1], x_ml.shape[-1], los.shape[1])
         x_true = x_true[..., :z_len]
         x_ml = x_ml[..., :z_len]
@@ -1217,7 +1212,6 @@ def main():
         main_plot_jobids=main_plot_jobids,
     )
 
-    # PDF plotting: explicitly selected 3D jobs only.
     x_ml_raw_pdf_by_job: Dict[int, torch.Tensor] = {}
     x_true_pdf_by_job: Dict[int, torch.Tensor] = {}
     pdf_jobids = _jobids_from_indices_1based(

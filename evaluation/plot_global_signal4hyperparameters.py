@@ -129,7 +129,7 @@ JOBID_HPARAMS: Dict[int, Dict[str, Any]] = {
         "transform": "pt_inv",
     },
     48436662: {
-        "num_res_blocks": 1,  # baseline
+        "num_res_blocks": 1,  # fiducial
         "squish": "0.1,0",
         "dim": 3,
         "epochs": 120,
@@ -153,7 +153,7 @@ JOBID_HPARAMS: Dict[int, Dict[str, Any]] = {
 BASELINE_JOBID = 48436662
 
 # Selection by 1-based index in JOBID_HPARAMS insertion order.
-PDF_JOB_INDICES_1BASED = [5, 6, 7]
+PDF_JOB_INDICES_1BASED = [5, 6, 7, 13]
 MAIN_PLOT_JOB_INDICES_1BASED = [5, 6, 7, 8, 9, 10, 11, 13]
 
 # MAE trend grouping (1-based job index as shown on x-axis):
@@ -525,22 +525,27 @@ def plot_pixel_pdf_by_job_transform(
     pt_fname: str = None,
     savename: str = "hparams_pdf.pdf",
     show_jobid: bool = False,
+    use_symlog_x: bool = True,
 ):
     if not x_ml_raw_by_job:
         print("No selected dim=3 PDF jobs found; skipped.")
         return
 
     jobids = list(x_ml_raw_by_job.keys())
-    fig, axes = plt.subplots(1, 2, figsize=(14.0, 6.0), dpi=220, sharey=True)
-    ax_r, ax_l = axes
+    fig, axes = plt.subplots(1, 2, figsize=(14.0, 6.0), dpi=220)#, sharey=True)
+    ax_l, ax_r = axes
+
     testing_lw = 2.5
     diffusion_lw = 2.2
     raw_testing_lw = 2.8
     job_handles = []
+
     linthresh_tf = 1.0
     linthresh_raw = 1.0
+
     first_jobid = jobids[0]
     x_true_ref = x_true_by_job[first_jobid].numpy().reshape(-1)
+
     t_by_job = {}
     m_by_job = {}
     m_inv_by_job = {}
@@ -551,9 +556,12 @@ def plot_pixel_pdf_by_job_transform(
         x_true = x_true_by_job[jobid]
         x_ml_raw = x_ml_raw_by_job[jobid]
 
-        x_true_t = _forward_transform_truth_for_job(x_true, transform=transform, pt_fname=pt_fname)
+        x_true_t = _forward_transform_truth_for_job(
+            x_true, transform=transform, pt_fname=pt_fname
+        )
         t = x_true_t.numpy().reshape(-1)
         m = x_ml_raw.numpy().reshape(-1)
+
         t_by_job[jobid] = t
         m_by_job[jobid] = m
 
@@ -563,10 +571,20 @@ def plot_pixel_pdf_by_job_transform(
             "z_score": "z-score",
             "arcsinh": "arcsinh",
         }.get(str(transform), str(transform))
-        label = f"job={jobid}: {transform_label}" if show_jobid else transform_label
-        job_handles.append(Line2D([0], [0], color=color, lw=diffusion_lw, linestyle="-", label=label))
 
-        m_inv = _inverse_transform_sampled_for_job(x_ml_raw, transform=transform, pt_fname=pt_fname).numpy().reshape(-1)
+        # label = f"job={jobid}: {transform_label}" if show_jobid else transform_label
+        if not show_jobid and jobid == 48436662:
+            label = "yeo-johnson (A=0.1)"
+        else:
+            label = f"job={jobid}: {transform_label}" if show_jobid else transform_label
+        
+        job_handles.append(
+            Line2D([0], [0], color=color, lw=diffusion_lw, linestyle="-", label=label)
+        )
+
+        m_inv = _inverse_transform_sampled_for_job(
+            x_ml_raw, transform=transform, pt_fname=pt_fname
+        ).numpy().reshape(-1)
         m_inv_by_job[jobid] = m_inv
 
     tf_lows = []
@@ -576,23 +594,61 @@ def plot_pixel_pdf_by_job_transform(
         tf_lows.append(np.percentile(m_by_job[jobid], 0.1))
         tf_highs.append(np.percentile(t_by_job[jobid], 99.9))
         tf_highs.append(np.percentile(m_by_job[jobid], 99.9))
-    bins_l = _make_symlog_bins(min(tf_lows), max(tf_highs), n_bins=180, linthresh=linthresh_tf)
+
+    tf_min = min(tf_lows)
+    tf_max = max(tf_highs)
+
+    if use_symlog_x and False:
+        bins_l = _make_symlog_bins(tf_min, tf_max, n_bins=400, linthresh=linthresh_tf)
+    else:
+        bins_l = np.linspace(tf_min, tf_max, 400)
 
     for i, jobid in enumerate(jobids):
         color = f"C{i}"
-        ax_l.hist(t_by_job[jobid], bins=bins_l, density=True, histtype="step", linewidth=testing_lw, linestyle="--", color=color)
-        ax_l.hist(m_by_job[jobid], bins=bins_l, density=True, histtype="step", linewidth=diffusion_lw, linestyle="-", color=color)
+        ax_l.hist(
+            t_by_job[jobid],
+            bins=bins_l,
+            density=True,
+            histtype="step",
+            linewidth=testing_lw,
+            linestyle="--",
+            color=color,
+        )
+        ax_l.hist(
+            m_by_job[jobid],
+            bins=bins_l,
+            density=True,
+            histtype="step",
+            linewidth=diffusion_lw,
+            linestyle="-",
+            color=color,
+        )
 
     raw_lows = [np.percentile(x_true_ref, 0.1)]
     raw_highs = [np.percentile(x_true_ref, 99.9)]
     for jobid in jobids:
         raw_lows.append(np.percentile(m_inv_by_job[jobid], 0.1))
         raw_highs.append(np.percentile(m_inv_by_job[jobid], 99.9))
-    bins_r = _make_symlog_bins(min(raw_lows), max(raw_highs), n_bins=180, linthresh=linthresh_raw)
+
+    raw_min = min(raw_lows)
+    raw_max = max(raw_highs)
+
+    if use_symlog_x:
+        bins_r = _make_symlog_bins(raw_min, raw_max, n_bins=180, linthresh=linthresh_raw)
+    else:
+        bins_r = np.linspace(raw_min, raw_max, 180)
 
     for i, jobid in enumerate(jobids):
         color = f"C{i}"
-        ax_r.hist(m_inv_by_job[jobid], bins=bins_r, density=True, histtype="step", linewidth=diffusion_lw, linestyle="-", color=color)
+        ax_r.hist(
+            m_inv_by_job[jobid],
+            bins=bins_r,
+            density=True,
+            histtype="step",
+            linewidth=diffusion_lw,
+            linestyle="-",
+            color=color,
+        )
 
     ax_r.hist(
         x_true_ref,
@@ -606,35 +662,43 @@ def plot_pixel_pdf_by_job_transform(
     )
 
     ax_l.set_yscale("log")
-    ax_l.set_ylim(bottom=1e-3)
-    ax_l.set_xscale("symlog", linthresh=linthresh_tf)
+    ax_l.set_ylim(bottom=4e-2)
+    if use_symlog_x and False:
+        ax_l.set_xscale("symlog", linthresh=linthresh_tf)
+    else:
+        ax_l.set_xscale("linear")
     ax_l.grid(alpha=0.35)
-    ax_l.set_xlabel("voxel value", fontsize=FS_LABEL)
+    ax_l.set_xlabel("transformed voxel value", fontsize=FS_LABEL)
     ax_l.set_title("Transformed voxel space", fontsize=FS_TITLE)
-    ax_r.set_ylabel("PDF", fontsize=FS_LABEL)
+    ax_l.set_ylabel("PDF", fontsize=FS_LABEL)
     ax_l.tick_params(axis="both", labelsize=FS_TICK)
 
     ax_r.set_yscale("log")
-    ax_r.set_ylim(bottom=1e-3)
-    ax_r.set_xscale("symlog", linthresh=linthresh_raw)
+    ax_r.set_ylim(bottom=2e-3)
+    if use_symlog_x:
+        ax_r.set_xscale("symlog", linthresh=linthresh_raw)
+    else:
+        ax_r.set_xscale("linear")
     ax_r.grid(alpha=0.35)
-    ax_r.set_xlabel("voxel value", fontsize=FS_LABEL)
+    ax_r.set_xlabel("raw voxel value", fontsize=FS_LABEL)
     ax_r.set_title("Raw voxel space", fontsize=FS_TITLE)
     ax_r.tick_params(axis="both", labelsize=FS_TICK)
-
-    legend_jobs = ax_r.legend(
+    ax_r.tick_params(axis="y", direction="in")
+    
+    legend_jobs = ax_l.legend(
         handles=job_handles,
         fontsize=FS_LEGEND,
+        # loc="upper center",
         loc="upper right",
         framealpha=0.85,
     )
-    ax_r.add_artist(legend_jobs)
+    ax_l.add_artist(legend_jobs)
 
     style_handles = [
         Line2D([0], [0], color="black", lw=testing_lw, linestyle="--", label="21cmfast"),
         Line2D([0], [0], color="black", lw=diffusion_lw, linestyle="-", label="diffusion"),
     ]
-    ax_r.legend(
+    ax_l.legend(
         handles=style_handles,
         fontsize=FS_LEGEND,
         loc="upper left",
@@ -644,6 +708,7 @@ def plot_pixel_pdf_by_job_transform(
     fig.tight_layout()
     fig.subplots_adjust(hspace=0)
     fig.subplots_adjust(wspace=0)
+
     if savename:
         plt.savefig(savename, bbox_inches="tight")
         print(f"Saved figure to {savename}")
@@ -823,15 +888,15 @@ def plot_global_signal_hyperparameters(
         perc_delta = rec["perc_delta"]
         color = rec["color"]
 
-        ax_delta.fill_between(
-            x_axis,
-            perc_delta[0],
-            perc_delta[1],
-            color=color,
-            alpha=0.10,
-            linewidth=0,
-            zorder=z_baseline_band if jobid == BASELINE_JOBID else z_other_band,
-        )
+        # ax_delta.fill_between(
+        #     x_axis,
+        #     perc_delta[0],
+        #     perc_delta[1],
+        #     color=color,
+        #     alpha=0.10,
+        #     linewidth=0,
+        #     zorder=z_baseline_band if jobid == BASELINE_JOBID else z_other_band,
+        # )
         ax_delta.plot(
             x_axis,
             y_delta,
@@ -904,11 +969,11 @@ def plot_global_signal_hyperparameters(
     fig_mae, ax_mae = plt.subplots(
         1,
         1,
-        figsize=(max(6.8, 0.45 * len(jobids_in_order) + 1.6), 4.8),
+        figsize=(max(6, 0.45 * len(jobids_in_order) + 1.5), 5),
         dpi=220,
     )
-    fs_mae_label = 16
-    fs_mae_tick = 12
+    fs_mae_label = 13
+    fs_mae_tick = 9
     fs_mae_legend = 11
     fs_mae_group = 10
     fs_mae_text = 8
@@ -922,7 +987,7 @@ def plot_global_signal_hyperparameters(
     ax_mae.set_xlabel("job index", fontsize=fs_mae_label)
     ax_mae.set_ylabel("MAE", fontsize=fs_mae_label)
     ax_mae.set_yscale("log")
-    ax_mae.grid()
+    ax_mae.grid(True, zorder=0)
     ax_mae.tick_params(axis="both", labelsize=fs_mae_tick)
 
     mae_rel_arr = np.asarray(mae_rel_by_job, dtype=float)

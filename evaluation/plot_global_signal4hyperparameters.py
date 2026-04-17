@@ -525,7 +525,7 @@ def plot_pixel_pdf_by_job_transform(
     pt_fname: str = None,
     savename: str = "hparams_pdf.pdf",
     show_jobid: bool = False,
-    use_symlog_x: bool = True,
+    use_symlog_x: bool = False,
 ):
     if not x_ml_raw_by_job:
         print("No selected dim=3 PDF jobs found; skipped.")
@@ -683,13 +683,13 @@ def plot_pixel_pdf_by_job_transform(
     ax_r.set_xlabel("raw voxel value", fontsize=FS_LABEL)
     ax_r.set_title("Raw voxel space", fontsize=FS_TITLE)
     ax_r.tick_params(axis="both", labelsize=FS_TICK)
-    ax_r.tick_params(axis="y", direction="in")
+    # ax_r.tick_params(axis="y", direction="in")
     
     legend_jobs = ax_l.legend(
         handles=job_handles,
         fontsize=FS_LEGEND,
         # loc="upper center",
-        loc="upper right",
+        loc="upper left",
         framealpha=0.85,
     )
     ax_l.add_artist(legend_jobs)
@@ -701,7 +701,7 @@ def plot_pixel_pdf_by_job_transform(
     ax_l.legend(
         handles=style_handles,
         fontsize=FS_LEGEND,
-        loc="upper left",
+        loc="upper right",
         framealpha=0.85,
     )
 
@@ -823,15 +823,15 @@ def plot_global_signal_hyperparameters(
         if show_in_main_plot:
             color = f"C{plotted_color_idx}"
             plotted_color_idx += 1
-            ax_left.fill_between(
-                x_axis,
-                perc_ml[0],
-                perc_ml[1],
-                color=color,
-                alpha=0.10,
-                linewidth=0,
-                zorder=z_baseline_band if jobid == BASELINE_JOBID else z_other_band,
-            )
+            # ax_left.fill_between(
+            #     x_axis,
+            #     perc_ml[0],
+            #     perc_ml[1],
+            #     color=color,
+            #     alpha=0.10,
+            #     linewidth=0,
+            #     zorder=z_baseline_band if jobid == BASELINE_JOBID else z_other_band,
+            # )
             ax_left.plot(
                 x_axis,
                 y_ml,

@@ -525,7 +525,7 @@ def plot_pixel_pdf_by_job_transform(
     pt_fname: str = None,
     savename: str = "hparams_pdf.pdf",
     show_jobid: bool = False,
-    use_symlog_x: bool = False,
+    use_symlog_x: bool = True,
 ):
     if not x_ml_raw_by_job:
         print("No selected dim=3 PDF jobs found; skipped.")
@@ -535,13 +535,13 @@ def plot_pixel_pdf_by_job_transform(
     fig, axes = plt.subplots(1, 2, figsize=(14.0, 6.0), dpi=220)#, sharey=True)
     ax_l, ax_r = axes
 
-    testing_lw = 2.5
-    diffusion_lw = 2.2
-    raw_testing_lw = 2.8
+    testing_lw = 2#.5
+    diffusion_lw = 2#.2
+    raw_testing_lw = 2#.8
     job_handles = []
 
     linthresh_tf = 1.0
-    linthresh_raw = 1.0
+    linthresh_raw = 10
 
     first_jobid = jobids[0]
     x_true_ref = x_true_by_job[first_jobid].numpy().reshape(-1)
@@ -611,7 +611,7 @@ def plot_pixel_pdf_by_job_transform(
             density=True,
             histtype="step",
             linewidth=testing_lw,
-            linestyle="--",
+            linestyle=(2*i, (3.7, 2.1)),#"--",
             color=color,
         )
         ax_l.hist(
@@ -701,7 +701,7 @@ def plot_pixel_pdf_by_job_transform(
     ax_l.legend(
         handles=style_handles,
         fontsize=FS_LEGEND,
-        loc="upper right",
+        loc="center left",
         framealpha=0.85,
     )
 

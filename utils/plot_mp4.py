@@ -14,9 +14,10 @@ def plot_mp4(jobid, seconds=4, transform=None):
         for p in Path(".").glob(f"Tbs_grid_{jobid}_*_z*.png")
     })
 
-    fps = len(z_values) // seconds
-    if fps == 0:
-        fps = 1
+    # fps = len(z_values) // seconds
+    # if fps == 0:
+    #     fps = 1
+    fps = max(10, math.ceil(len(z_values) / seconds))
         
     panel_frames = []
     
@@ -75,25 +76,73 @@ def plot_mp4(jobid, seconds=4, transform=None):
     
     print(f"Generated {len(panel_frames)} scaled panel frames in {outdir}/")
     
-    # ------------------------
-    # 用 ffmpeg 合成 MP4
-    # ------------------------
-    with open("panel_list_scaled.txt", "w") as f:
-        for p in panel_frames:
-            f.write(f"file '{p.resolve()}'\n")
+    # # ------------------------
+    # # 用 ffmpeg 合成 MP4
+    # # ------------------------
+    # with open("panel_list_scaled.txt", "w") as f:
+    #     for p in panel_frames:
+    #         f.write(f"file '{p.resolve()}'\n")
     
-    mp4_out = f"{transform}_{jobid}.mp4"
-    subprocess.run([
-        "ffmpeg",
-        "-y",
-        "-r", str(fps),
-        "-f", "concat",
-        "-safe", "0",
-        "-i", "panel_list_scaled.txt",
-        "-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2",
-        "-pix_fmt", "yuv420p",
-        "-movflags", "+faststart",
-        mp4_out
-    ], check=True)
+    # mp4_out = f"{transform}_{jobid}.mp4"
+    # subprocess.run([
+    #     "ffmpeg",
+    #     "-y",
+    #     "-r", str(fps),
+    #     "-f", "concat",
+    #     "-safe", "0",
+    #     "-i", "panel_list_scaled.txt",
+    #     "-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2",
+    #     "-pix_fmt", "yuv420p",
+    #     "-movflags", "+faststart",
+    #     mp4_out
+    # ], check=True)
     
-    print(f"Created MP4: {mp4_out}")
+    # print(f"Created MP4: {mp4_out}")
+
+    # webm_out = f"{transform}_{jobid}.webm"
+    # subprocess.run([
+    #     "ffmpeg",
+    #     "-y",
+    #     "-r", str(fps),
+    #     "-f", "concat",
+    #     "-safe", "0",
+    #     "-i", "panel_list_scaled.txt",
+    #     "-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2",
+    #     "-c:v", "libvpx-vp9",
+    #     "-pix_fmt", "yuv420p",
+    #     webm_out
+    # ], check=True)
+    
+    # print(f"Created WebM: {webm_out}")
+    
+    # # ------------------------
+    # # 用 ffmpeg 合成高质量 WebM
+    # # ------------------------
+    # webm_out = f"{transform}_{jobid}.webm"
+    
+    # # fps 至少给到 8~10 会更流畅
+    # fps = max(fps, 10)
+    
+    # subprocess.run([
+    #     "ffmpeg",
+    #     "-y",
+    #     "-r", str(fps),
+    #     "-f", "concat",
+    #     "-safe", "0",
+    #     "-i", "panel_list_scaled.txt",
+    
+    #     # pad 保证尺寸为偶数；fps 保证输出帧率
+    #     "-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2,fps=" + str(fps),
+    
+    #     # 高质量 VP9
+    #     "-c:v", "libvpx-vp9",
+    #     "-crf", "15",          # 越小越清晰；15 很清晰，18 也可以
+    #     "-b:v", "0",           # CRF 模式必须设成 0
+    #     "-deadline", "best",   # 更慢但质量更好
+    #     "-cpu-used", "0",      # 0 最慢最好；2/4 更快但质量略低
+    
+    #     "-pix_fmt", "yuv420p",
+    #     webm_out
+    # ], check=True)
+    
+    # print(f"Created high-quality WebM: {webm_out}")

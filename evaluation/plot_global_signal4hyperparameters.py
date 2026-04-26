@@ -658,7 +658,7 @@ def plot_pixel_pdf_by_job_transform(
         linewidth=raw_testing_lw,
         linestyle="--",
         color="black",
-        label="21cmfast",
+        label="21cmFAST",
     )
 
     ax_l.set_yscale("log")
@@ -695,13 +695,13 @@ def plot_pixel_pdf_by_job_transform(
     ax_l.add_artist(legend_jobs)
 
     style_handles = [
-        Line2D([0], [0], color="black", lw=testing_lw, linestyle="--", label="21cmfast"),
+        Line2D([0], [0], color="black", lw=testing_lw, linestyle="--", label="21cmFAST"),
         Line2D([0], [0], color="black", lw=diffusion_lw, linestyle="-", label="diffusion"),
     ]
     ax_l.legend(
         handles=style_handles,
         fontsize=FS_LEGEND,
-        loc="center left",
+        loc="upper right",
         framealpha=0.85,
     )
 
@@ -738,7 +738,7 @@ def plot_global_signal_hyperparameters(
         2,
         1,
         sharex=True,
-        figsize=(11, 8.5),
+        figsize=(8, 6),
         dpi=220,
         gridspec_kw={"height_ratios": [3, 2]},
     )
@@ -948,7 +948,7 @@ def plot_global_signal_hyperparameters(
     ax_twin.set_xticklabels([f"{zv:.1f}" for zv in z_ticks])
     ax_twin.tick_params(axis="x", labelsize=FS_TICK)
 
-    legend = ax_left.legend(handles=handles_for_legend, fontsize=FS_LEGEND, loc="best", framealpha=0.85)
+    legend = ax_left.legend(handles=handles_for_legend, fontsize=FS_LEGEND - 2, loc="best", framealpha=0.7)
     for txt in legend.get_texts():
         if txt.get_text() == baseline_label:
             txt.set_fontweight("bold")
@@ -1116,14 +1116,15 @@ def plot_global_signal_hyperparameters(
     for best_pos, entries in best_markers_by_pos.items():
         n = len(entries)
         for j, (color, y_val) in enumerate(entries):
-            s_ring = 130 + 55 * (n - 1 - j)
+            s_star = 400 + 200 * (n - 1 - j)
             ax_mae.scatter(
                 [x[best_pos]],
                 [y_val],
-                s=s_ring,
+                s=s_star,
                 facecolors="none",
                 edgecolors=color,
-                linewidths=1.8,
+                linewidths=1,
+                marker="*",
                 zorder=5 + 0.01 * j,
                 label="best in group" if not best_in_group_labeled else None,
             )

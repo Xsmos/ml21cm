@@ -127,7 +127,7 @@ class DDPMScheduler(nn.Module):
 
         return noisy_images, noise, ts
 
-    def sample(self, nn_model, params, device, guide_w = 0):
+    def sample(self, nn_model, params, device, guide_w = 0, entire=False):
         n_sample = len(params) #params.shape[0]
         x_i = torch.randn(n_sample, *self.img_shape)#.to(self.dtype)
         x_i = x_i.to(device)
@@ -149,7 +149,9 @@ class DDPMScheduler(nn.Module):
             else:
                 eps = nn_model(x_i, t_is, c_i)#.to(self.dtype)
             x_i = 1/torch.sqrt(self.alpha_t[i])*(x_i-eps*self.beta_t[i]/torch.sqrt(1-self.bar_alpha_t[i])) + torch.sqrt(self.beta_t[i])*z
-
+            if entire:
+                x_i_entire.append(x_i.detach().cpu().numpy()) # might result in CUDA out of memory
+                
             pbar_sample.update(1)
             
         x_i_entire = np.array(x_i_entire)
@@ -645,7 +647,7 @@ class DDPM21CM:
         value = value * (to[1]-to[0]) + to[0]
         return value 
 
-    def sample(self, params:torch.tensor=None, num_new_img_per_gpu=192, entire=False, save=True):
+    def sample(self, params:torch.tensor=None, num_new_img_per_gpu=192, entire=True, save=True):
         # n_sample = params.shape[0]
         # file = self.config.resume
 
@@ -680,9 +682,11 @@ class DDPM21CM:
                     params=params_normalized.to(self.config.device), 
                     device=self.config.device, 
                     guide_w=self.config.guide_w,
+                    entire=entire,
                     )
                 x_last = self.inverse_squish(x_last, self.config.squish)
-                #x_entire = self.inverse_squish(x_entire, self.config.squish)
+                if entire:
+                    x_entire = self.inverse_squish(x_entire, self.config.squish)
 
                 if self.config.ema:
                     x_last_ema, x_entire_ema = self.ddpm.sample(
@@ -690,9 +694,11 @@ class DDPM21CM:
                         params=params_normalized.to(self.config.device), 
                         device=self.config.device, 
                         guide_w=self.config.guide_w,
+                        entire=entire,
                         )
                     x_last_ema = self.inverse_squish(x_last_ema, self.config.squish)
-                    #x_entire_ema = self.inverse_squish(x_entire_ema, self.config.squish)
+                    if entire:
+                        x_entire_ema = self.inverse_squish(x_entire_ema, self.config.squish)
 
         if save:    
             # np.save(os.path.join(self.config.output_dir, f"{self.config.run_name}{'ema' if ema else ''}.npy"), x_last)
@@ -710,40 +716,8 @@ class DDPM21CM:
                     #savename = os.path.join(self.config.output_dir, f"Tvir{params_backup[0]:.3f}-zeta{params_backup[1]:.3f}-device{self.config.global_rank}-{os.path.basename(self.config.resume)}-{savetime}-ema{ema}_entire")
                     savename += '_entire'
                     np.save(savename, x_entire)
-                    print(f"cuda:{torch.cuda.current_device()}|{self.config.global_rank} saved images of shape {x_entire.shape} to {savename}")
+                    print(f"cuda:{torch.cuda.current_device()}|{self.config.global_rank} saved {x_entire.shape=} to {os.path.basename(savename)}")
 
-        #if dist.is_initialized():
-        #    print(f"🗿 global_rank = {self.config.global_rank}, barrier, {datetime.now().strftime('%d-%H:%M:%S.%f')} 🗿", flush=True)
-        #    dist.barrier()
-        #    torch.cuda.empty_cache()
-        #    torch.cuda.synchronize()
-
-        #sleep(sleep_time)
-        #print(f"🆘 cuda:{torch.cuda.current_device()}|{self.config.global_rank} end of DDPM21CM.sample at {datetime.now().strftime('%d-%H:%M:%S.%f')} 🆘", flush=True)
-        # else:
-        #return x_last
-# %%
-
-#num_train_image_list = [6000]#[60]#[8000]#[1000]#[100]#
-#def train_backup(rank, world_size, local_world_size, master_addr, master_port, config):
-#    global_rank = rank + local_world_size * int(os.environ["SLURM_NODEID"])
-#    ddp_setup(global_rank, world_size, master_addr, master_port)
-#    torch.cuda.set_device(rank)
-#
-#    config.device = f"cuda:{rank}"
-#    config.world_size = local_world_size
-#    config.global_rank = global_rank 
-#
-#    ddpm21cm = DDPM21CM(config)
-#    ddpm21cm.train()
-#
-#    if dist.is_initialized():
-#        print(f"🚥 cuda:{local_rank}|{global_rank} dist.destroy_process_group started at {datetime.now().strftime('%d-%H:%M:%S.%f')} 🚥")#, flush=True)
-#        dist.barrier()
-#        torch.cuda.empty_cache()
-#        torch.cuda.synchronize()
-#        dist.destroy_process_group()
-#        print(f"✅ cuda:{local_rank}|{global_rank} dist.destroy_process_group completed at {datetime.now().strftime('%d-%H:%M:%S.%f')} ✅")#, flush=True)
 
 def train(config):
     local_rank = int(os.environ["LOCAL_RANK"])

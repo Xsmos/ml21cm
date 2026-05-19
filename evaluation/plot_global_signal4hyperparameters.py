@@ -566,7 +566,7 @@ def plot_pixel_pdf_by_job_transform(
         m_by_job[jobid] = m
 
         transform_label = {
-            "pt_inv": "yeo-johnson",
+            "pt_inv": "Yeo-Johnson",
             "min_max": "min-max",
             "z_score": "z-score",
             "arcsinh": "arcsinh",
@@ -574,7 +574,7 @@ def plot_pixel_pdf_by_job_transform(
 
         # label = f"job={jobid}: {transform_label}" if show_jobid else transform_label
         if not show_jobid and jobid == 48436662:
-            label = "yeo-johnson (A=0.1)"
+            label = "Yeo-Johnson (A=0.1)"
         else:
             label = f"job={jobid}: {transform_label}" if show_jobid else transform_label
         

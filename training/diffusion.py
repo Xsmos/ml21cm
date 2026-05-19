@@ -647,7 +647,7 @@ class DDPM21CM:
         value = value * (to[1]-to[0]) + to[0]
         return value 
 
-    def sample(self, params:torch.tensor=None, num_new_img_per_gpu=192, entire=True, save=True):
+    def sample(self, params:torch.tensor=None, num_new_img_per_gpu=192, entire=False, save=True):
         # n_sample = params.shape[0]
         # file = self.config.resume
 
@@ -743,7 +743,7 @@ def train(config):
     #    dist.destroy_process_group()
     #    print(f"✅ cuda:{local_rank}|{global_rank} dist.destroy_process_group completed at {datetime.now().strftime('%d-%H:%M:%S.%f')} ✅")#, flush=True)
 
-def generate_samples(config, num_new_img_per_gpu, max_num_img_per_gpu, params_pairs):
+def generate_samples(config, num_new_img_per_gpu, max_num_img_per_gpu, params_pairs, entire=False):
     local_rank = int(os.environ["LOCAL_RANK"])
     global_rank = int(os.environ["RANK"])
     world_size = int(os.environ["WORLD_SIZE"])
@@ -763,11 +763,13 @@ def generate_samples(config, num_new_img_per_gpu, max_num_img_per_gpu, params_pa
             ddpm21cm.sample(
                 params=params, 
                 num_new_img_per_gpu=max_num_img_per_gpu,
+                entire=entire,
                 )
         if num_new_img_per_gpu % max_num_img_per_gpu:
             ddpm21cm.sample(
                 params=params, 
                 num_new_img_per_gpu=num_new_img_per_gpu % max_num_img_per_gpu,
+                entire=entire,
                 )
 
 
@@ -797,6 +799,7 @@ if __name__ == "__main__":
     parser.add_argument("--squish", type=float, nargs="+", required=False, default=(1,1))
     parser.add_argument("--guide_w", type=int, required=False, default=0)
     parser.add_argument("--ema", type=int, required=False, default=0)
+    parser.add_argument("--entire", type=int, required=False, default=0)
     parser.add_argument("--scale_path", required=True, type=str, help="scale for the model")
     parser.add_argument("--beta_schedule", required=False, default='linear', type=str)
     #parser.add_argument("--amp_loss_weight", type=float, required=False, default=0.0, help="weight for the amp loss")
@@ -875,7 +878,7 @@ if __name__ == "__main__":
             (5.477, 200),
             # # (4.8, 131.341),
         ]
-        generate_samples(config, num_new_img_per_gpu, max_num_img_per_gpu, params_pairs)
+        generate_samples(config, num_new_img_per_gpu, max_num_img_per_gpu, params_pairs, entire=args.entire)
     else:
         print(f'🆘 os.path.exists({config.resume}) = {os.path.exists(config.resume)} 🆘')
 

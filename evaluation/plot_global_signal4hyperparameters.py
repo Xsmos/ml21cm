@@ -20,6 +20,14 @@ if parent_dir not in sys.path:
 
 from utils.load_h5 import Dataset4h5, ranges_dict
 
+import warnings
+from sklearn.exceptions import InconsistentVersionWarning
+
+warnings.filterwarnings(
+    "ignore",
+    category=InconsistentVersionWarning,
+)
+
 plt.rcParams.update(
     {
         "font.size": 14,
@@ -234,7 +242,7 @@ def load_x_ml(
     fnames = [
         fname
         for fname in os.listdir(outputs_dir)
-        if target_pattern in fname and str(jobid) in fname and f"-ema{ema}" in fname
+        if target_pattern in fname and str(jobid) in fname and f"-ema{ema}.npy" in fname
     ]
 
     if len(fnames) == 0:
@@ -246,6 +254,8 @@ def load_x_ml(
     loaded = 0
     for fname in sorted(fnames):
         data = np.load(os.path.join(outputs_dir, fname))
+        # print(f"[load_x_ml] append from {fname}: shape = {data.shape}")
+        
         if loaded >= num_image:
             break
         remaining = num_image - loaded
@@ -258,6 +268,9 @@ def load_x_ml(
         raise ValueError(
             f"Matched files exist but no data loaded for target_pattern={target_pattern}, jobid={jobid}."
         )
+
+    # for i, arr in enumerate(x_ml):
+    #     print(f"[load_x_ml] x_ml[{i}] shape = {arr.shape}, ndim = {arr.ndim}")
 
     x_ml = np.concatenate(x_ml, axis=0)
     original_shape = x_ml.shape
@@ -517,7 +530,20 @@ def _inverse_transform_sampled_for_job(x_ml_raw: torch.Tensor, transform: str, p
         x_np = np.sinh(x_np)
     return torch.from_numpy(x_np.astype(np.float32))
 
-
+def take_pdf_slice(x: torch.Tensor, slice_idx: int = None) -> torch.Tensor:
+    """
+    Convert 3D lightcone tensor from (N, 1, H, W, LOS) to one slice (N, 1, H, LOS).
+    If input is already 4D, return it unchanged.
+    """
+    if x.ndim == 5:
+        if slice_idx is None:
+            slice_idx = x.shape[3] // 2
+        return x[:, :, :, slice_idx, :]
+    elif x.ndim == 4:
+        return x
+    else:
+        raise ValueError(f"Unexpected tensor shape for PDF slice: {x.shape}")
+    
 def plot_pixel_pdf_by_job_transform(
     x_true_by_job: Dict[int, torch.Tensor],
     x_ml_raw_by_job: Dict[int, torch.Tensor],
@@ -544,7 +570,7 @@ def plot_pixel_pdf_by_job_transform(
     linthresh_raw = 10
 
     first_jobid = jobids[0]
-    x_true_ref = x_true_by_job[first_jobid].numpy().reshape(-1)
+    x_true_ref = take_pdf_slice(x_true_by_job[first_jobid]).numpy().reshape(-1)
 
     t_by_job = {}
     m_by_job = {}
@@ -553,8 +579,14 @@ def plot_pixel_pdf_by_job_transform(
     for i, jobid in enumerate(jobids):
         color = f"C{i}"
         transform = model_meta.get(jobid, {}).get("transform", "pt_inv")
-        x_true = x_true_by_job[jobid]
-        x_ml_raw = x_ml_raw_by_job[jobid]
+        
+        x_true = take_pdf_slice(x_true_by_job[jobid])
+        x_ml_raw = take_pdf_slice(x_ml_raw_by_job[jobid])
+
+        print(
+            f"[PDF] jobid={jobid}: using PDF slice "
+            f"x_true={x_true.shape}, x_ml_raw={x_ml_raw.shape}"
+        )
 
         x_true_t = _forward_transform_truth_for_job(
             x_true, transform=transform, pt_fname=pt_fname
@@ -1194,7 +1226,7 @@ def main():
         default="LEN128-DIM64-CUB16-Tvir4.699-zeta30-0812-104322.h5",
     )
     parser.add_argument("--outputs_dir", type=str, default="../training/outputs", help="Directory containing generated .npy files.")
-    parser.add_argument("--num_image", type=int, default=320)
+    parser.add_argument("--num_image", type=int, default=800)
     parser.add_argument("--num_redshift", type=int, default=1024)
     parser.add_argument("--HII_DIM", type=int, default=64)
     parser.add_argument("--dim", type=int, default=3)

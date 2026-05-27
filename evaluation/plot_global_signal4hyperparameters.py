@@ -1,6 +1,7 @@
 import os
 import sys
 import argparse
+import gc
 import re
 import textwrap
 from typing import Dict, Any, List, Tuple, Set, Optional
@@ -532,8 +533,12 @@ def _inverse_transform_sampled_for_job(x_ml_raw: torch.Tensor, transform: str, p
 
 def take_pdf_slice(x: torch.Tensor, slice_idx: int = None) -> torch.Tensor:
     """
-    Convert 3D lightcone tensor from (N, 1, H, W, LOS) to one slice (N, 1, H, LOS).
-    If input is already 4D, return it unchanged.
+    Convert a 3D lightcone tensor from (N, 1, H, W, LOS) to one
+    transverse--LOS slice with shape (N, 1, H, LOS).
+
+    If the input is already 4D, return it unchanged.  This function is
+    intentionally used before storing tensors for the PDF plot, so that the
+    script does not keep multiple full 3D lightcone volumes in memory.
     """
     if x.ndim == 5:
         if slice_idx is None:
@@ -1310,6 +1315,13 @@ def main():
         main_plot_jobids=main_plot_jobids,
     )
 
+    # Free full lightcones used by the global-signal plot before loading
+    # raw transformed samples for the PDF plot.
+    del x_true_full, x_ml_by_job, x_true_by_job, los_by_job
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
     x_ml_raw_pdf_by_job: Dict[int, torch.Tensor] = {}
     x_true_pdf_by_job: Dict[int, torch.Tensor] = {}
     pdf_jobids = _jobids_from_indices_1based(
@@ -1336,10 +1348,16 @@ def main():
             z_step=1,
             dim=3,
         )
+
+        # Important: do not store full (N, 1, H, H, LOS) 3D lightcones
+        # for every job.  Store only the 2D PDF slice (N, 1, H, LOS).
+        # clone() is intentional: without it, a sliced torch view can keep
+        # the full underlying 3D storage alive and still cause CPU OOM.
         for jobid in pdf_jobids_dim3:
             job_meta = JOBID_HPARAMS.get(jobid, {})
             job_z_step = int(job_meta.get("z_step", 1))
             job_transform = job_meta.get("transform", "pt_inv")
+
             x_true_dim3 = x_true_full_dim3[..., ::job_z_step]
             x_ml_raw = load_x_ml(
                 target_pattern=target_pattern,
@@ -1351,16 +1369,36 @@ def main():
                 transform=job_transform,
                 apply_inverse=False,
             )
+
             z_len_pdf = min(x_true_dim3.shape[-1], x_ml_raw.shape[-1])
             n_pdf = min(len(x_true_dim3), len(x_ml_raw))
-            x_true_pdf_by_job[jobid] = x_true_dim3[:n_pdf, ..., :z_len_pdf]
-            x_ml_raw_pdf_by_job[jobid] = x_ml_raw[:n_pdf, ..., :z_len_pdf]
+
+            x_true_pdf_slice = take_pdf_slice(
+                x_true_dim3[:n_pdf, ..., :z_len_pdf]
+            ).contiguous().clone()
+            x_ml_raw_pdf_slice = take_pdf_slice(
+                x_ml_raw[:n_pdf, ..., :z_len_pdf]
+            ).contiguous().clone()
+
+            x_true_pdf_by_job[jobid] = x_true_pdf_slice
+            x_ml_raw_pdf_by_job[jobid] = x_ml_raw_pdf_slice
+
             print(
-                "[PDF] Loaded "
+                "[PDF] Loaded and sliced "
                 f"x_ml_raw.shape={x_ml_raw_pdf_by_job[jobid].shape}; "
                 f"x_true_dim3.shape={x_true_pdf_by_job[jobid].shape}; "
                 f"jobid={jobid}; transform={job_transform}"
             )
+
+            del x_true_dim3, x_ml_raw, x_true_pdf_slice, x_ml_raw_pdf_slice
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
+        del x_true_full_dim3
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
     plot_pixel_pdf_by_job_transform(
         x_true_by_job=x_true_pdf_by_job,

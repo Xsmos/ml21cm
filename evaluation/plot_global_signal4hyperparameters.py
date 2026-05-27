@@ -770,7 +770,7 @@ def plot_global_signal_hyperparameters(
         2,
         1,
         sharex=True,
-        figsize=(8, 8),
+        figsize=(8, 7),
         dpi=220,
         gridspec_kw={"height_ratios": [3, 2]},
     )

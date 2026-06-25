@@ -179,7 +179,7 @@ class Generator():
         if 'comm' in globals():
             recv_data = comm.scatter(send_data, root=0)
         else:
-            recv_data = send_data
+            recv_data = send_data[0]
 
         return recv_data
 
@@ -372,65 +372,127 @@ class Generator():
                 else:
                     sleep(0.1)
 
-    # Save as hdf5
+    # # Save as hdf5
+    # def save(self, images_node, params_seeds):
+    #     #max_num_images = None # self.kwargs['num_images']
+    #     max_num_images = self.kwargs['num_images']
+    #     #print(f"max_num_images = {max_num_images}")
+    #     with h5py.File(self.kwargs['save_direc_name'], 'a') as f:
+    #         if 'kwargs' not in f.keys():
+    #             keys = list(self.kwargs)
+    #             values = [str(value) for value in self.kwargs.values()]
+    #             data = np.transpose(list((keys, values)))
+    #             data = data.tolist()
+    #             f.create_dataset('kwargs', data=data)
+
+    #         if 'params' not in f.keys():
+    #             grp = f.create_group('params') 
+    #             grp['keys'] = list(self.params_ranges)
+    #             grp.create_dataset(
+    #                 'values',
+    #                 data = params_seeds[:,:-1],
+    #                 maxshape = tuple((max_num_images,) + params_seeds[:,:-1].shape[1:]),
+    #                 )
+    #         else:
+    #             new_size = f['params']['values'].shape[0] + params_seeds.shape[0]
+    #             f['params']['values'].resize(new_size, axis=0)
+    #             f['params']['values'][-params_seeds.shape[0]:] = params_seeds[:,:-1]
+
+
+    #         #seeds = np.expand_dims(params_seeds[:,-1], axis=-1)
+    #         seeds = params_seeds[:,-1]            
+    #         if 'seeds' not in f.keys():
+    #             #grp = f.create_group('seeds') 
+    #             #grp['keys'] = list(self.params_ranges) + ['seed']
+    #             f.create_dataset(
+    #                 'seeds',
+    #                 data = seeds.astype(np.int64),
+    #                 #maxshape = tuple((None,) + seeds.shape[1:]),
+    #                 maxshape = (max_num_images,),
+    #                 )
+    #         else:
+    #             new_size = f['seeds'].shape[0] + seeds.shape[0]
+    #             f['seeds'].resize(new_size, axis=0)
+    #             f['seeds'][-seeds.shape[0]:] = seeds.astype(np.int64) 
+
+
+    #         if 'redshifts_distances' not in f.keys() and 'redshifts_distances' in images_node:
+    #             f.create_dataset('redshifts_distances', data=images_node['redshifts_distances'])
+
+    #         for field in self.kwargs['fields']:
+    #             images = images_node[field]
+    #             if field not in f.keys():
+    #                 f.create_dataset(
+    #                     field, 
+    #                     data=images, 
+    #                     maxshape= tuple((max_num_images,) + images.shape[1:])
+    #                 )
+    #             else:
+    #                 new_size = f[field].shape[0] + images.shape[0]
+    #                 f[field].resize(new_size, axis=0)
+    #                 f[field][-images.shape[0]:] = images
+
     def save(self, images_node, params_seeds):
-        #max_num_images = None # self.kwargs['num_images']
         max_num_images = self.kwargs['num_images']
-        #print(f"max_num_images = {max_num_images}")
-        with h5py.File(self.kwargs['save_direc_name'], 'a') as f:
-            if 'kwargs' not in f.keys():
-                keys = list(self.kwargs)
-                values = [str(value) for value in self.kwargs.values()]
-                data = np.transpose(list((keys, values)))
-                data = data.tolist()
-                f.create_dataset('kwargs', data=data)
 
-            if 'params' not in f.keys():
-                grp = f.create_group('params') 
-                grp['keys'] = list(self.params_ranges)
-                grp.create_dataset(
-                    'values',
-                    data = params_seeds[:,:-1],
-                    maxshape = tuple((max_num_images,) + params_seeds[:,:-1].shape[1:]),
-                    )
-            else:
-                new_size = f['params']['values'].shape[0] + params_seeds.shape[0]
-                f['params']['values'].resize(new_size, axis=0)
-                f['params']['values'][-params_seeds.shape[0]:] = params_seeds[:,:-1]
+        lock_name = self.kwargs['save_direc_name'] + ".lock"
 
+        with open(lock_name, "w") as lock_f:
+            fcntl.flock(lock_f, fcntl.LOCK_EX)
 
-            #seeds = np.expand_dims(params_seeds[:,-1], axis=-1)
-            seeds = params_seeds[:,-1]            
-            if 'seeds' not in f.keys():
-                #grp = f.create_group('seeds') 
-                #grp['keys'] = list(self.params_ranges) + ['seed']
-                f.create_dataset(
-                    'seeds',
-                    data = seeds.astype(np.int64),
-                    #maxshape = tuple((None,) + seeds.shape[1:]),
-                    maxshape = (max_num_images,),
-                    )
-            else:
-                new_size = f['seeds'].shape[0] + seeds.shape[0]
-                f['seeds'].resize(new_size, axis=0)
-                f['seeds'][-seeds.shape[0]:] = seeds.astype(np.int64) 
+            try:
+                with h5py.File(self.kwargs['save_direc_name'], 'a') as f:
+                    if 'kwargs' not in f.keys():
+                        keys = list(self.kwargs)
+                        values = [str(value) for value in self.kwargs.values()]
+                        data = np.transpose(list((keys, values))).tolist()
+                        f.create_dataset('kwargs', data=data)
 
+                    if 'params' not in f.keys():
+                        grp = f.create_group('params')
+                        grp['keys'] = list(self.params_ranges)
+                        grp.create_dataset(
+                            'values',
+                            data=params_seeds[:, :-1],
+                            maxshape=tuple((max_num_images,) + params_seeds[:, :-1].shape[1:]),
+                        )
+                    else:
+                        new_size = f['params']['values'].shape[0] + params_seeds.shape[0]
+                        f['params']['values'].resize(new_size, axis=0)
+                        f['params']['values'][-params_seeds.shape[0]:] = params_seeds[:, :-1]
 
-            if 'redshifts_distances' not in f.keys() and 'redshifts_distances' in images_node:
-                f.create_dataset('redshifts_distances', data=images_node['redshifts_distances'])
+                    seeds = params_seeds[:, -1]
+                    if 'seeds' not in f.keys():
+                        f.create_dataset(
+                            'seeds',
+                            data=seeds.astype(np.int64),
+                            maxshape=(max_num_images,),
+                        )
+                    else:
+                        new_size = f['seeds'].shape[0] + seeds.shape[0]
+                        f['seeds'].resize(new_size, axis=0)
+                        f['seeds'][-seeds.shape[0]:] = seeds.astype(np.int64)
 
-            for field in self.kwargs['fields']:
-                images = images_node[field]
-                if field not in f.keys():
-                    f.create_dataset(
-                        field, 
-                        data=images, 
-                        maxshape= tuple((max_num_images,) + images.shape[1:])
-                    )
-                else:
-                    new_size = f[field].shape[0] + images.shape[0]
-                    f[field].resize(new_size, axis=0)
-                    f[field][-images.shape[0]:] = images
+                    if 'redshifts_distances' not in f.keys() and 'redshifts_distances' in images_node:
+                        f.create_dataset('redshifts_distances', data=images_node['redshifts_distances'])
+
+                    for field in self.kwargs['fields']:
+                        images = images_node[field]
+                        if field not in f.keys():
+                            f.create_dataset(
+                                field,
+                                data=images,
+                                maxshape=tuple((max_num_images,) + images.shape[1:])
+                            )
+                        else:
+                            new_size = f[field].shape[0] + images.shape[0]
+                            f[field].resize(new_size, axis=0)
+                            f[field][-images.shape[0]:] = images
+
+                    f.flush()
+
+            finally:
+                fcntl.flock(lock_f, fcntl.LOCK_UN)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="generating 21cm dataset")
@@ -443,8 +505,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     params_ranges = dict(
-        ION_Tvir_MIN = 4.8,#5.477,#4.699,#5.6,#4.4, #[4,6],
-        HII_EFF_FACTOR = 131.341,#200,#30,#19.037,#131.341, #[10, 250],
+        ION_Tvir_MIN = 5.6,#4.8,#5.477,#4.699,#4.4, #[4,6],
+        HII_EFF_FACTOR = 19.037,#131.341,#200,#30,#131.341, #[10, 250],
         )
 
     kwargs = dict(

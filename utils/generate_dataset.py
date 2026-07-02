@@ -505,8 +505,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     params_ranges = dict(
-        ION_Tvir_MIN = 5.6,#4.8,#5.477,#4.699,#4.4, #[4,6],
-        HII_EFF_FACTOR = 19.037,#131.341,#200,#30,#131.341, #[10, 250],
+        ION_Tvir_MIN = 4.8,#5.6,#5.477,#4.699,#4.4, #[4,6],
+        HII_EFF_FACTOR = 131.341,#19.037,#200,#30,#131.341, #[10, 250],
         )
 
     kwargs = dict(

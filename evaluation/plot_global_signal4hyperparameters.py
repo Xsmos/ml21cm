@@ -60,19 +60,19 @@ JOBID_HPARAMS: Dict[int, Dict[str, Any]] = {
         "epochs": 120,
         "transform": "arcsinh",
     },
-    49654134: {
-        "num_res_blocks": 1,
-        "squish": "1,0",
-        "dim": 2,
-        "epochs": 120,
-        "transform": "min_max",
-    },
     49654128: {
         "num_res_blocks": 1,
         "squish": "1,0",
         "dim": 2,
         "epochs": 120,
         "transform": "z_score",
+    },
+    49654134: {
+        "num_res_blocks": 1,
+        "squish": "1,0",
+        "dim": 2,
+        "epochs": 120,
+        "transform": "min_max",
     },
     49654199: {
         "num_res_blocks": 1,
@@ -81,12 +81,19 @@ JOBID_HPARAMS: Dict[int, Dict[str, Any]] = {
         "epochs": 120,
         "transform": "pt_inv",
     },
-    49653881: {
+    55582763: {
         "num_res_blocks": 1,
-        "squish": "1,0",
-        "dim": 3,
+        "squish": "0.1,0",
+        "dim": 2,
         "epochs": 120,
-        "transform": "min_max",
+        "transform": "pt_inv",
+    },
+    55405862: {
+        "num_res_blocks": 1,
+        "squish": "0.1,0",
+        "dim": 2,
+        "epochs": 240,
+        "transform": "pt_inv",
     },
     49653904: {
         "num_res_blocks": 1,
@@ -94,6 +101,13 @@ JOBID_HPARAMS: Dict[int, Dict[str, Any]] = {
         "dim": 3,
         "epochs": 120,
         "transform": "z_score",
+    },
+    49653881: {
+        "num_res_blocks": 1,
+        "squish": "1,0",
+        "dim": 3,
+        "epochs": 120,
+        "transform": "min_max",
     },
     48820329: {
         "num_res_blocks": 1,
@@ -162,21 +176,25 @@ JOBID_HPARAMS: Dict[int, Dict[str, Any]] = {
 BASELINE_JOBID = 48436662
 
 # Selection by 1-based index in JOBID_HPARAMS insertion order.
-PDF_JOB_INDICES_1BASED = [5, 6, 7, 13]
-MAIN_PLOT_JOB_INDICES_1BASED = [5, 6, 7, 8, 9, 10, 11, 13]
+PDF_JOB_INDICES_1BASED = [7, 8, 9, 15] #[5, 6, 7, 13]
+MAIN_PLOT_JOB_INDICES_1BASED = [7, 8, 9, 10, 11, 12, 13, 15] #[5, 6, 7, 8, 9, 10, 11, 13]
 
 # MAE trend grouping (1-based job index as shown on x-axis):
 # used only for visualization aids in global_signal_hparams_mae_trend.pdf.
 MAE_GROUPS = [
+    # {"name": "2D Transform", "indices_1based": [1, 2, 3, 4, 5, 6], "color": "#4C78A8", "row": 1},
+
     {"name": "2D Transform", "indices_1based": [1, 2, 3, 4], "color": "#4C78A8", "row": 1},
-    {"name": "3D Transform", "indices_1based": [5, 6, 7], "color": "#F58518", "row": 2},
-    {"name": "3D + Amplitude Scale", "indices_1based": [7, 8, 9, 13], "color": "#54A24B", "row": 1},
-    {"name": "3D + ResBlocks", "indices_1based": [10, 11, 13], "color": "#B279A2", "row": 2},
-    {"name": "3D + Epoch", "indices_1based": [12, 13, 14, 15], "color": "#E45756", "row": 0},
+    {"name": "2D + Amplitude/Epoch", "indices_1based": [4, 5, 6], "color": "#72B7B2", "row": 2},
+
+    {"name": "3D Transform", "indices_1based": [7, 8, 9], "color": "#F58518", "row": 2},
+    {"name": "3D + Amplitude Scale", "indices_1based": [9, 10, 11, 15], "color": "#54A24B", "row": 1},
+    {"name": "3D + ResBlocks", "indices_1based": [12, 13, 15], "color": "#B279A2", "row": 2},
+    {"name": "3D + Epoch", "indices_1based": [14, 15, 16, 17], "color": "#E45756", "row": 0},
 ]
 
-# Optional section separators (1-based boundary after index i).
-MAE_SECTION_BOUNDARIES_1BASED = [4, 7]
+# # Optional section separators (1-based boundary after index i).
+# MAE_SECTION_BOUNDARIES_1BASED = [4, 7]
 
 
 def _jobids_from_indices_1based(
@@ -742,6 +760,9 @@ def plot_pixel_pdf_by_job_transform(
         framealpha=0.85,
     )
 
+    ax_l.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{y:g}"))
+    ax_r.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{y:g}"))
+    
     fig.tight_layout()
     fig.subplots_adjust(hspace=0)
     fig.subplots_adjust(wspace=0)
@@ -973,6 +994,7 @@ def plot_global_signal_hyperparameters(
     ax_delta.grid()
     ax_delta.tick_params(axis="both", labelsize=FS_TICK)
     ax_delta.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: f"{x / 1000:.1f}"))
+    ax_delta.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{y:g}"))
 
     ax_twin = ax_left.secondary_xaxis("top")
     ax_twin.set_xlim(ax_left.get_xlim())
@@ -1024,6 +1046,10 @@ def plot_global_signal_hyperparameters(
     ax_mae.set_xlabel("job index", fontsize=fs_mae_label)
     ax_mae.set_ylabel("MAE", fontsize=fs_mae_label)
     ax_mae.set_yscale("log")
+    ax_mae.yaxis.set_major_formatter(
+        FuncFormatter(lambda y, _: f"{y:g}")
+    )
+    
     ax_mae.grid(True, zorder=0)
     ax_mae.tick_params(axis="both", labelsize=fs_mae_tick)
 
@@ -1167,11 +1193,12 @@ def plot_global_signal_hyperparameters(
             )
             best_in_group_labeled = True
 
-    for b in MAE_SECTION_BOUNDARIES_1BASED:
-        b0 = b - 1
-        if 0 <= b0 < len(x) - 1:
-            ax_mae.axvline(float(b0) + 0.5, color="0.45", lw=0.9, ls=":", alpha=0.8, zorder=1)
+    # for b in MAE_SECTION_BOUNDARIES_1BASED:
+    #     b0 = b - 1
+    #     if 0 <= b0 < len(x) - 1:
+    #         ax_mae.axvline(float(b0) + 0.5, color="0.45", lw=0.9, ls=":", alpha=0.8, zorder=1)
 
+    ax_mae.set_xlim(-0.5, len(x) - 0.5)
     ax_mae.legend(
         fontsize=fs_mae_legend,
         loc="upper left",

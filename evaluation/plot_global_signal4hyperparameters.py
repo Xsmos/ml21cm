@@ -176,7 +176,14 @@ JOBID_HPARAMS: Dict[int, Dict[str, Any]] = {
 BASELINE_JOBID = 48436662
 
 # Selection by 1-based index in JOBID_HPARAMS insertion order.
-PDF_JOB_INDICES_1BASED = [7, 8, 9, 15] #[5, 6, 7, 13]
+# Appendix voxel-PDF comparison. All selected runs use 120 epochs so that
+# preprocessing and dimensionality are not confounded with training duration:
+#   8  = 3D min--max, A=1
+#   7  = 3D z-score, A=1
+#   9  = 3D Yeo--Johnson, A=1
+#   15 = 3D Yeo--Johnson, A=0.1
+#   5  = 2D Yeo--Johnson, A=0.1
+PDF_JOB_INDICES_1BASED = [8, 7, 9, 15, 5]
 MAIN_PLOT_JOB_INDICES_1BASED = [7, 8, 9, 10, 11, 12, 13, 15] #[5, 6, 7, 8, 9, 10, 11, 13]
 
 # MAE trend grouping (1-based job index as shown on x-axis):
@@ -567,6 +574,109 @@ def take_pdf_slice(x: torch.Tensor, slice_idx: int = None) -> torch.Tensor:
     else:
         raise ValueError(f"Unexpected tensor shape for PDF slice: {x.shape}")
     
+def _pdf_job_style(
+    jobid: int,
+    model_meta: Dict[int, Dict[str, Any]],
+) -> Dict[str, Any]:
+    """Return the visual encoding used in the appendix voxel-PDF figure.
+
+    The 2D and 3D Yeo--Johnson runs with A=0.1 use different colors because
+    their PDFs are very similar and are difficult to distinguish when they
+    share one color.
+
+    Color:
+        C0: 3D min--max
+        C1: 3D z-score
+        C2: 3D Yeo--Johnson, A=1
+        C3: 3D Yeo--Johnson, A=0.1
+        C4: 2D Yeo--Johnson, A=0.1
+
+    Line style:
+        - : 21cmFAST
+        --  : 3D diffusion
+        : : 2D diffusion
+
+    The transformed 21cmFAST PDF depends only on the preprocessing
+    transformation. Therefore, the matched 2D and 3D A=0.1 runs share one
+    dashed truth curve even though their diffusion curves have different
+    colors.
+    """
+    meta = model_meta.get(jobid, {})
+    transform = str(meta.get("transform", "pt_inv"))
+    dim = _infer_job_dim(meta, fallback_dim=3)
+    amplitude, _ = _parse_squish(meta.get("squish", "1,0"))
+
+    if transform == "min_max":
+        truth_group_key = ("min_max", "1")
+        label = "3D min--max" if dim == 3 else f"{dim}D min--max"
+        color = "C0"
+
+    elif transform == "z_score":
+        truth_group_key = ("z_score", "1")
+        label = "3D z-score" if dim == 3 else f"{dim}D z-score"
+        color = "C1"
+
+    elif transform == "pt_inv" and amplitude != "0.1":
+        truth_group_key = ("pt_inv", amplitude)
+        label = (
+            "3D Yeo--Johnson"
+            if dim == 3
+            else f"{dim}D Yeo--Johnson"
+        )
+        color = "C2"
+
+    elif transform == "pt_inv" and amplitude == "0.1" and dim == 3:
+        truth_group_key = ("pt_inv", "0.1")
+        label = r"3D Yeo--Johnson ($A=0.1$)"
+        color = "C3"
+
+    elif transform == "pt_inv" and amplitude == "0.1" and dim == 2:
+        # Same transformed truth distribution as the matched 3D A=0.1 run,
+        # but a distinct color for the 2D diffusion output.
+        truth_group_key = ("pt_inv", "0.1")
+        label = r"2D Yeo--Johnson ($A=0.1$)"
+        color = "C4"
+
+    elif transform == "arcsinh":
+        truth_group_key = ("arcsinh", amplitude)
+        label = f"{dim}D arcsinh"
+        color = "C5"
+
+    else:
+        truth_group_key = (transform, amplitude)
+        label = f"{dim}D {transform}"
+        color = "C6"
+
+    if dim == 2:
+        linestyle = ":"
+        dimensional_label = "2D diffusion"
+        linewidth = 2.4
+        zorder = 6
+    elif dim == 3:
+        linestyle = "--"
+        dimensional_label = "3D diffusion"
+        linewidth = 2.0
+        zorder = 5
+    else:
+        linestyle = "-."
+        dimensional_label = f"{dim}D diffusion"
+        linewidth = 2.0
+        zorder = 4
+
+    return {
+        "jobid": jobid,
+        "transform": transform,
+        "amplitude": amplitude,
+        "dim": dim,
+        "truth_group_key": truth_group_key,
+        "label": label,
+        "color": color,
+        "linestyle": linestyle,
+        "dimensional_label": dimensional_label,
+        "linewidth": linewidth,
+        "zorder": zorder,
+    }
+
 def plot_pixel_pdf_by_job_transform(
     x_true_by_job: Dict[int, torch.Tensor],
     x_ml_raw_by_job: Dict[int, torch.Tensor],
@@ -576,152 +686,203 @@ def plot_pixel_pdf_by_job_transform(
     show_jobid: bool = False,
     use_symlog_x: bool = True,
 ):
+    """Plot transformed- and raw-space voxel PDFs for selected 2D/3D runs."""
     if not x_ml_raw_by_job:
-        print("No selected dim=3 PDF jobs found; skipped.")
+        print("No selected PDF jobs found; skipped.")
         return
 
     jobids = list(x_ml_raw_by_job.keys())
-    fig, axes = plt.subplots(1, 2, figsize=(14.0, 6.0), dpi=220)#, sharey=True)
-    ax_l, ax_r = axes
+    missing_truth = [jobid for jobid in jobids if jobid not in x_true_by_job]
+    if missing_truth:
+        raise ValueError(
+            "Missing 21cmFAST reference tensors for PDF jobs: "
+            f"{missing_truth}"
+        )
 
-    testing_lw = 2#.5
-    diffusion_lw = 2#.2
-    raw_testing_lw = 2#.8
-    job_handles = []
+    fig, (ax_l, ax_r) = plt.subplots(
+        1,
+        2,
+        figsize=(14.0, 6.0),
+        dpi=220,
+    )
 
-    linthresh_tf = 1.0
-    linthresh_raw = 10
+    testing_lw = 2.0
+    raw_testing_lw = 2.0
+    linthresh_raw = 10.0
 
-    first_jobid = jobids[0]
-    x_true_ref = take_pdf_slice(x_true_by_job[first_jobid]).numpy().reshape(-1)
+    styles_by_job = {
+        jobid: _pdf_job_style(jobid, model_meta)
+        for jobid in jobids
+    }
 
-    t_by_job = {}
-    m_by_job = {}
-    m_inv_by_job = {}
+    print("\n[PDF] Selected jobs:")
+    for jobid in jobids:
+        style = styles_by_job[jobid]
+        print(
+            f"  jobid={jobid}, dim={style['dim']}, "
+            f"transform={style['transform']}, A={style['amplitude']}, "
+            f"color={style['color']}, linestyle={style['linestyle']}"
+        )
 
-    for i, jobid in enumerate(jobids):
-        color = f"C{i}"
-        transform = model_meta.get(jobid, {}).get("transform", "pt_inv")
-        
-        x_true = take_pdf_slice(x_true_by_job[jobid])
-        x_ml_raw = take_pdf_slice(x_ml_raw_by_job[jobid])
+    # Use a 3D transverse--LOS slice for the common raw-space reference when
+    # available. The selected 3D runs precede the 2D run in the registry list.
+    reference_jobid = next(
+        (
+            jobid
+            for jobid in jobids
+            if styles_by_job[jobid]["dim"] == 3
+        ),
+        jobids[0],
+    )
+    x_true_ref = (
+        take_pdf_slice(x_true_by_job[reference_jobid])
+        .detach()
+        .cpu()
+        .numpy()
+        .reshape(-1)
+    )
+
+    # Truth is identical for jobs with the same preprocessing. In particular,
+    # plot only one dashed A=0.1 Yeo--Johnson truth curve for the matched 2D
+    # and 3D runs, while keeping their diffusion outputs in distinct colors.
+    transformed_truth_by_group: Dict[Tuple[str, str], np.ndarray] = {}
+    group_first_jobid: Dict[Tuple[str, str], int] = {}
+    group_order: List[Tuple[str, str]] = []
+    transformed_model_by_job: Dict[int, np.ndarray] = {}
+    raw_model_by_job: Dict[int, np.ndarray] = {}
+
+    for jobid in jobids:
+        style = styles_by_job[jobid]
+        truth_group_key = style["truth_group_key"]
+        transform = style["transform"]
+
+        x_true = take_pdf_slice(x_true_by_job[jobid]).detach().cpu()
+        x_ml_raw = take_pdf_slice(x_ml_raw_by_job[jobid]).detach().cpu()
 
         print(
-            f"[PDF] jobid={jobid}: using PDF slice "
-            f"x_true={x_true.shape}, x_ml_raw={x_ml_raw.shape}"
+            f"[PDF] jobid={jobid}: "
+            f"x_true={tuple(x_true.shape)}, "
+            f"x_ml_raw={tuple(x_ml_raw.shape)}"
         )
 
-        x_true_t = _forward_transform_truth_for_job(
-            x_true, transform=transform, pt_fname=pt_fname
+        if truth_group_key not in transformed_truth_by_group:
+            x_true_t = _forward_transform_truth_for_job(
+                x_true,
+                transform=transform,
+                pt_fname=pt_fname,
+            )
+            transformed_truth_by_group[truth_group_key] = (
+                x_true_t.numpy().reshape(-1)
+            )
+            group_first_jobid[truth_group_key] = jobid
+            group_order.append(truth_group_key)
+
+        transformed_model_by_job[jobid] = x_ml_raw.numpy().reshape(-1)
+
+        x_ml_inverse = _inverse_transform_sampled_for_job(
+            x_ml_raw,
+            transform=transform,
+            pt_fname=pt_fname,
         )
-        t = x_true_t.numpy().reshape(-1)
-        m = x_ml_raw.numpy().reshape(-1)
+        raw_model_by_job[jobid] = x_ml_inverse.numpy().reshape(-1)
 
-        t_by_job[jobid] = t
-        m_by_job[jobid] = m
-
-        transform_label = {
-            "pt_inv": "Yeo-Johnson",
-            "min_max": "min-max",
-            "z_score": "z-score",
-            "arcsinh": "arcsinh",
-        }.get(str(transform), str(transform))
-
-        # label = f"job={jobid}: {transform_label}" if show_jobid else transform_label
-        if not show_jobid and jobid == 48436662:
-            label = "Yeo-Johnson (A=0.1)"
-        else:
-            label = f"job={jobid}: {transform_label}" if show_jobid else transform_label
-        
-        job_handles.append(
-            Line2D([0], [0], color=color, lw=diffusion_lw, linestyle="-", label=label)
-        )
-
-        m_inv = _inverse_transform_sampled_for_job(
-            x_ml_raw, transform=transform, pt_fname=pt_fname
-        ).numpy().reshape(-1)
-        m_inv_by_job[jobid] = m_inv
-
+    # ------------------------------------------------------------------
+    # Left panel: transformed voxel space
+    # ------------------------------------------------------------------
     tf_lows = []
     tf_highs = []
+    for group_key in group_order:
+        values = transformed_truth_by_group[group_key]
+        tf_lows.append(np.percentile(values, 0.1))
+        tf_highs.append(np.percentile(values, 99.9))
     for jobid in jobids:
-        tf_lows.append(np.percentile(t_by_job[jobid], 0.1))
-        tf_lows.append(np.percentile(m_by_job[jobid], 0.1))
-        tf_highs.append(np.percentile(t_by_job[jobid], 99.9))
-        tf_highs.append(np.percentile(m_by_job[jobid], 99.9))
+        values = transformed_model_by_job[jobid]
+        tf_lows.append(np.percentile(values, 0.1))
+        tf_highs.append(np.percentile(values, 99.9))
 
     tf_min = min(tf_lows)
     tf_max = max(tf_highs)
+    bins_l = np.linspace(tf_min, tf_max, 400)
 
-    if use_symlog_x and False:
-        bins_l = _make_symlog_bins(tf_min, tf_max, n_bins=400, linthresh=linthresh_tf)
-    else:
-        bins_l = np.linspace(tf_min, tf_max, 400)
-
-    for i, jobid in enumerate(jobids):
-        color = f"C{i}"
+    # One dashed 21cmFAST curve per preprocessing group.
+    for group_key in group_order:
+        first_jobid = group_first_jobid[group_key]
+        style = styles_by_job[first_jobid]
         ax_l.hist(
-            t_by_job[jobid],
+            transformed_truth_by_group[group_key],
             bins=bins_l,
             density=True,
             histtype="step",
             linewidth=testing_lw,
-            linestyle=(2*i, (3.7, 2.1)),#"--",
-            color=color,
+            linestyle="-",
+            color=style["color"],
+            zorder=2,
         )
+
+    # Every diffusion curve; the matched 2D/3D A=0.1 runs use distinct colors.
+    for jobid in jobids:
+        style = styles_by_job[jobid]
         ax_l.hist(
-            m_by_job[jobid],
+            transformed_model_by_job[jobid],
             bins=bins_l,
             density=True,
             histtype="step",
-            linewidth=diffusion_lw,
-            linestyle="-",
-            color=color,
+            linewidth=style["linewidth"],
+            linestyle=style["linestyle"],
+            color=style["color"],
+            zorder=style["zorder"],
         )
 
+    # ------------------------------------------------------------------
+    # Right panel: raw brightness-temperature space
+    # ------------------------------------------------------------------
     raw_lows = [np.percentile(x_true_ref, 0.1)]
     raw_highs = [np.percentile(x_true_ref, 99.9)]
     for jobid in jobids:
-        raw_lows.append(np.percentile(m_inv_by_job[jobid], 0.1))
-        raw_highs.append(np.percentile(m_inv_by_job[jobid], 99.9))
+        values = raw_model_by_job[jobid]
+        raw_lows.append(np.percentile(values, 0.1))
+        raw_highs.append(np.percentile(values, 99.9))
 
     raw_min = min(raw_lows)
     raw_max = max(raw_highs)
-
     if use_symlog_x:
-        bins_r = _make_symlog_bins(raw_min, raw_max, n_bins=180, linthresh=linthresh_raw)
+        bins_r = _make_symlog_bins(
+            raw_min,
+            raw_max,
+            n_bins=180,
+            linthresh=linthresh_raw,
+        )
     else:
         bins_r = np.linspace(raw_min, raw_max, 180)
 
-    for i, jobid in enumerate(jobids):
-        color = f"C{i}"
+    for jobid in jobids:
+        style = styles_by_job[jobid]
         ax_r.hist(
-            m_inv_by_job[jobid],
+            raw_model_by_job[jobid],
             bins=bins_r,
             density=True,
             histtype="step",
-            linewidth=diffusion_lw,
-            linestyle="-",
-            color=color,
+            linewidth=style["linewidth"],
+            linestyle=style["linestyle"],
+            color=style["color"],
+            zorder=style["zorder"],
         )
 
+    # The raw physical-space truth is common to every preprocessing choice.
     ax_r.hist(
         x_true_ref,
         bins=bins_r,
         density=True,
         histtype="step",
         linewidth=raw_testing_lw,
-        linestyle="--",
+        linestyle="-",
         color="black",
-        label="21cmFAST",
+        zorder=6,
     )
 
     ax_l.set_yscale("log")
     ax_l.set_ylim(bottom=4e-2)
-    if use_symlog_x and False:
-        ax_l.set_xscale("symlog", linthresh=linthresh_tf)
-    else:
-        ax_l.set_xscale("linear")
+    ax_l.set_xscale("linear")
     ax_l.grid(alpha=0.35)
     ax_l.set_xlabel("transformed voxel value", fontsize=FS_LABEL)
     ax_l.set_title("Transformed voxel space", fontsize=FS_TITLE)
@@ -738,21 +899,73 @@ def plot_pixel_pdf_by_job_transform(
     ax_r.set_xlabel("raw voxel value", fontsize=FS_LABEL)
     ax_r.set_title("Raw voxel space", fontsize=FS_TITLE)
     ax_r.tick_params(axis="both", labelsize=FS_TICK)
-    # ax_r.tick_params(axis="y", direction="in")
-    
-    legend_jobs = ax_l.legend(
-        handles=job_handles,
+
+    ax_l.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{y:g}"))
+    ax_r.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{y:g}"))
+
+    # Color legend: one entry per selected diffusion configuration.
+    # The 2D and 3D A=0.1 runs are intentionally shown in different colors.
+    configuration_handles = []
+    for jobid in jobids:
+        style = styles_by_job[jobid]
+        label = style["label"]
+        if show_jobid:
+            label = f"{label} (job={jobid})"
+
+        configuration_handles.append(
+            Line2D(
+                [0],
+                [0],
+                color=style["color"],
+                lw=style["linewidth"],
+                linestyle=style["linestyle"],
+                label=label,
+            )
+        )
+
+    configuration_legend = ax_l.legend(
+        handles=configuration_handles,
         fontsize=FS_LEGEND,
-        # loc="upper center",
         loc="upper left",
         framealpha=0.85,
     )
-    ax_l.add_artist(legend_jobs)
+    ax_l.add_artist(configuration_legend)
 
+    # Line-style legend: reference/3D/2D.
+    selected_dims = {styles_by_job[jobid]["dim"] for jobid in jobids}
     style_handles = [
-        Line2D([0], [0], color="black", lw=testing_lw, linestyle="--", label="21cmFAST"),
-        Line2D([0], [0], color="black", lw=diffusion_lw, linestyle="-", label="diffusion"),
+        Line2D(
+            [0],
+            [0],
+            color="black",
+            lw=testing_lw,
+            linestyle="-",
+            label="21cmFAST",
+        )
     ]
+    if 3 in selected_dims:
+        style_handles.append(
+            Line2D(
+                [0],
+                [0],
+                color="black",
+                lw=2.0,
+                linestyle="--",
+                label="3D diffusion",
+            )
+        )
+    if 2 in selected_dims:
+        style_handles.append(
+            Line2D(
+                [0],
+                [0],
+                color="black",
+                lw=2.3,
+                linestyle=":",
+                label="2D diffusion",
+            )
+        )
+
     ax_l.legend(
         handles=style_handles,
         fontsize=FS_LEGEND,
@@ -760,17 +973,13 @@ def plot_pixel_pdf_by_job_transform(
         framealpha=0.85,
     )
 
-    ax_l.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{y:g}"))
-    ax_r.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{y:g}"))
-    
     fig.tight_layout()
-    fig.subplots_adjust(hspace=0)
-    fig.subplots_adjust(wspace=0)
+    fig.subplots_adjust(hspace=0, wspace=0)
 
     if savename:
-        plt.savefig(savename, bbox_inches="tight")
+        fig.savefig(savename, bbox_inches="tight")
         print(f"Saved figure to {savename}")
-        plt.close()
+        plt.close(fig)
     else:
         plt.show()
 
@@ -1351,81 +1560,135 @@ def main():
 
     x_ml_raw_pdf_by_job: Dict[int, torch.Tensor] = {}
     x_true_pdf_by_job: Dict[int, torch.Tensor] = {}
+
     pdf_jobids = _jobids_from_indices_1based(
         PDF_JOB_INDICES_1BASED,
         JOBID_HPARAMS,
         "PDF_JOB_INDICES_1BASED",
     )
-    pdf_jobids_dim3 = [
-        jobid
-        for jobid in pdf_jobids
-        if _infer_job_dim(JOBID_HPARAMS.get(jobid, {}), fallback_dim=args.dim) == 3
-    ]
-    dropped_pdf_non_dim3 = [jobid for jobid in pdf_jobids if jobid not in pdf_jobids_dim3]
-    if dropped_pdf_non_dim3:
-        print(f"Skipped non-dim=3 PDF jobIDs: {dropped_pdf_non_dim3}")
 
-    if pdf_jobids_dim3:
-        print(f"[PDF] Using job indices {PDF_JOB_INDICES_1BASED} -> dim=3 jobIDs: {pdf_jobids_dim3}")
-        x_true_full_dim3, _, _ = load_h5_as_tensor(
-            dir_name=args.real_h5,
-            num_image=args.num_image,
-            num_redshift=args.num_redshift,
-            HII_DIM=args.HII_DIM,
-            z_step=1,
-            dim=3,
+    if pdf_jobids:
+        print(
+            f"[PDF] Using job indices {PDF_JOB_INDICES_1BASED} "
+            f"-> jobIDs {pdf_jobids}"
         )
 
-        # Important: do not store full (N, 1, H, H, LOS) 3D lightcones
-        # for every job.  Store only the 2D PDF slice (N, 1, H, LOS).
-        # clone() is intentional: without it, a sliced torch view can keep
-        # the full underlying 3D storage alive and still cause CPU OOM.
-        for jobid in pdf_jobids_dim3:
-            job_meta = JOBID_HPARAMS.get(jobid, {})
-            job_z_step = int(job_meta.get("z_step", 1))
-            job_transform = job_meta.get("transform", "pt_inv")
-
-            x_true_dim3 = x_true_full_dim3[..., ::job_z_step]
-            x_ml_raw = load_x_ml(
-                target_pattern=target_pattern,
-                jobid=jobid,
-                num_image=args.num_image,
-                ema=args.use_ema,
-                outputs_dir=args.outputs_dir,
-                pt_fname=args.pt_fname,
-                transform=job_transform,
-                apply_inverse=False,
+        # Process one dimensionality at a time to avoid retaining the full 3D
+        # and 2D truth datasets simultaneously. Only a transverse--LOS slice is
+        # kept for the final histogram calculation.
+        pdf_dims_in_order: List[int] = []
+        for jobid in pdf_jobids:
+            job_dim = _infer_job_dim(
+                JOBID_HPARAMS.get(jobid, {}),
+                fallback_dim=args.dim,
             )
+            if job_dim not in pdf_dims_in_order:
+                pdf_dims_in_order.append(job_dim)
 
-            z_len_pdf = min(x_true_dim3.shape[-1], x_ml_raw.shape[-1])
-            n_pdf = min(len(x_true_dim3), len(x_ml_raw))
+        x_true_pdf_temp: Dict[int, torch.Tensor] = {}
+        x_ml_raw_pdf_temp: Dict[int, torch.Tensor] = {}
 
-            x_true_pdf_slice = take_pdf_slice(
-                x_true_dim3[:n_pdf, ..., :z_len_pdf]
-            ).contiguous().clone()
-            x_ml_raw_pdf_slice = take_pdf_slice(
-                x_ml_raw[:n_pdf, ..., :z_len_pdf]
-            ).contiguous().clone()
-
-            x_true_pdf_by_job[jobid] = x_true_pdf_slice
-            x_ml_raw_pdf_by_job[jobid] = x_ml_raw_pdf_slice
+        for pdf_dim in pdf_dims_in_order:
+            jobs_this_dim = [
+                jobid
+                for jobid in pdf_jobids
+                if _infer_job_dim(
+                    JOBID_HPARAMS.get(jobid, {}),
+                    fallback_dim=args.dim,
+                ) == pdf_dim
+            ]
 
             print(
-                "[PDF] Loaded and sliced "
-                f"x_ml_raw.shape={x_ml_raw_pdf_by_job[jobid].shape}; "
-                f"x_true_dim3.shape={x_true_pdf_by_job[jobid].shape}; "
-                f"jobid={jobid}; transform={job_transform}"
+                f"[PDF] Loading dim={pdf_dim} truth for "
+                f"jobIDs={jobs_this_dim}"
             )
 
-            del x_true_dim3, x_ml_raw, x_true_pdf_slice, x_ml_raw_pdf_slice
+            x_true_full_pdf, _, _ = load_h5_as_tensor(
+                dir_name=args.real_h5,
+                num_image=args.num_image,
+                num_redshift=args.num_redshift,
+                HII_DIM=args.HII_DIM,
+                z_step=1,
+                dim=pdf_dim,
+            )
+
+            for jobid in jobs_this_dim:
+                job_meta = JOBID_HPARAMS.get(jobid, {})
+                job_z_step = int(job_meta.get("z_step", 1))
+                if job_z_step < 1:
+                    raise ValueError(
+                        f"Invalid z_step={job_z_step} for jobid={jobid}."
+                    )
+
+                job_transform = job_meta.get("transform", "pt_inv")
+                x_true_for_job = x_true_full_pdf[..., ::job_z_step]
+
+                x_ml_raw = load_x_ml(
+                    target_pattern=target_pattern,
+                    jobid=jobid,
+                    num_image=args.num_image,
+                    ema=args.use_ema,
+                    outputs_dir=args.outputs_dir,
+                    pt_fname=args.pt_fname,
+                    transform=job_transform,
+                    apply_inverse=False,
+                )
+
+                z_len_pdf = min(
+                    x_true_for_job.shape[-1],
+                    x_ml_raw.shape[-1],
+                )
+                n_pdf = min(len(x_true_for_job), len(x_ml_raw))
+
+                x_true_pdf_slice = take_pdf_slice(
+                    x_true_for_job[:n_pdf, ..., :z_len_pdf]
+                ).contiguous().clone()
+                x_ml_raw_pdf_slice = take_pdf_slice(
+                    x_ml_raw[:n_pdf, ..., :z_len_pdf]
+                ).contiguous().clone()
+
+                x_true_pdf_temp[jobid] = x_true_pdf_slice
+                x_ml_raw_pdf_temp[jobid] = x_ml_raw_pdf_slice
+
+                print(
+                    "[PDF] Loaded and sliced "
+                    f"jobid={jobid}; dim={pdf_dim}; "
+                    f"transform={job_transform}; "
+                    f"x_true={tuple(x_true_pdf_slice.shape)}; "
+                    f"x_ml_raw={tuple(x_ml_raw_pdf_slice.shape)}"
+                )
+
+                del (
+                    x_true_for_job,
+                    x_ml_raw,
+                    x_true_pdf_slice,
+                    x_ml_raw_pdf_slice,
+                )
+                gc.collect()
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+
+            del x_true_full_pdf
             gc.collect()
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
 
-        del x_true_full_dim3
+        # Restore exactly the order specified in PDF_JOB_INDICES_1BASED.
+        for jobid in pdf_jobids:
+            if jobid not in x_true_pdf_temp:
+                raise RuntimeError(
+                    f"PDF truth was not loaded for jobid={jobid}."
+                )
+            if jobid not in x_ml_raw_pdf_temp:
+                raise RuntimeError(
+                    f"PDF model output was not loaded for jobid={jobid}."
+                )
+
+            x_true_pdf_by_job[jobid] = x_true_pdf_temp[jobid]
+            x_ml_raw_pdf_by_job[jobid] = x_ml_raw_pdf_temp[jobid]
+
+        del x_true_pdf_temp, x_ml_raw_pdf_temp
         gc.collect()
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
 
     plot_pixel_pdf_by_job_transform(
         x_true_by_job=x_true_pdf_by_job,
@@ -1435,7 +1698,6 @@ def main():
         savename=args.save_pdf,
         show_jobid=args.show_jobid,
     )
-
 
 if __name__ == "__main__":
     main()

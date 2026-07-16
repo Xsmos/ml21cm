@@ -805,16 +805,24 @@ def plot_pixel_pdf_by_job_transform(
     bins_l = np.linspace(tf_min, tf_max, 400)
 
     # One dashed 21cmFAST curve per preprocessing group.
-    for group_key in group_order:
+    for i, group_key in enumerate(group_order):
         first_jobid = group_first_jobid[group_key]
         style = styles_by_job[first_jobid]
+
+        # if i < 2:
+        #     linestyle = "-"
+        # else:
+        #     dash_offset = 2.7 * (i - 2)
+        #     linestyle = (dash_offset, (5, 3))
+
         ax_l.hist(
             transformed_truth_by_group[group_key],
             bins=bins_l,
             density=True,
             histtype="step",
             linewidth=testing_lw,
-            linestyle="-",
+            alpha = 0.3,
+            linestyle='-',
             color=style["color"],
             zorder=2,
         )
@@ -940,6 +948,7 @@ def plot_pixel_pdf_by_job_transform(
             color="black",
             lw=testing_lw,
             linestyle="-",
+            alpha = 0.3,
             label="21cmFAST",
         )
     ]

@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the archived Zenodo release."
+type: software
+
+title: "ml21cm: Conditional Diffusion Software for 21 cm Lightcone Emulation"
+
+authors:
+  - family-names: "Xia"
+    given-names: "Bin"
+    orcid: "https://orcid.org/0000-0002-7077-9836"
+    affiliation: "Georgia Institute of Technology"
+
+version: "1.0.0"
+date-released: "2026-07-16"
+
+license: "MIT"
+
+repository-code: "https://github.com/Xsmos/ml21cm"
+
+keywords:
+  - 21 cm cosmology
+  - conditional diffusion model
+  - lightcone emulation
+  - machine learning

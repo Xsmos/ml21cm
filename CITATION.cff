@@ -12,13 +12,6 @@ authors:
 
 version: "1.0.0"
 date-released: "2026-07-16"
-
+doi: "10.5281/zenodo.21402795"
 license: "MIT"
-
 repository-code: "https://github.com/Xsmos/ml21cm"
-
-keywords:
-  - 21 cm cosmology
-  - conditional diffusion model
-  - lightcone emulation
-  - machine learning
